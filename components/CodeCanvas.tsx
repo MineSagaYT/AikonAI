@@ -1,0 +1,141 @@
+
+import React, { useState, useEffect, useRef } from 'react';
+import { CanvasFiles } from '../types';
+
+declare const hljs: any;
+
+interface CodeCanvasProps {
+    files: CanvasFiles;
+    isVisible: boolean;
+    onClose: () => void;
+}
+
+const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) => {
+    const fileKeys = Object.keys(files);
+    const [activeFile, setActiveFile] = useState<string | null>(fileKeys.length > 0 ? fileKeys[0] : null);
+    const [isCopied, setIsCopied] = useState(false);
+    
+    const codeEditorRef = useRef<HTMLDivElement>(null);
+    const lineNumbersRef = useRef<HTMLDivElement>(null);
+    const codeRef = useRef<HTMLElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const currentCode = activeFile ? files[activeFile] : '';
+    const lineCount = currentCode.split('\n').length;
+    const language = activeFile?.split('.').pop()?.replace('js', 'javascript').replace('py', 'python') || 'plaintext';
+    
+    useEffect(() => {
+        if (isVisible && fileKeys.length > 0) {
+            if (!activeFile || !fileKeys.includes(activeFile)) {
+                 setActiveFile(fileKeys[0]);
+            }
+        }
+    }, [isVisible, files, activeFile, fileKeys]);
+
+
+    useEffect(() => {
+        if (codeRef.current && activeFile) {
+            codeRef.current.textContent = currentCode;
+            if (typeof hljs !== 'undefined') {
+                try {
+                    hljs.highlightElement(codeRef.current);
+                } catch(e) {
+                    console.error("Highlight.js error:", e);
+                }
+            }
+        }
+    }, [currentCode, language, activeFile]);
+
+    const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+        if (codeEditorRef.current && lineNumbersRef.current) {
+            const top = e.currentTarget.scrollTop;
+            const left = e.currentTarget.scrollLeft;
+            codeEditorRef.current.scrollTop = top;
+            codeEditorRef.current.scrollLeft = left;
+            lineNumbersRef.current.scrollTop = top;
+        }
+    };
+
+    const handleCopy = async () => {
+        if (!activeFile) return;
+        try {
+            await navigator.clipboard.writeText(files[activeFile]);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy code: ', err);
+        }
+    };
+
+    const handleDownload = () => {
+        if (!activeFile) return;
+        const blob = new Blob([files[activeFile]], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = activeFile;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    if (!isVisible) return null;
+
+    return (
+        <div className={`code-canvas ${isVisible ? 'visible' : ''}`} onClick={onClose}>
+            <div className="code-canvas-container" onClick={(e) => e.stopPropagation()}>
+                <div className="code-canvas-header">
+                    <h3 className="text-lg font-bold text-amber-400">Code Canvas</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
+                </div>
+                <div className="code-canvas-tabs">
+                    {fileKeys.map(filename => (
+                        <div
+                            key={filename}
+                            className={`code-canvas-tab ${activeFile === filename ? 'active' : ''}`}
+                            onClick={() => setActiveFile(filename)}
+                        >
+                            {filename}
+                        </div>
+                    ))}
+                </div>
+                <div className="code-canvas-editor">
+                     <div ref={lineNumbersRef} className="line-numbers">
+                        {Array.from({ length: lineCount }, (_, i) => (
+                            <span key={i}>{i + 1}</span>
+                        ))}
+                    </div>
+                    <div className="editor-content">
+                        <textarea
+                            ref={textareaRef}
+                            value={currentCode}
+                            // The editor is readonly for now to focus on viewing.
+                            // To enable editing: onChange={(e) => activeFile && onCodeChange(activeFile, e.target.value)}
+                            readOnly
+                            onScroll={handleScroll}
+                            spellCheck="false"
+                            aria-label="Code editor"
+                            className="editor-textarea"
+                        />
+                        <div ref={codeEditorRef} className="highlight-container">
+                            <pre><code ref={codeRef} className={`hljs language-${language}`}>
+                                {/* Content is set via ref to prevent React re-rendering issues with hljs */}
+                            </code></pre>
+                        </div>
+                    </div>
+                </div>
+                 <div className="code-canvas-footer">
+                    <button onClick={handleDownload} className="copy-button">
+                        Download
+                    </button>
+                    <button onClick={handleCopy} className="copy-button">
+                        {isCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default CodeCanvas;

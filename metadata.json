@@ -1,0 +1,8 @@
+{
+  "name": "Aikon-Try.",
+  "description": "A premium, interactive single-page application for Aikon Studios, founded by Aditya Jain. It showcases AI projects, company vision, and features a multi-modal AI chat assistant, AikonAI, powered by the Gemini API.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ]
+}
