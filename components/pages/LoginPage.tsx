@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import { signInWithGoogle } from '../../services/firebase';
+import { motion } from 'framer-motion';
 
 const GoogleIcon = () => (
     <svg className="w-5 h-5 mr-2" viewBox="0 0 48 48">
@@ -19,6 +19,9 @@ interface LoginPageProps {
 const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin }) => {
     const [isSigningIn, setIsSigningIn] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [username, setUsername] = useState('');
+    const [pin, setPin] = useState('');
+    const [agreed, setAgreed] = useState(false);
 
     const handleSignIn = async () => {
         setIsSigningIn(true);
@@ -31,23 +34,43 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin }) => {
     };
 
     const AuthButton: React.FC<{ children: React.ReactNode; onClick?: () => void; disabled?: boolean; className?: string }> = ({ children, onClick, disabled, className }) => (
-        <button
+        <motion.button
             onClick={onClick}
             disabled={disabled}
             className={`w-full flex items-center justify-center py-3 px-4 bg-[#27272a] hover:bg-[#3f3f46] text-white font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+            whileHover={{ scale: !disabled ? 1.05 : 1 }}
+            whileTap={{ scale: !disabled ? 0.95 : 1 }}
         >
             {children}
-        </button>
+        </motion.button>
     );
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-black">
-            <div className="w-full max-w-sm bg-[#18181b] p-8 rounded-2xl shadow-2xl border border-[#27272a] text-center animate-fade-in-up">
-                <h1 className="text-2xl font-bold mb-2">Log in or sign up</h1>
-                <p className="text-gray-400 mb-8 text-sm">You'll get smarter responses and can upload files, images, and more.</p>
+            <motion.div 
+                className="w-full max-w-sm bg-[#18181b] p-8 rounded-2xl shadow-2xl border border-[#27272a] text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+            >
+                <h1 className="text-2xl font-bold mb-2">Welcome to Aikon</h1>
+                <p className="text-gray-400 mb-8 text-sm">Sign in to personalize your experience.</p>
+                
+                 <div className="flex items-start my-4">
+                    <input
+                        id="terms"
+                        type="checkbox"
+                        checked={agreed}
+                        onChange={(e) => setAgreed(e.target.checked)}
+                        className="h-5 w-5 rounded bg-gray-700 border-gray-600 text-amber-500 focus:ring-amber-600 cursor-pointer mt-1"
+                    />
+                    <label htmlFor="terms" className="ml-3 text-xs text-gray-400 text-left">
+                        I confirm that I am 18 years of age or older and agree to the <a href="#" className="text-amber-400 hover:underline">Terms and Conditions</a> of Aikon Studios.
+                    </label>
+                </div>
                 
                 <div className="space-y-3">
-                     <AuthButton onClick={handleSignIn} disabled={isSigningIn}>
+                     <AuthButton onClick={handleSignIn} disabled={isSigningIn || !agreed}>
                         {isSigningIn ? (
                             <>
                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -63,8 +86,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin }) => {
                             </>
                         )}
                     </AuthButton>
-                    <AuthButton disabled>Continue with Microsoft</AuthButton>
-                    <AuthButton disabled>Continue with Apple</AuthButton>
                 </div>
 
                 <div className="my-6 flex items-center">
@@ -73,28 +94,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin }) => {
                     <div className="flex-grow border-t border-gray-700"></div>
                 </div>
 
-                <input
-                    type="email"
-                    placeholder="Email address"
-                    disabled
-                    className="w-full bg-[#27272a] border border-[#3f3f46] rounded-lg py-3 px-4 mb-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50"
-                />
-                 <button
-                    disabled
-                    className="w-full bg-amber-500 text-black font-bold py-3 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Continue
-                </button>
-
-                 <button
+                 <motion.button
                     onClick={onGuestLogin}
-                    className="text-amber-400 hover:text-amber-300 transition-colors duration-200 mt-8 text-sm"
+                    disabled={!agreed}
+                    className="w-full text-center text-amber-400 hover:text-amber-300 transition-colors duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    whileHover={{ scale: !agreed ? 1 : 1.05 }}
+                    whileTap={{ scale: !agreed ? 1 : 0.95 }}
                 >
                     Continue as Guest
-                </button>
-
+                </motion.button>
+                
                 {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
-            </div>
+            </motion.div>
         </div>
     );
 };

@@ -1,5 +1,6 @@
 
 import React, { useRef, ReactNode } from 'react';
+import { motion } from 'framer-motion';
 
 interface ParallaxCardProps {
     children: ReactNode;
@@ -25,7 +26,7 @@ const ParallaxCard: React.FC<ParallaxCardProps> = ({ children, depth = 10, class
         const rotateX = -offsetY / depth;
         const rotateY = offsetX / depth;
         
-        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
         card.style.transition = 'transform 0.1s ease-out';
     };
 
@@ -36,15 +37,16 @@ const ParallaxCard: React.FC<ParallaxCardProps> = ({ children, depth = 10, class
     };
 
     return (
-        <div
+        <motion.div
             ref={cardRef}
             className={`card-bg rounded-3xl transition-all duration-500 ${className}`}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             style={style}
+            whileHover={{ scale: 1.02 }}
         >
             {children}
-        </div>
+        </motion.div>
     );
 };
 

@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Task } from '../types';
+import { motion } from 'framer-motion';
 
 interface TaskListProps {
     tasks: Task[];
@@ -19,13 +20,31 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskUpdate }) => {
         }
         return a.completed ? 1 : -1; // Incomplete tasks first
     });
+    
+    const containerVariants = {
+        visible: { transition: { staggerChildren: 0.1 } }
+    };
+    const itemVariants = {
+        hidden: { opacity: 0, y: 10 },
+        visible: { opacity: 1, y: 0 }
+    };
 
     return (
         <div className="my-2 space-y-2">
             <h4 className="text-lg font-bold text-amber-400 border-b border-gray-700 pb-2 mb-3">Your To-Do List</h4>
-            <ul className="space-y-2">
+            <motion.ul 
+                className="space-y-2"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+            >
                 {sortedTasks.map(task => (
-                    <li key={task.id} className="flex items-center">
+                    <motion.li 
+                        key={task.id} 
+                        className="flex items-center"
+                        variants={itemVariants}
+                        layout
+                    >
                         <input
                             type="checkbox"
                             id={`task-${task.id}`}
@@ -39,9 +58,9 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskUpdate }) => {
                         >
                             {task.description}
                         </label>
-                    </li>
+                    </motion.li>
                 ))}
-            </ul>
+            </motion.ul>
         </div>
     );
 };

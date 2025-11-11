@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationProps } from '../../types';
 import ParallaxCard from '../ParallaxCard';
+// FIX: Imported Variants type from framer-motion to resolve typing errors.
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 // --- SVG Icons for Project Cards ---
 
@@ -33,89 +35,163 @@ const LiveKitIcon = () => (
 
 
 const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
+    const [isAikonAiExpanded, setIsAikonAiExpanded] = useState(false);
+
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: { staggerChildren: 0.15 }
+        }
+    };
+
+    // FIX: Explicitly typed itemVariants with Variants to fix type inference issue with the 'transition.type' property.
+    const itemVariants: Variants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: {
+            y: 0,
+            opacity: 1,
+            transition: { type: "spring", stiffness: 100, damping: 15 }
+        }
+    };
+    
+    const aikonFeatures = [
+        { icon: '🧠', title: 'Multi-Modal Reasoning', description: 'Understands and processes both text and image inputs simultaneously.' },
+        { icon: '🌐', title: 'Live Web Search', description: 'Accesses real-time information from Google for up-to-date answers.' },
+        { icon: '🤖', title: 'Autonomous Agent', description: 'Executes complex, multi-step tasks by creating and following a plan.' },
+        { icon: '🎨', title: 'Image Generation', description: 'Creates original, high-quality images and art from text prompts.' },
+        { icon: '🎬', title: 'Video Generation', description: 'Generates high-fidelity video clips from text or image inputs via Google Veo.' },
+        { icon: '🔊', title: 'Text-to-Speech', description: 'Converts text into natural, human-like audio.' },
+        { icon: '📊', title: 'PowerPoint Generation', description: 'Automatically creates professional .pptx presentations on any topic.' },
+        { icon: '📄', title: 'Word & Excel Files', description: 'Generates structured .docx documents and data-filled .xlsx spreadsheets.' },
+        { icon: '📝', title: 'Document Summarization', description: 'Quickly condenses long documents, articles, or text files into key points.' },
+        { icon: '💬', title: 'Live Conversation', description: 'Engages in real-time, low-latency voice conversations.' },
+        { icon: '🎭', title: 'Custom Personas', description: 'Adapts its personality and expertise by switching or creating new personas.' },
+        { icon: '🛠️', title: 'Developer Sandbox', description: 'Executes Python code and manages files in a secure environment for advanced tasks.' },
+    ];
+    
+    const listVariants = {
+        visible: { transition: { staggerChildren: 0.05 } }
+    };
+    const featureVariants = {
+        hidden: { opacity: 0, x: -10 },
+        visible: { opacity: 1, x: 0 },
+    };
+
+
     return (
-        <main className="max-w-7xl mx-auto p-4 md:p-8 relative z-10">
+        <motion.main 
+            className="max-w-7xl mx-auto p-4 md:p-8 relative z-10"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+        >
             <section className="text-center py-16 md:py-24">
-                <h2 className="text-5xl md:text-7xl font-black leading-tight tracking-tighter animate-fade-in-up">
+                <motion.h2 variants={itemVariants} className="text-5xl md:text-7xl font-black leading-tight tracking-tighter">
                     Showcase of <span className="hero-gradient">AI Innovations</span>
-                </h2>
-                <p className="text-xl md:text-2xl text-gray-400 max-w-4xl mx-auto pt-4 mb-16 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+                </motion.h2>
+                <motion.p variants={itemVariants} className="text-xl md:text-2xl text-gray-400 max-w-4xl mx-auto pt-4 mb-16">
                     Explore the core technologies and flagship projects that define Aikon Studios. Each system is designed for intelligence, adaptability, and real-world impact.
-                </p>
+                </motion.p>
 
-                <div className="grid md:grid-cols-2 gap-8 text-left">
+                <motion.div 
+                    className="grid md:grid-cols-2 gap-8 text-left"
+                    variants={containerVariants}
+                >
                     {/* --- Project 1: AikonAI --- */}
-                    <ParallaxCard depth={15} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-                        <AikonAIIcon />
-                        <h3 className="text-3xl font-extrabold text-white mb-2">AikonAI</h3>
-                        <p className="text-xl font-medium text-amber-400 mb-6">The Core Conversational & Reasoning Engine</p>
-                        <p className="text-gray-400 mb-6">Our flagship AI assistant, designed for natural, multi-modal interaction and intelligent task completion. It serves as the user-facing gateway to our entire suite of AI capabilities.</p>
-                        <ul className="space-y-3 text-gray-300 border-t border-gray-700 pt-4">
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Cognitive Reasoning:</strong> Powered by advanced models, it performs complex task breakdown and tool use for real-world problem-solving.</p></li>
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Real-Time Context:</strong> Maintains persistent memory to understand user history, preferences, and conversational nuances.</p></li>
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Cultural Fluency:</strong> Expertly trained to speak in natural <strong className="text-amber-300">Hinglish</strong>, making interactions fluid and relatable for the Indian tech space.</p></li>
-                        </ul>
-                         <button onClick={() => navigateTo('chat')} className="inline-block px-6 py-2 mt-8 text-black font-bold text-base rounded-xl shadow-lg cta-button-animated tracking-wider">
-                            Experience AikonAI →
-                        </button>
-                    </ParallaxCard>
+                    <motion.div variants={itemVariants}>
+                        <ParallaxCard depth={8} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full flex flex-col">
+                            <AikonAIIcon />
+                            <h3 className="text-3xl font-extrabold text-white mb-2">AikonAI</h3>
+                            <p className="text-xl font-medium text-amber-400 mb-6">The Core Conversational & Reasoning Engine</p>
+                            <p className="text-gray-400 mb-6">Our flagship AI assistant, designed for natural, multi-modal interaction and intelligent task completion. It serves as the user-facing gateway to our entire suite of AI capabilities.</p>
+                            
+                             <div className="border-t border-gray-700 pt-4 mb-6">
+                                <p className="text-gray-300">
+                                    <strong className="text-white">Core Principles:</strong> Cognitive Reasoning, Real-Time Context, and Cultural Fluency (<strong className="text-amber-300">Hinglish</strong>).
+                                </p>
+                            </div>
+                            
+                            <AnimatePresence>
+                                {isAikonAiExpanded && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                        animate={{ height: 'auto', opacity: 1, marginTop: '1.5rem' }}
+                                        exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                        transition={{ duration: 0.4, ease: 'easeInOut' }}
+                                        className="overflow-hidden"
+                                    >
+                                        <motion.div 
+                                            className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 border-t border-gray-700 pt-6"
+                                            variants={listVariants}
+                                            initial="hidden"
+                                            animate="visible"
+                                        >
+                                            {aikonFeatures.map(feature => (
+                                                <motion.div key={feature.title} variants={featureVariants} className="flex items-start space-x-3">
+                                                    <span className="text-xl mt-1 flex-shrink-0">{feature.icon}</span>
+                                                    <div>
+                                                        <h4 className="font-bold text-white">{feature.title}</h4>
+                                                        <p className="text-gray-400 text-sm">{feature.description}</p>
+                                                    </div>
+                                                </motion.div>
+                                            ))}
+                                        </motion.div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
-                    {/* --- Project 2: Autonomous Agent Framework --- */}
-                    <ParallaxCard depth={15} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] animate-fade-in-up" style={{ animationDelay: '300ms' }}>
-                        <AgentIcon />
-                        <h3 className="text-3xl font-extrabold text-white mb-2">Autonomous Agent Framework</h3>
-                        <p className="text-xl font-medium text-amber-400 mb-6">From Goal to Execution, Intelligently.</p>
-                        <p className="text-gray-400 mb-6">The "brain" that empowers AikonAI to move beyond simple chat. This framework allows the AI to autonomously plan and execute multi-step tasks by intelligently selecting and using a variety of digital tools.</p>
-                        <ul className="space-y-3 text-gray-300 border-t border-gray-700 pt-4">
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Multi-Step Planning:</strong> The agent analyzes a user's goal and generates a logical sequence of actions to achieve it.</p></li>
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Dynamic Tool Use:</strong> Can seamlessly utilize tools like <strong className="text-amber-300">Google Search</strong>, webpage browsing, and a file system for reading/writing documents.</p></li>
-                             <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Self-Correction & Approval:</strong> Can identify when a tool fails, attempt alternative solutions, or pause and ask the user for approval before proceeding with critical actions.</p></li>
-                        </ul>
-                        <button disabled className="inline-block px-6 py-2 mt-8 text-black font-bold text-base rounded-xl shadow-lg bg-gray-600 tracking-wider cursor-not-allowed">
-                            View Architecture (Soon)
-                        </button>
-                    </ParallaxCard>
-                    
-                     {/* --- Project 3: Real-Time Conversational AI --- */}
-                    <ParallaxCard depth={15} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] animate-fade-in-up" style={{ animationDelay: '400ms' }}>
-                        <LiveKitIcon />
-                        <h3 className="text-3xl font-extrabold text-white mb-2">Real-Time Conversational AI</h3>
-                        <p className="text-xl font-medium text-amber-400 mb-6">Fluid Voice Interactions via LiveKit & Gemini</p>
-                        <p className="text-gray-400 mb-6">We elevate human-computer interaction by enabling real-time, low-latency voice conversations. This system bypasses traditional text interfaces for a more natural and efficient conversational flow.</p>
-                        <ul className="space-y-3 text-gray-300 border-t border-gray-700 pt-4">
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">LiveKit Infrastructure:</strong> Built on the robust, open-source <strong className="text-amber-300">LiveKit.io</strong> platform, ensuring scalable and reliable WebRTC-based audio streaming.</p></li>
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Gemini Live API:</strong> AikonAI's intelligence is streamed directly as audio using the <strong className="text-amber-300">Gemini Live API</strong>, allowing the AI to listen and respond in a continuous, uninterrupted conversation.</p></li>
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Instantaneous & Expressive:</strong> Experience AikonAI's personality and intelligence through spoken word, complete with natural intonation, making interactions more personal and engaging.</p></li>
-                        </ul>
-                         <button onClick={() => navigateTo('chat')} className="inline-block px-6 py-2 mt-8 text-black font-bold text-base rounded-xl shadow-lg cta-button-animated tracking-wider">
-                            Try Live Voice Chat →
-                        </button>
-                    </ParallaxCard>
+                            <div className="mt-auto pt-8 flex items-center flex-wrap gap-4">
+                                <motion.button 
+                                    onClick={() => navigateTo('chat')} 
+                                    className="inline-block px-6 py-2 text-black font-bold text-base rounded-xl shadow-lg cta-button-animated tracking-wider"
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                >
+                                    Experience AikonAI →
+                                </motion.button>
+                                 <motion.button 
+                                    onClick={() => setIsAikonAiExpanded(!isAikonAiExpanded)} 
+                                    className="text-amber-400 font-semibold text-sm hover:underline px-4 py-2"
+                                    whileTap={{ scale: 0.95 }}
+                                >
+                                    {isAikonAiExpanded ? 'Hide All Features' : 'View All Features'}
+                                </motion.button>
+                            </div>
+                        </ParallaxCard>
+                    </motion.div>
 
                     {/* --- Project 4: Video Generation --- */}
-                     <ParallaxCard depth={15} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] animate-fade-in-up" style={{ animationDelay: '500ms' }}>
-                        <VideoIcon />
-                        <h3 className="text-3xl font-extrabold text-white mb-2">AI-Powered Video Generation</h3>
-                        <p className="text-xl font-medium text-amber-400 mb-6">Bringing Ideas to Life with Google's 'Veo'</p>
-                        <p className="text-gray-400 mb-6">We integrate state-of-the-art generative models to transform simple text prompts into rich, dynamic video content. This opens up new frontiers for creative storytelling, marketing, and rapid visualization.</p>
-                        <ul className="space-y-3 text-gray-300 border-t border-gray-700 pt-4">
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">High-Fidelity Output:</strong> Leverages <strong className="text-amber-300">Google's Veo model</strong> to produce stunning, high-definition (720p/1080p) video clips with remarkable coherence and detail.</p></li>
-                            <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Text-to-Video Synthesis:</strong> Simply describe a scene, an action, or a style, and the AI director generates a video to match your vision.</p></li>
-                             <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Creative Control:</strong> Supports various aspect ratios (16:9, 9:16) to tailor content for different platforms, from cinematic shorts to social media stories.</p></li>
-                        </ul>
-                         <button disabled className="inline-block px-6 py-2 mt-8 text-black font-bold text-base rounded-xl shadow-lg bg-gray-600 tracking-wider cursor-not-allowed">
-                            Watch Demo (Soon)
-                        </button>
-                    </ParallaxCard>
-                </div>
+                    <motion.div variants={itemVariants}>
+                        <ParallaxCard depth={8} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full">
+                            <VideoIcon />
+                            <h3 className="text-3xl font-extrabold text-white mb-2">AI-Powered Video Generation</h3>
+                            <p className="text-xl font-medium text-amber-400 mb-6">Bringing Ideas to Life with Google's 'Veo'</p>
+                            <p className="text-gray-400 mb-6">We integrate state-of-the-art generative models to transform simple text prompts into rich, dynamic video content. This opens up new frontiers for creative storytelling, marketing, and rapid visualization.</p>
+                            <ul className="space-y-3 text-gray-300 border-t border-gray-700 pt-4">
+                                <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">High-Fidelity Output:</strong> Leverages <strong className="text-amber-300">Google's Veo model</strong> to produce stunning, high-definition (720p/1080p) video clips with remarkable coherence and detail.</p></li>
+                                <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Text-to-Video Synthesis:</strong> Simply describe a scene, an action, or a style, and the AI director generates a video to match your vision.</p></li>
+                                <li className="flex items-start space-x-3"><span className="text-amber-400 font-bold mt-1">▸</span><p><strong className="text-white">Creative Control:</strong> Supports various aspect ratios (16:9, 9:16) to tailor content for different platforms, from cinematic shorts to social media stories.</p></li>
+                            </ul>
+                            <button disabled className="inline-block px-6 py-2 mt-8 text-black font-bold text-base rounded-xl shadow-lg bg-gray-600 tracking-wider cursor-not-allowed">
+                                Watch Demo (Soon)
+                            </button>
+                        </ParallaxCard>
+                    </motion.div>
+                </motion.div>
             </section>
-            <div className="text-center mt-12">
-                <button onClick={() => navigateTo('home')} className="text-lg text-gray-400 hover:text-amber-400 transition-colors duration-300 tracking-wider flex items-center justify-center mx-auto space-x-2">
+            <motion.div variants={itemVariants} className="text-center mt-12">
+                <motion.button 
+                    onClick={() => navigateTo('home')} 
+                    className="text-lg text-gray-400 hover:text-amber-400 transition-colors duration-300 tracking-wider flex items-center justify-center mx-auto space-x-2"
+                    whileHover={{ scale: 1.05, x: -4 }}
+                    whileTap={{ scale: 0.95 }}
+                >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
                     <span>Back to Home</span>
-                </button>
-            </div>
-        </main>
+                </motion.button>
+            </motion.div>
+        </motion.main>
     );
 };
 

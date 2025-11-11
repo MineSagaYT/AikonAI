@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData } from '../../types';
-import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent } from '../../services/geminiService';
+// FIX: Renamed imported function from `createExcelContent` to `generateExcelContent` to match the exported member in geminiService.
+import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo } from '../../services/geminiService';
 import { fetchWeather } from '../../services/weatherService';
 import { GenerateVideosOperation, Content, GenerateContentResponse, GoogleGenAI, Modality, GroundingChunk, Blob as GenAI_Blob, LiveServerMessage } from '@google/genai';
 import { parseMarkdown, renderParagraph, createPptxFile, createDocxFile, createXlsxFile } from '../../utils/markdown';
@@ -10,8 +11,13 @@ import TaskList from '../TaskList';
 import SettingsModal from '../SettingsModal';
 import { useAuth } from '../../context/AuthContext';
 import { logout } from '../../services/firebase';
+import LoadingSpinner from '../LoadingSpinner';
+// FIX: Imported Variants type from framer-motion to resolve typing errors.
+import { motion, AnimatePresence, Variants } from 'framer-motion';
+import WeatherCard from '../WeatherCard';
 
-const API_KEY = process.env.API_KEY;
+
+const API_KEY = "AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs";
 
 // Add a global type definition for the aistudio window object to avoid TypeScript errors.
 // The `aistudio` property on Window requires a named type `AIStudio` to prevent conflicts with other global declarations.
@@ -24,8 +30,6 @@ declare global {
         aistudio?: AIStudio;
     }
 }
-
-const ai = API_KEY ? new GoogleGenAI({apiKey: API_KEY}) : null;
 
 // Sound effects utility
 const playSound = (src: string, volume: number = 0.5) => {
@@ -134,29 +138,42 @@ const PERSONAS: Persona[] = [
     {
         name: 'Legal Document Reviewer',
         icon: '📖',
-        systemInstruction: "You are a meticulous and highly-trained AI legal assistant. Your sole purpose is to review and analyze legal documents with extreme precision. You must identify key clauses, potential risks, and inconsistencies. Your language is formal, objective, and devoid of any personal opinion or speculation. You must not provide legal advice, but only factual analysis of the text provided. When asked for an opinion, you must state: 'As a legal analysis AI, I cannot provide legal advice. However, I can outline the potential implications based on the document's text.'"
+        description: 'Analyzes legal documents for key clauses, risks, and inconsistencies with formal, objective language.',
+        systemInstruction: `You are an expert legal document reviewer specializing in INDIAN law. Your role is to carefully read any legal text provided (such as contracts, agreements, pleadings, statutes, or policies) and provide: 1. **Analysis & Explanation** - Summarize the main points in clear, plain English. - Identify key legal implications, obligations, risks, or ambiguities. - Highlight unusual or concerning provisions that deviate from common practice. 2. **Legal Basis & Citations** - Where applicable, cite relevant sections of **Indian statutes, regulations, or case law**. - Make sure citations are accurate and formatted properly. 3. **Practical Guidance** - Explain how the terms may affect the parties involved. - Suggest clarifications or revisions to strengthen the document or reduce risk. - Provide neutral, fact-based insight (not legal advice specific to an individual’s case). 4. **Output Format** - **Summary:** Brief overview of the document’s purpose and scope. - **Key Issues:** Bullet-point list of important clauses, risks, or ambiguities. - **Legal References:** Cite relevant statutes, regulations, or precedent. - **Recommendations:** Practical suggestions for clarification or improvement. At the end of your message clarify that the user should always advise consulting a licensed attorney before acting on the given information.`
     },
     {
-        name: 'Cover Letter Writer',
-        icon: '💼',
-        systemInstruction: "You are an expert career coach and professional writer specializing in crafting compelling cover letters. Your tone is confident, persuasive, and highly professional. You will take a user's experience and the target job description to create a tailored, impactful narrative. You must use action verbs and quantify achievements wherever possible. Your goal is to make the user stand out as the ideal candidate. Start your responses by addressing the user as an aspiring professional."
+        name: 'Study Buddy',
+        icon: '🎓',
+        description: 'Explains complex topics using fun, cartoon-style images like a helpful friend.',
+        systemInstruction: `You are 'Study Buddy', a friendly and fun AI tutor. Your goal is to explain any topic to the user by generating a series of simple, cartoon-style images. You communicate like a friend, using encouraging and easy-to-understand language.
+
+When the user asks you to explain a topic, your primary task is to break it down into key visual concepts and create descriptive prompts for images. Your image prompts MUST specify a 'friendly, simple cartoon style'.
+
+**CRITICAL RULE:** If the user's request can be explained much more effectively with text (like a simple definition, a code snippet, or a math formula), you must first respond with ONLY this exact text: 'This topic could be explained with text much more easily. Do you still want me to use images?'. If the user agrees in their next message, then you will proceed with generating the images.
+
+For all other requests, you MUST respond ONLY with the JSON for the 'create_storyboard' tool call, containing your generated prompts. Do not add any conversational text before or after the JSON tool call.`
     },
     {
         name: 'Writing Assistant',
         icon: '📝',
-        systemInstruction: "You are a helpful and encouraging writing assistant. Your goal is to help users improve their writing. You can brainstorm ideas, create outlines, check for grammar and style, and suggest alternative phrasing. Your tone is always supportive and constructive. You should never be critical. Frame your suggestions as possibilities, for example, 'Have you considered phrasing it this way?' or 'Another great way to express this could be...'"
+        description: 'A supportive assistant to help brainstorm, outline, and improve writing with constructive suggestions.',
+        systemInstruction: `You are an expert writing assistant specialized in enhancing clarity, conciseness, engagement, grammar, style, and flow. Your goal is to make any given text more effective while preserving the original meaning and voice as much as possible. When I provide you with some text, follow these steps exactly: Analyze the text: Read it carefully and identify areas for improvement, such as awkward phrasing, redundancy, weak structure, or opportunities for stronger impact. Rewrite it: Produce a polished, improved version. Aim to make it more readable and compelling without adding or removing key ideas. Summarize changes: After the improved text, provide a concise bullet-point list (3-5 bullets max) explaining your key improvements. Focus on what you changed and why it helps (e.g., "Shortened sentences for better rhythm and readability"). Output format: Start with the improved text Follow with the summary under a heading "## Improvements Summary".`
     },
     {
         name: 'Fitness Advice',
         icon: '🍎',
-        systemInstruction: "You are a knowledgeable and motivational AI fitness coach. You must provide safe, evidence-based fitness and nutrition advice. Your tone is energetic, positive, and encouraging. You must always include a disclaimer: 'Please consult with a healthcare professional before starting any new fitness or diet regimen.' You should be able to create workout plans, suggest healthy meal ideas, and explain exercise techniques. You are not a medical doctor and must refuse to answer questions about injuries or medical conditions, redirecting the user to a healthcare professional."
+        description: 'A motivational fitness coach providing safe, evidence-based fitness and nutrition advice.',
+        systemInstruction: `You are an expert fitness coach, nutrition guide, and health educator. Your role is to provide clear, actionable, and safe advice to users who want to improve their fitness, nutrition, and overall health. Be supportive, encouraging, and practical in your guidance. Tailor recommendations to the user’s context (fitness level, goals, preferences, and constraints). Use only verified, evidence-based sources. Cite your sources whenever you provide factual claims, recommendations, or statistics. When giving exercise, nutrition, or wellness advice, always include safety considerations and suggest consulting a qualified professional (such as a physician or certified trainer) for personalized medical guidance. Answer questions across a wide range of fitness topics, including: strength training, cardio, flexibility, recovery, injury prevention, nutrition, supplementation, weight management, and motivation strategies. If the user’s request falls outside safe or science-backed recommendations, politely explain the risks and guide them toward healthier alternatives. Your goal: help the user achieve their fitness goals in a safe, effective, and motivating way while grounding your advice in reliable evidence and proper citations.`
     },
     {
         name: 'Personal Finance Assistant',
         icon: '💲',
-        systemInstruction: "You are a prudent and insightful personal finance assistant. Your purpose is to provide educational content on budgeting, saving, and general investment principles. Your tone is clear, calm, and educational. You must never provide financial advice or recommend specific stocks or investments. All responses must include the disclaimer: 'I am an AI assistant and not a licensed financial advisor. This information is for educational purposes only. Please consult with a qualified financial professional for personalized advice.'"
+        description: 'Provides educational content on budgeting, saving, and general investment principles in a clear, calm tone.',
+        systemInstruction: `You are an expert personal finance assistant. You will be given a spreadsheet containing the user’s budget and financial details. Your role is to: 1. **Interpret the budget** – read and understand the spreadsheet categories (income, expenses, savings, debt, investments, etc.). 2. **Answer finance-related questions** – provide clear, tailored answers that reference the user’s own budget data. 3. **Offer best practices** – give guidance based on sound personal finance principles (e.g., budgeting, saving, debt reduction, emergency funds, investing basics). 4. **Stay practical** – ensure explanations are simple, actionable, and adapted to the user’s context. 5. **Maintain neutrality** – do not make speculative investment recommendations or guarantee outcomes. When the user asks a question, combine insights from their budget with general financial best practices to produce helpful, trustworthy advice.`
     },
 ];
+
+const CUSTOM_PERSONAS_STORAGE_KEY = 'aikon-custom-personas';
 
 const DownloadIcon: React.FC = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -242,7 +259,7 @@ const WorkflowBubble = memo(({ workflow, onApprove, onDeny }: { workflow: Workfl
             case 'write_file': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
             case 'read_file': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>;
             case 'finish': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
-            default: return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+            default: return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
         }
     }
 
@@ -263,7 +280,7 @@ const WorkflowBubble = memo(({ workflow, onApprove, onDeny }: { workflow: Workfl
                 return (
                     <div>
                         <p className="browsed-content-url">Content from: {output.url}</p>
-                        <p className="browsed-content-text">{output.content}</p>
+                        <div className="browsed-content-text" dangerouslySetInnerHTML={{ __html: renderParagraph(output.content) }} />
                     </div>
                 )
             case 'plot':
@@ -282,7 +299,7 @@ const WorkflowBubble = memo(({ workflow, onApprove, onDeny }: { workflow: Workfl
                 );
             case 'text':
             default:
-                return <pre className="code-output"><code>{output.content}</code></pre>;
+                return <div className="message-content" dangerouslySetInnerHTML={{ __html: renderParagraph(output.content) }} />;
         }
     }
 
@@ -313,8 +330,10 @@ const WorkflowBubble = memo(({ workflow, onApprove, onDeny }: { workflow: Workfl
                             {step.tool_output && (
                                 <div className="workflow-step-tool-output">
                                     <details open>
-                                        <summary className="cursor-pointer text-xs text-gray-400 mb-2">View Output</summary>
-                                        {renderToolOutput(step.tool_output)}
+                                        <summary>View Output</summary>
+                                        <div className="output-content">
+                                            {renderToolOutput(step.tool_output)}
+                                        </div>
                                     </details>
                                 </div>
                             )}
@@ -351,15 +370,13 @@ const SessionFileManager: React.FC<{ files: VirtualFile[], onOpenFile: (filename
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
-                            <span className="truncate">{file.name}</span>
+                            <span>{file.name}</span>
                         </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onDownloadFile(file); }}
-                            className="file-item-download-btn"
-                            title={`Download ${file.name}`}
-                        >
-                            <DownloadIcon />
-                        </button>
+                         <button onClick={() => onDownloadFile(file)} className="file-item-download" aria-label={`Download ${file.name}`}>
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                         </button>
                     </div>
                 ))}
             </div>
@@ -367,1254 +384,734 @@ const SessionFileManager: React.FC<{ files: VirtualFile[], onOpenFile: (filename
     );
 };
 
-const CodeExecutionResult: React.FC<{ result: { code: string; output: string } }> = ({ result }) => (
-    <div className="code-execution-result">
-        <div className="code-execution-header">Code Execution Result</div>
-        <details>
-            <summary className="cursor-pointer p-2 text-xs text-gray-400">View Executed Code</summary>
-            <div className="code-execution-code">{result.code}</div>
-        </details>
-        <div className="code-execution-output">
-             {result.output.startsWith('[PLOT_GENERATED]') ? (
-                <img src={result.output.split('\n')[1]} alt="Generated plot" />
-             ) : (
-                result.output
-             )}
-        </div>
-    </div>
-);
-
-const SkeletonLoader: React.FC<{ text: string; aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' }> = ({ text, aspectRatio }) => {
-    const aspectRatioClass = {
-        '1:1': 'aspect-1-1',
-        '16:9': 'aspect-16-9',
-        '9:16': 'aspect-9-16',
-        '4:3': 'aspect-4-3',
-        '3:4': 'aspect-3-4',
-    }[aspectRatio];
-
-    return (
-        <div className={`skeleton-loader ${aspectRatioClass}`}>
-            <span>{text}</span>
-        </div>
-    );
-};
-
-const MessageLogItem = memo(({ message, onApprove, onDeny, onViewImage, userProfile, style }: { message: Message; onApprove: (stepIndex: number) => void; onDeny: (stepIndex: number) => void; onViewImage: (url: string) => void; userProfile: UserProfile | null; style?: React.CSSProperties; }) => {
-    
-    const isAi = message.sender === 'ai';
-    
-    const statusText = message.text || (message.segments && message.segments[0]?.content);
-    const isStatusUpdate = statusText?.startsWith('STATUS:');
-
-
-    if (isStatusUpdate) {
-        return (
-             <div className="message-log-item ai" style={style}>
-                 <div className="message-avatar ai-avatar">
-                     <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
-                 </div>
-                 <div className="message-content-wrapper">
-                    <div className="message-content status-update">
-                         <svg className="animate-spin h-4 w-4 text-zinc-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>{statusText.replace('STATUS: ', '')}</span>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
-    const messageContent = () => {
-        if (message.requiresAction === 'open_mailto' && !message.actionTaken) {
-            return (
-                <div>
-                    <div dangerouslySetInnerHTML={{ __html: renderParagraph(message.text) }} />
-                    <a
-                        href={message.actionData.mailtoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg items-center gap-2 transition-transform transform hover:scale-105"
-                    >
-                        Open in Email App
-                    </a>
-                </div>
-            );
-        }
-        if (message.workflow) {
-            return <WorkflowBubble workflow={message.workflow} onApprove={onApprove} onDeny={onDeny} />;
-        }
-        if (message.codeExecutionResult) {
-            return <CodeExecutionResult result={message.codeExecutionResult} />;
-        }
-        if (message.tasks) {
-            return <TaskList tasks={message.tasks} onTaskUpdate={() => {}} />;
-        }
-        if (message.storyboardImages) {
-            return (
-                <div>
-                    <h4 className="font-bold text-amber-400 mb-2">Storyboard</h4>
-                    <div className="storyboard-grid">
-                        {message.storyboardImages.map((panel, index) => (
-                            <div key={index} className="storyboard-panel">
-                                <img src={panel.url} alt={panel.prompt} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )
-        }
-        if (message.generatedImage) {
-            if (message.generatedImage.isLoading) {
-                return (
-                    <SkeletonLoader
-                        text="Generating your imagination....🖼"
-                        aspectRatio={message.generatedImage.aspectRatio || '1:1'}
-                    />
-                );
-            }
-            if (message.generatedImage.url) {
-                return (
-                    <div className="relative group">
-                        <img src={message.generatedImage.url} alt={message.generatedImage.prompt} className="rounded-lg max-w-full" />
-                        <a href={message.generatedImage.url} download={`aikonai-generated-${Date.now()}.png`} className="absolute bottom-2 right-2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                            <DownloadIcon />
-                        </a>
-                    </div>
-                );
-            }
-        }
-        if (message.editedImage) {
-            if (message.editedImage.isLoading) {
-                return (
-                     <SkeletonLoader
-                        text="🖌 Applying your edits..."
-                        aspectRatio={'1:1'}
-                    />
-                );
-            }
-            if (message.editedImage.afterUrl) {
-                return (
-                    <div>
-                        <div className="flex gap-2">
-                            <div className="flex-1 text-center">
-                                <p className="text-xs text-gray-400 font-semibold mb-1">BEFORE</p>
-                                <img 
-                                    src={message.editedImage.beforeUrl} 
-                                    alt="Original image" 
-                                    className="rounded-lg cursor-pointer transition-transform hover:scale-105"
-                                    onClick={() => onViewImage(message.editedImage.beforeUrl)}
-                                />
-                            </div>
-                            <div className="flex-1 text-center">
-                                <p className="text-xs text-amber-400 font-semibold mb-1">AFTER</p>
-                                <img 
-                                    src={message.editedImage.afterUrl} 
-                                    alt={message.editedImage.prompt} 
-                                    className="rounded-lg cursor-pointer transition-transform hover:scale-105 border-2 border-amber-500/50"
-                                    onClick={() => onViewImage(message.editedImage.afterUrl!)}
-                                />
-                            </div>
-                        </div>
-                        <div className="relative group text-right mt-2">
-                            <a href={message.editedImage.afterUrl} download={`aikonai-edited-${Date.now()}.png`} className="p-2 bg-black/50 text-white rounded-full inline-block">
-                                <DownloadIcon />
-                            </a>
-                        </div>
-                    </div>
-                );
-            }
-        }
-        if (message.generatedVideo) {
-            if (message.generatedVideo.status === 'generating') {
-                return <div className="flex items-center gap-2"><div className="spinner"></div> Generating video...</div>;
-            }
-            if (message.generatedVideo.status === 'completed' && message.generatedVideo.url) {
-                return <video src={message.generatedVideo.url} controls className="rounded-lg w-full" />;
-            }
-             if (message.generatedVideo.status === 'error') {
-                return <div className="text-red-400">Video generation failed.</div>;
-            }
-        }
-        if (message.audioUrl) {
-            return (
-                <div className="flex items-center gap-2 w-full max-w-sm p-2 bg-zinc-800/50 rounded-lg">
-                    <audio controls src={message.audioUrl} className="flex-grow w-full" />
-                    <a href={message.audioUrl} download={`aikonai-speech-${Date.now()}.wav`} className="p-2 bg-zinc-700 text-white rounded-full hover:bg-zinc-600 transition-colors" title="Download audio">
-                        <DownloadIcon />
-                    </a>
-                </div>
-            );
-        }
-
-        const streamingClass = message.status === 'streaming' ? 'streaming' : '';
-
-        return (
-            <div className={`message-content ${streamingClass}`}>
-                 {message.imageUrl && message.sender === 'user' && (
-                    <img 
-                        src={message.imageUrl} 
-                        alt="User attachment" 
-                        className="rounded-lg max-w-full md:max-w-xs mb-2 cursor-pointer transition-transform hover:scale-105"
-                        onClick={() => onViewImage(message.imageUrl)}
-                    />
-                )}
-                {message.segments && message.segments.length > 0 ? (
-                    message.segments.map((segment, segIndex) => {
-                        if (segment.type === 'paragraph') {
-                            return <div key={segIndex} dangerouslySetInnerHTML={{ __html: renderParagraph(segment.content) }} />;
-                        }
-                        if (segment.type === 'code') {
-                            return (
-                                <CodeBlock
-                                    key={segIndex}
-                                    code={segment.content}
-                                    language={segment.language}
-                                    filename={segment.filename}
-                                />
-                            );
-                        }
-                        return null;
-                    })
-                ) : (
-                    message.text && <div dangerouslySetInnerHTML={{ __html: renderParagraph(message.text) }} />
-                )}
-                 <SourceDisplay sources={message.sources || []} />
-            </div>
-        );
-    };
-
-    const getInitials = (name?: string | null) => {
-        if (!name) return 'U';
-        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-    };
-
-    return (
-        <div className={`message-log-item ${isAi ? 'ai' : 'user'}`} style={style}>
-            {isAi && (
-                <div className="message-avatar ai-avatar">
-                     <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
+const PPTPreviewCard: React.FC<{ data: PresentationData, filename: string, onDownload: () => void, previewImageUrl?: string, isPreviewLoading?: boolean }> = ({ data, filename, onDownload, previewImageUrl, isPreviewLoading }) => (
+    <div className="ppt-preview-card">
+        <div className="ppt-preview-image-container">
+            {isPreviewLoading ? (
+                <div className="skeleton-loader aspect-16-9"><span>Generating Preview...</span></div>
+            ) : previewImageUrl ? (
+                <img src={previewImageUrl} alt="Presentation preview" className="ppt-preview-image" />
+            ) : (
+                <div className="ppt-preview-no-image">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                 </div>
             )}
-             <div className="message-content-wrapper">
-                {messageContent()}
-            </div>
-             {!isAi && (
-                 <div className="message-avatar user-avatar">
-                    {userProfile?.photoURL ? (
-                        <img src={userProfile.photoURL} alt={userProfile.displayName || 'User'} />
-                    ) : (
-                        <span>{getInitials(userProfile?.displayName)}</span>
-                    )}
-                </div>
-             )}
         </div>
-    );
-});
-
-
-const TypingIndicator: React.FC = () => (
-    <div className="message-log-item ai">
-        <div className="message-avatar ai-avatar">
-            <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
+        <div className="ppt-preview-content">
+            <p className="ppt-preview-header">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                </svg>
+                PRESENTATION
+            </p>
+            <h4 className="ppt-preview-title">{filename}</h4>
         </div>
-        <div className="typing-indicator">
-            <span></span><span></span><span></span>
+         <div className="ppt-preview-footer">
+            <button className="ppt-preview-download-btn" onClick={onDownload}>
+                <DownloadIcon /> Download .pptx
+            </button>
         </div>
     </div>
 );
 
 
-const ChatComposer: React.FC<{
-    onSendMessage: (message: string, file: FileAttachment | null) => void;
-    isLoading: boolean;
-    input: string;
-    setInput: (value: string) => void;
-    file: FileAttachment | null;
-    setFile: (file: FileAttachment | null) => void;
-    onCancel: () => void;
-}> = ({ onSendMessage, isLoading, input, setInput, file, setFile, onCancel }) => {
+const StoryboardDisplay: React.FC<{ images: { prompt: string; url: string }[] }> = ({ images }) => (
+    <div className="storyboard-grid">
+        {images.map((image, index) => (
+            <div key={index} className="storyboard-panel" title={image.prompt}>
+                <img src={image.url} alt={`Storyboard panel: ${image.prompt}`} />
+            </div>
+        ))}
+    </div>
+);
+
+const SkeletonImageLoader: React.FC<{aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4', prompt: string}> = ({ aspectRatio, prompt }) => (
+    <div className={`skeleton-loader aspect-${aspectRatio.replace(':', '-')}`}>
+        <span>Generating image for: "{prompt}"... <br/>This may take a moment.</span>
+    </div>
+);
+
+
+// --- Main Chat Page Component ---
+const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
+    const { user, userProfile, isGuest, refetchProfile } = useAuth();
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [fileAttachment, setFileAttachment] = useState<FileAttachment | null>(null);
+    const [chatId, setChatId] = useState<string | null>(null);
+    const [chatHistory, setChatHistory] = useState<Content[]>([]);
+    
+    // Agent Mode State
+    const [isAgentModeEnabled, setIsAgentModeEnabled] = useState(false);
+    const [sessionFiles, setSessionFiles] = useState<VirtualFile[]>([]);
+    const [isCodeCanvasVisible, setIsCodeCanvasVisible] = useState(false);
+    const [canvasFiles, setCanvasFiles] = useState<CanvasFiles>({});
+
+    const messageLogRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isAtBottom, setIsAtBottom] = useState(true);
 
-    const handleSendMessage = () => {
-        const trimmedInput = input.trim();
-        if (trimmedInput || file) {
-            onSendMessage(trimmedInput, file);
-            setInput('');
-            setFile(null);
-            if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
+    const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+    // Personas State
+    const [personas, setPersonas] = useState<Persona[]>(PERSONAS);
+    const [activePersona, setActivePersona] = useState<Persona | null>(null);
+    const [isPersonaMenuOpen, setIsPersonaMenuOpen] = useState(false);
+    const [isPersonaModalOpen, setIsPersonaModalOpen] = useState(false);
+    const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
+
+    // Live Conversation State
+    const [isLive, setIsLive] = useState(false);
+    const [liveStatus, setLiveStatus] = useState('Connecting...');
+    const sessionPromiseRef = useRef<Promise<any> | null>(null);
+    const inputAudioContextRef = useRef<AudioContext | null>(null);
+    const outputAudioContextRef = useRef<AudioContext | null>(null);
+    const mediaStreamRef = useRef<MediaStream | null>(null);
+    const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+
+    // FIX: Add key selected state to track API key selection status
+    const [keySelected, setKeySelected] = useState(false);
+    
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+    // Load custom personas from local storage
+    useEffect(() => {
+        try {
+            const storedPersonas = localStorage.getItem(CUSTOM_PERSONAS_STORAGE_KEY);
+            if (storedPersonas) {
+                const customPersonas: Persona[] = JSON.parse(storedPersonas);
+                setPersonas(prev => [...PERSONAS, ...customPersonas.map(p => ({...p, isCustom: true}))]);
             }
+        } catch (error) {
+            console.error("Failed to load custom personas from local storage:", error);
+        }
+    }, []);
+    
+    // Function to save custom personas
+    const saveCustomPersonas = (customPersonas: Persona[]) => {
+        try {
+            localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(customPersonas));
+        } catch (error) {
+            console.error("Failed to save custom personas:", error);
+        }
+    };
+    
+    const handleSavePersona = (newPersona: Persona) => {
+        let updatedPersonas;
+        const existingIndex = personas.findIndex(p => p.name === newPersona.name && p.isCustom);
+
+        if (existingIndex > -1) {
+            // Update existing persona
+            updatedPersonas = [...personas];
+            updatedPersonas[existingIndex] = { ...newPersona, isCustom: true };
+        } else {
+            // Add new persona
+            updatedPersonas = [...personas, { ...newPersona, isCustom: true }];
+        }
+        
+        setPersonas(updatedPersonas);
+        
+        // Persist only custom personas to local storage
+        const customPersonas = updatedPersonas.filter(p => p.isCustom);
+        saveCustomPersonas(customPersonas);
+        
+        // If the edited persona was active, update it
+        if (activePersona && activePersona.name === newPersona.name) {
+            setActivePersona({ ...newPersona, isCustom: true });
         }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
+    const handleDeletePersona = (personaNameToDelete: string) => {
+        const updatedPersonas = personas.filter(p => !(p.name === personaNameToDelete && p.isCustom));
+        setPersonas(updatedPersonas);
+
+        const customPersonas = updatedPersonas.filter(p => p.isCustom);
+        saveCustomPersonas(customPersonas);
+        
+        if (activePersona && activePersona.name === personaNameToDelete) {
+            setActivePersona(null); // Deselect if it was active
         }
     };
+
+
+    const toggleTheme = () => {
+        setTheme(current => (current === 'dark' ? 'light' : 'dark'));
+    };
+
+    useEffect(() => {
+        document.body.className = ''; // Clear previous classes
+        document.body.classList.add(`${theme}-theme-chat`);
+    }, [theme]);
+    
+    const handleScroll = () => {
+        const el = messageLogRef.current;
+        if (el) {
+            const isScrolledToBottom = Math.abs(el.scrollHeight - el.scrollTop - el.clientHeight) < 5;
+            setIsAtBottom(isScrolledToBottom);
+        }
+    };
+    
+    const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
+        messageLogRef.current?.scrollTo({
+            top: messageLogRef.current.scrollHeight,
+            behavior: behavior,
+        });
+    }, []);
+
+    // Effect for auto-scrolling
+    useEffect(() => {
+        if (isAtBottom) {
+            scrollToBottom('smooth');
+        }
+    }, [messages, isAtBottom, scrollToBottom]);
+    
+    // Auto-resize textarea
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = `${textarea.scrollHeight}px`;
+        }
+    }, [input]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
+        const file = e.target.files?.[0];
+        if (file) {
             const reader = new FileReader();
-            reader.onload = (loadEvent) => {
-                const base64 = (loadEvent.target?.result as string)?.split(',')[1];
-                if (base64) {
-                    setFile({
-                        name: selectedFile.name,
-                        mimeType: selectedFile.type,
-                        base64,
-                    });
-                }
+            reader.onload = (readEvent) => {
+                const base64 = readEvent.target?.result as string;
+                const base64Data = base64.split(',')[1];
+                setFileAttachment({
+                    name: file.name,
+                    base64: base64Data,
+                    mimeType: file.type,
+                });
             };
-            reader.readAsDataURL(selectedFile);
+            reader.readAsDataURL(file);
         }
+    };
+
+    const removeFileAttachment = () => {
+        setFileAttachment(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
     };
 
-    const handlePaste = (e: React.ClipboardEvent) => {
-        const items = e.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf("image") !== -1) {
-                const blob = items[i].getAsFile();
-                if (blob) {
-                     const reader = new FileReader();
-                    reader.onload = (loadEvent) => {
-                         const base64 = (loadEvent.target?.result as string)?.split(',')[1];
-                        if (base64) {
-                            setFile({
-                                name: 'pasted-image.png',
-                                mimeType: blob.type,
-                                base64,
-                            });
-                        }
-                    };
-                    reader.readAsDataURL(blob);
-                }
-                break;
-            }
-        }
-    };
+    const handleSendMessage = async (prompt?: string) => {
+        const messageText = prompt || input;
+        if (!messageText.trim() && !fileAttachment) return;
 
-    useEffect(() => {
-        const ta = textareaRef.current;
-        if (ta) {
-            ta.style.height = 'auto'; // Reset height
-            const scrollHeight = ta.scrollHeight;
-            ta.style.height = `${scrollHeight}px`;
-        }
-    }, [input]);
-
-    return (
-        <div className="chat-composer-container">
-             {file && (
-                <div className="composer-file-preview">
-                    <div className="composer-file-preview-inner">
-                        <div className="composer-file-info">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                            <span>{file.name}</span>
-                        </div>
-                        <button onClick={() => setFile(null)} className="composer-icon-button" title="Remove file">
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                    </div>
-                </div>
-            )}
-            <div className="chat-composer">
-                <button
-                    className="composer-icon-button"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Attach file"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                </button>
-                 <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*,text/plain,application/pdf,.csv,.json,.xml"
-                />
-                <textarea
-                    ref={textareaRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    placeholder="Ask AikonAI..."
-                    rows={1}
-                    className="composer-textarea"
-                />
-                 <button
-                    onClick={handleSendMessage}
-                    disabled={isLoading || (!input.trim() && !file)}
-                    className="composer-icon-button composer-send-button"
-                    title="Send"
-                >
-                     {isLoading ? (
-                       <div className="w-5 h-5 border-2 border-zinc-600 border-t-black rounded-full animate-spin"></div>
-                     ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-                        </svg>
-                     )}
-                </button>
-            </div>
-        </div>
-    );
-};
-
-const ImageViewer: React.FC<{ imageUrl: string; onClose: () => void }> = ({ imageUrl, onClose }) => (
-    <div 
-        className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-[200] animate-fade-in" 
-        style={{ animationDuration: '0.2s' }}
-        onClick={onClose}
-    >
-        <img 
-            src={imageUrl} 
-            alt="Full screen view" 
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-        />
-    </div>
-);
-
-type LiveConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
-
-const LiveConversationOverlay: React.FC<{
-    connectionState: LiveConnectionState;
-    onDisconnect: () => void;
-}> = ({ connectionState, onDisconnect }) => {
-
-    const getStatusText = () => {
-        switch (connectionState) {
-            case 'connecting': return 'Connecting to Live AI...';
-            case 'connected': return 'Live conversation active';
-            case 'error': return 'Connection failed. Please try again.';
-            default: return '';
-        }
-    };
-    
-    return (
-        <div className="live-overlay">
-            <div className="live-content">
-                <p className="live-status">{getStatusText()}</p>
-                <div className={`live-orb ${connectionState === 'connected' ? 'connected' : ''}`}>
-                    {connectionState === 'connecting' && <div className="w-8 h-8 border-4 border-white/50 border-t-white rounded-full animate-spin"></div>}
-                    {connectionState === 'connected' && <div className="live-orb-inner"></div>}
-                     {connectionState === 'error' && <span className="text-red-500 text-4xl">!</span>}
-                </div>
-                <button className="live-disconnect-button" onClick={onDisconnect}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 8l2-2m0 0l2 2m-2-2v2.5M20 14v.5a2.5 2.5 0 01-2.5 2.5h-10A2.5 2.5 0 015 16.5V7.954a2.5 2.5 0 011.56-2.318l4.5-1.5a2.5 2.5 0 013.12 1.064M16 8a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    End Conversation
-                </button>
-            </div>
-        </div>
-    );
-};
-
-
-const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [history, setHistory] = useState<Content[]>([]);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const { userProfile: authUserProfile, user } = useAuth();
-    
-    const [userSettings, setUserSettings] = useState<Partial<UserProfile>>({});
-
-    useEffect(() => {
-        if (authUserProfile) {
-            setUserSettings(authUserProfile);
-        }
-    }, [authUserProfile]);
-
-    const [input, setInput] = useState('');
-    const [file, setFile] = useState<FileAttachment | null>(null);
-    const [viewingImage, setViewingImage] = useState<string | null>(null);
-    const [lastActiveImage, setLastActiveImage] = useState<FileAttachment | null>(null);
-
-    // Persona State
-    const [isPersonaMenuOpen, setIsPersonaMenuOpen] = useState(false);
-    const [currentPersona, setCurrentPersona] = useState<Persona | null>(null);
-    const personaMenuRef = useRef<HTMLDivElement>(null);
-
-    // Code Interpreter State
-    const [sessionFiles, setSessionFiles] = useState<VirtualFile[]>([]);
-    const [isCanvasVisible, setIsCanvasVisible] = useState(false);
-    const [canvasFiles, setCanvasFiles] = useState<CanvasFiles>({});
-    const isCancelledRef = useRef(false);
-
-     const chatWindowRef = useRef<HTMLDivElement>(null);
-     const bottomOfChatRef = useRef<HTMLDivElement>(null);
-
-    // Live Conversation State
-    const [liveConnectionState, setLiveConnectionState] = useState<LiveConnectionState>('disconnected');
-    const sessionPromiseRef = useRef<Promise<any> | null>(null);
-    const mediaStreamRef = useRef<MediaStream | null>(null);
-    const audioContextRefs = useRef<{ input: AudioContext | null, output: AudioContext | null, scriptProcessor: ScriptProcessorNode | null, sources: Set<AudioBufferSourceNode> }>({ input: null, output: null, scriptProcessor: null, sources: new Set() });
-    const nextStartTimeRef = useRef(0);
-    const currentInputTranscriptionRef = useRef('');
-    const currentOutputTranscriptionRef = useRef('');
-
-
-    const scrollToBottom = useCallback(() => {
-        bottomOfChatRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, []);
-
-    useEffect(() => {
-       scrollToBottom();
-    }, [messages, isLoading, scrollToBottom]);
-
-    // Close persona menu on outside click
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (personaMenuRef.current && !personaMenuRef.current.contains(event.target as Node)) {
-                setIsPersonaMenuOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => { document.removeEventListener("mousedown", handleClickOutside); };
-    }, [personaMenuRef]);
-
-    // FIX: Refactored handleWorkflowToolCall to be a pure function that takes the current file state
-    // as an argument and returns the output and new file state, removing direct state dependency.
-    const handleWorkflowToolCall = useCallback(async (
-        tool_call: { name: string; args: any },
-        currentFiles: VirtualFile[]
-    ): Promise<{ output: StructuredToolOutput; updatedFiles: VirtualFile[] }> => {
-        let output: StructuredToolOutput = null;
-        let updatedFiles = [...currentFiles];
-
-        switch (tool_call.name) {
-            case 'googleSearch': {
-                const searchResult = await performGoogleSearch(tool_call.args.query);
-                const searchLinks = searchResult.sources.map(s => ({ title: s.title, link: s.uri }));
-                output = { type: 'search_results', results: searchLinks };
-                break;
-            }
-            case 'browse_webpage': {
-                const content = await browseWebpage(tool_call.args.url);
-                output = { type: 'browsed_content', url: tool_call.args.url, content: content };
-                break;
-            }
-            case 'list_files': {
-                const fileList = currentFiles.map(f => f.name).join('\n') || "No files in the current session.";
-                output = { type: 'text', content: fileList };
-                break;
-            }
-            case 'read_file': {
-                const fileToRead = currentFiles.find(f => f.name === tool_call.args.filename);
-                output = { type: 'text', content: fileToRead ? fileToRead.content : `Error: File '${tool_call.args.filename}' not found.` };
-                break;
-            }
-            case 'write_file': {
-                const existingFileIndex = updatedFiles.findIndex(f => f.name === tool_call.args.filename);
-                if (existingFileIndex > -1) {
-                    updatedFiles[existingFileIndex] = { name: tool_call.args.filename, content: tool_call.args.content };
-                } else {
-                    updatedFiles.push({ name: tool_call.args.filename, content: tool_call.args.content });
-                }
-                output = { type: 'text', content: `Successfully wrote to ${tool_call.args.filename}.` };
-                break;
-            }
-            case 'create_powerpoint': {
-                const { topic, num_slides } = tool_call.args;
-                const content = await generatePresentationContent(topic, num_slides);
-                if ('error' in content) {
-                    output = { type: 'text', content: content.error };
-                } else {
-                    await createPptxFile(content, topic);
-                    output = { type: 'file_generated', filename: `${topic.replace(/ /g, '_')}.pptx`, message: "Your presentation has been created and downloaded." };
-                }
-                break;
-            }
-            case 'create_word_document': {
-                const { topic, sections } = tool_call.args;
-                const content = await generateWordContent(topic, sections);
-                if ('error' in content) {
-                    output = { type: 'text', content: content.error };
-                } else {
-                    await createDocxFile(content);
-                    output = { type: 'file_generated', filename: `${topic.replace(/ /g, '_')}.docx`, message: "Your document has been created and downloaded." };
-                }
-                break;
-            }
-            case 'create_excel_spreadsheet': {
-                const { filename, data_description, columns } = tool_call.args;
-                const content = await generateExcelContent(data_description, columns);
-                 if ('error' in content) {
-                    output = { type: 'text', content: content.error };
-                } else {
-                    await createXlsxFile({ ...content, filename });
-                    output = { type: 'file_generated', filename: `${filename}.xlsx`, message: "Your spreadsheet has been created and downloaded." };
-                }
-                break;
-            }
-            default:
-                output = { type: 'text', content: `Error: Tool "${tool_call.name}" is not recognized.` };
-        }
-        return { output, updatedFiles };
-    }, []);
-
-    const executeWorkflow = useCallback(async (goal: string, file: FileAttachment | null) => {
         setIsLoading(true);
-        playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/workflow_start.mp3', 0.5);
+        setInput('');
         
-        // FIX: Manage a local, synchronous copy of files during workflow execution to prevent stale state issues.
-        let localSessionFiles = [...sessionFiles];
-        if (file) {
-            try {
-                const content = atob(file.base64);
-                const newFile = { name: file.name, content };
-                localSessionFiles = localSessionFiles.filter(f => f.name !== newFile.name);
-                localSessionFiles.push(newFile);
-                setSessionFiles(localSessionFiles); // Update UI immediately
-            } catch(e) { console.error("Error decoding file for workflow:", e); }
-        }
-
-        let workflow: Workflow = { goal, plan: [], steps: [], status: 'running', finalContent: null };
-        const workflowMessageId = (Date.now() + 1).toString();
-        const initialWorkflowMessage: Message = { id: workflowMessageId, text: '', sender: 'ai', timestamp: new Date(), workflow: { ...workflow } };
-        setMessages(prev => [...prev, initialWorkflowMessage]);
-
-        const planResult = await generatePlan(goal);
-        if ('error' in planResult) {
-            workflow.status = 'error';
-            workflow.finalContent = planResult.error;
-            setMessages(prev => prev.map(m => m.id === workflowMessageId ? { ...m, workflow: { ...workflow } } : m));
-            setIsLoading(false);
-            return;
-        }
-        
-        workflow.plan = planResult.plan;
-        
-        let completedSteps: WorkflowStep[] = [];
-        let shouldContinue = true;
-        
-        while (shouldContinue && completedSteps.length < 20) { // Safety break
-            setMessages(prev => prev.map(m => m.id === workflowMessageId ? { ...m, workflow: { ...workflow, steps: [...completedSteps, { summary: 'Thinking...', status: 'running' }] } } : m));
-
-            const stepResult = await runWorkflowStep(goal, workflow.plan, completedSteps);
-            
-            if ('error' in stepResult) {
-                workflow.status = 'error';
-                workflow.finalContent = stepResult.error;
-                shouldContinue = false;
-            } else if (!stepResult.tool_call || !stepResult.tool_call.name) {
-                workflow.status = 'error';
-                workflow.finalContent = "The AI agent failed to decide on the next action. Please try rephrasing your goal.";
-                shouldContinue = false;
-                const errorStep: WorkflowStep = {
-                    summary: stepResult.step_summary || "AI failed to produce a valid next step.",
-                    status: 'error',
-                    tool_output: { type: 'text', content: 'The model returned an invalid response without a tool call.'}
-                };
-                completedSteps.push(errorStep);
-            } else {
-                const currentStep: WorkflowStep = {
-                    summary: stepResult.step_summary,
-                    tool_call: stepResult.tool_call,
-                    status: 'running',
-                    tool_output: null
-                };
-
-                if (stepResult.tool_call.name === 'finish') {
-                    currentStep.status = 'completed';
-                    workflow.status = 'completed';
-                    workflow.finalContent = stepResult.tool_call.args.final_content;
-                    shouldContinue = false;
-
-                } else if (stepResult.tool_call.name === 'request_user_approval') {
-                    currentStep.status = 'paused_for_approval';
-                    workflow.status = 'paused_for_approval';
-                    shouldContinue = false;
-
-                } else {
-                    // FIX: Pass and receive the local file state to/from the tool handler.
-                    const toolResult = await handleWorkflowToolCall(stepResult.tool_call, localSessionFiles);
-                    currentStep.tool_output = toolResult.output;
-                    localSessionFiles = toolResult.updatedFiles;
-                    currentStep.status = 'completed';
-                }
-                completedSteps.push(currentStep);
-            }
-            
-            workflow.steps = [...completedSteps];
-             setMessages(prev => prev.map(m => m.id === workflowMessageId ? { ...m, workflow: { ...workflow } } : m));
-             if (workflow.status !== 'running') break;
-        }
-
-        if (workflow.status === 'running' && shouldContinue) {
-             workflow.status = 'error';
-             workflow.finalContent = "The workflow finished without reaching a conclusion. Please check the plan and try again.";
-             setMessages(prev => prev.map(m => m.id === workflowMessageId ? { ...m, workflow: { ...workflow } } : m));
-        }
-
-        // FIX: Sync the final state of local files back to the main React state.
-        setSessionFiles(localSessionFiles);
-        
-        // After the workflow is finished (completed, errored, or denied),
-        // update the conversational history with the final result. This gives the model
-        // context that the previous task is resolved, preventing it from re-triggering
-        // the same workflow on the next user message.
-        if (workflow.finalContent) {
-            const historyContent = workflow.status === 'completed' 
-                ? workflow.finalContent 
-                : `The workflow ended with status '${workflow.status}'. Final message: ${workflow.finalContent}`;
-            setHistory(prev => [...prev, { role: 'model', parts: [{ text: historyContent }] }]);
-        }
-        
-        setIsLoading(false);
-
-    }, [handleWorkflowToolCall, sessionFiles]);
-
-
-    const handleApproval = useCallback((stepIndex: number, isApproved: boolean) => {
-        setMessages(prevMessages => {
-            const lastMessageIndex = prevMessages.map(m => m.sender).lastIndexOf('ai');
-            const lastMessage = prevMessages[lastMessageIndex];
-
-            if (!lastMessage || !lastMessage.workflow) return prevMessages;
-
-            const updatedWorkflow = { ...lastMessage.workflow };
-            const stepToUpdate = updatedWorkflow.steps[stepIndex];
-
-            if (isApproved) {
-                stepToUpdate.status = 'completed';
-                stepToUpdate.tool_output = { type: 'text', content: "User approved." };
-                updatedWorkflow.status = 'running';
-
-                 const continueExecution = async () => {
-                    let completedSteps = updatedWorkflow.steps;
-                    let shouldContinue = true;
-
-                    // This continuation doesn't have access to the localSessionFiles from the original execution.
-                    // For now, it will use the main sessionFiles state. This could be improved if complex approval flows are needed.
-                    let localSessionFiles = [...sessionFiles];
-
-                    while (shouldContinue && completedSteps.length < 20) { // Safety break
-                        setMessages(prev => prev.map(m => m.id === lastMessage.id ? { ...m, workflow: { ...updatedWorkflow, steps: [...completedSteps, { summary: 'Thinking...', status: 'running' }] } } : m));
-                        const stepResult = await runWorkflowStep(updatedWorkflow.goal, updatedWorkflow.plan, completedSteps);
-                        
-                        if ('error' in stepResult) {
-                            updatedWorkflow.status = 'error';
-                            updatedWorkflow.finalContent = stepResult.error;
-                            shouldContinue = false;
-                        } else if (!stepResult.tool_call || !stepResult.tool_call.name) {
-                            updatedWorkflow.status = 'error';
-                            updatedWorkflow.finalContent = "The AI agent failed to decide on the next action after approval.";
-                            shouldContinue = false;
-                        } else {
-                           const currentStep: WorkflowStep = { summary: stepResult.step_summary, tool_call: stepResult.tool_call, status: 'running', tool_output: null };
-
-                           if (stepResult.tool_call.name === 'finish') {
-                               currentStep.status = 'completed';
-                               updatedWorkflow.status = 'completed';
-                               updatedWorkflow.finalContent = stepResult.tool_call.args.final_content;
-                               shouldContinue = false;
-                           } else if (stepResult.tool_call.name === 'request_user_approval') {
-                               currentStep.status = 'paused_for_approval';
-                               updatedWorkflow.status = 'paused_for_approval';
-                               shouldContinue = false;
-                           } else {
-                               const toolResult = await handleWorkflowToolCall(stepResult.tool_call, localSessionFiles);
-                               currentStep.tool_output = toolResult.output;
-                               localSessionFiles = toolResult.updatedFiles;
-                               currentStep.status = 'completed';
-                           }
-                           completedSteps.push(currentStep);
-                        }
-
-                        updatedWorkflow.steps = [...completedSteps];
-                        setMessages(prev => prev.map(m => m.id === lastMessage.id ? { ...m, workflow: { ...updatedWorkflow } } : m));
-                        if (updatedWorkflow.status !== 'running') break;
-                    }
-                     setSessionFiles(localSessionFiles);
-                     setIsLoading(false);
-                };
-                
-                setIsLoading(true);
-                continueExecution();
-
-            } else {
-                stepToUpdate.status = 'denied';
-                stepToUpdate.tool_output = { type: 'text', content: "User denied."};
-                updatedWorkflow.status = 'denied';
-                updatedWorkflow.finalContent = "Workflow was stopped by the user.";
-            }
-
-            return prevMessages.map(m => m.id === lastMessage.id ? { ...m, workflow: updatedWorkflow } : m);
-        });
-    }, [handleWorkflowToolCall, sessionFiles]);
-
-    const handleCancel = useCallback(() => {
-        if (isLoading) {
-            isCancelledRef.current = true;
-            setIsLoading(false);
-            // Immediately remove the streaming placeholder message
-            setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                if (lastMsg?.sender === 'ai' && lastMsg?.status === 'streaming') {
-                    return prev.slice(0, -1);
-                }
-                return prev;
-            });
-        } else if (file) {
-            setFile(null);
-        }
-    }, [isLoading, file]);
-
-    const handleDownloadFile = (file: VirtualFile) => {
-        const blob = new Blob([file.content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
-    const processVideoRequest = useCallback(async (prompt: string, messageId: string) => {
-        setMessages(prev => prev.map(m => 
-            m.id === messageId 
-            ? { ...m, text: '', segments: [], generatedVideo: { status: 'generating', prompt: prompt } } 
-            : m
-        ));
-    
-        try {
-            if (!window.aistudio || !(await window.aistudio.hasSelectedApiKey())) {
-                await window.aistudio?.openSelectKey();
-            }
-            
-            const localAi = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-            
-            // FIX: Updated deprecated video model and added resolution config.
-            const operation = await localAi.models.generateVideos({
-                model: 'veo-3.1-fast-generate-preview',
-                prompt: prompt,
-                config: {
-                    numberOfVideos: 1,
-                    aspectRatio: '16:9',
-                    resolution: '720p',
-                }
-            });
-            
-            const checkStatus = async (op: GenerateVideosOperation, msgId: string) => {
-                let currentOp = op;
-                while (!currentOp.done) {
-                    await new Promise(resolve => setTimeout(resolve, 10000));
-                    try {
-                        currentOp = await localAi.operations.getVideosOperation({ operation: currentOp });
-                    } catch (e: any) {
-                        console.error("Polling error:", e);
-                        if (e.message?.includes("Requested entity was not found")) {
-                             setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: `Video generation failed: Invalid API Key. Please select a valid key.`, generatedVideo: { ...(m.generatedVideo!), status: 'error' } } : m));
-                             await window.aistudio?.openSelectKey(); // Re-prompt for key
-                             return;
-                        }
-                        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, generatedVideo: { ...(m.generatedVideo!), status: 'error' } } : m));
-                        return;
-                    }
-                }
-    
-                const uri = currentOp.response?.generatedVideos?.[0]?.video?.uri;
-                if (uri) {
-                    const blob = await fetchVideoFromUri(uri);
-                    const videoUrl = URL.createObjectURL(blob);
-                    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, generatedVideo: { ...(m.generatedVideo!), status: 'completed', url: videoUrl } } : m));
-                } else {
-                    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, generatedVideo: { ...(m.generatedVideo!), status: 'error' } } : m));
-                }
-            };
-            
-            await checkStatus(operation, messageId);
-    
-        } catch (e: any) {
-            console.error("Video generation error:", e);
-            const errorMessage = (e as Error).message || "An unknown error occurred.";
-            if (errorMessage.includes("API key not valid")) {
-                 setMessages(prev => prev.map(m => m.id === messageId ? { ...m, text: `Video generation failed: Invalid API Key. Please select a valid key.`, generatedVideo: { ...(m.generatedVideo!), status: 'error' } } : m));
-                 await window.aistudio?.openSelectKey(); // Re-prompt for key
-            } else {
-                 setMessages(prev => prev.map(m => m.id === messageId ? { ...m, text: `Video generation failed: ${errorMessage}`, generatedVideo: { ...(m.generatedVideo!), status: 'error' } } : m));
-            }
-        }
-    }, []);
-    
-    const handleSendMessage = useCallback(async (message: string, file: FileAttachment | null) => {
-        if (isLoading) return;
-        setIsLoading(true);
-        isCancelledRef.current = false; // Reset cancellation flag
-        playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/send.mp3', 0.3);
-
-
         const userMessage: Message = {
             id: Date.now().toString(),
-            text: message,
+            text: messageText,
             sender: 'user',
             timestamp: new Date(),
-            status: 'sent',
-            imageUrl: file && file.mimeType.startsWith('image/') ? `data:${file.mimeType};base64,${file.base64}` : undefined
         };
         setMessages(prev => [...prev, userMessage]);
         
-        if (file) {
-            setLastActiveImage(file);
-        }
-
-        const isEditIntent = /(edit|add|change|remove|make it|modify|update)/i.test(message);
-        const imageForContext = file || (isEditIntent ? lastActiveImage : null);
-
-        let fileContentForTool: string | null = null;
-        let location: {latitude: number, longitude: number} | null = null;
-        
-        try {
-            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-            });
-            location = { latitude: position.coords.latitude, longitude: position.coords.longitude };
-        } catch (error) {
-            console.warn("Could not get user location:", (error as GeolocationPositionError).message);
-        }
-
-        const systemInstruction = currentPersona 
-            ? currentPersona.systemInstruction 
-            : userSettings?.customInstructions;
-
-        const { stream, historyWithUserMessage, fileContent } = await streamMessageToChat(history, message, imageForContext, location, undefined, systemInstruction);
-        setHistory(historyWithUserMessage);
-        fileContentForTool = fileContent;
-
-        let fullText = '';
-        let sources: Source[] = [];
+        // Immediately add a placeholder AI message
         const aiMessageId = (Date.now() + 1).toString();
-        
-        const aiMessage: Message = {
+        const aiMessagePlaceholder: Message = {
             id: aiMessageId,
             text: '',
             sender: 'ai',
             timestamp: new Date(),
             status: 'streaming',
-            segments: [],
-            sources: []
         };
-        setMessages(prev => [...prev, aiMessage]);
+        setMessages(prev => [...prev, aiMessagePlaceholder]);
+        
+        scrollToBottom('auto');
+
+        let location: { latitude: number; longitude: number } | null = null;
+        try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                 navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+            });
+            location = { latitude: position.coords.latitude, longitude: position.coords.longitude };
+        } catch (error) {
+            console.warn("Geolocation permission denied or timed out.");
+        }
+
 
         try {
+            const personaInstruction = activePersona ? activePersona.systemInstruction : undefined;
+            
+            // FIX: Destructure `response` along with `stream` to access the final response metadata.
+            const { stream, response, historyWithUserMessage, fileContent } = await streamMessageToChat(
+                chatHistory,
+                messageText,
+                fileAttachment,
+                location,
+                userProfile,
+                undefined,
+                personaInstruction,
+                isAgentModeEnabled,
+            );
+
+            setChatHistory(historyWithUserMessage);
+            
+            let accumulatedText = '';
+            let toolCallJson = '';
+            let isToolCall = false;
+
             for await (const chunk of stream) {
-                if (isCancelledRef.current) break; // Check for cancellation
-                fullText += chunk.text;
-                const groundingChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-                const newSources: Source[] = groundingChunks.reduce((acc: Source[], gc: GroundingChunk) => {
-                    if (gc.web?.uri && gc.web.title) {
-                        if (!acc.find(s => s.uri === gc.web.uri)) {
-                           acc.push({ uri: gc.web.uri, title: gc.web.title, type: 'web' });
-                        }
-                    } else if (gc.maps?.uri && gc.maps.title) {
-                         if (!acc.find(s => s.uri === gc.maps.uri)) {
-                           acc.push({ uri: gc.maps.uri, title: gc.maps.title, type: 'map' });
-                        }
+                const chunkText = chunk.text;
+                
+                // Heuristic to detect if the response is a tool call JSON
+                if (!isToolCall && chunkText.trim().startsWith('{"tool_call"')) {
+                    isToolCall = true;
+                }
+
+                if (isToolCall) {
+                    toolCallJson += chunkText;
+                } else {
+                    accumulatedText += chunkText;
+                    setMessages(prev => prev.map(msg => 
+                        msg.id === aiMessageId ? { ...msg, text: accumulatedText } : msg
+                    ));
+                }
+            }
+            
+            // Final update to the message bubble after streaming
+            const finalAiMessageContent: Partial<Message> = { text: accumulatedText, status: 'sent' };
+            
+            // Check for grounding metadata
+            // FIX: Use the `response` promise to get the final response object, which contains grounding metadata.
+            const lastResponse = await response;
+            const groundingChunks = lastResponse?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+            if (groundingChunks.length > 0) {
+                 finalAiMessageContent.sources = groundingChunks.reduce((acc: Source[], chunk: GroundingChunk) => {
+                    if (chunk.web?.uri && chunk.web.title) {
+                        acc.push({ uri: chunk.web.uri, title: chunk.web.title, type: 'web' });
+                    }
+                    if (chunk.maps?.uri && chunk.maps.title) {
+                        acc.push({ uri: chunk.maps.uri, title: chunk.maps.title, type: 'map' });
                     }
                     return acc;
                 }, []);
-                
-                sources = [...sources, ...newSources.filter(ns => !sources.some(s => s.uri === ns.uri))];
+            }
+            
+            setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: accumulatedText }] }]);
 
-                setMessages(prev => prev.map(m => 
-                    m.id === aiMessageId 
-                        ? { ...m, text: fullText, segments: parseMarkdown(fullText), sources: sources } 
-                        : m
+
+            if (isToolCall) {
+                await handleToolCall(toolCallJson, aiMessageId);
+            } else {
+                 setMessages(prev => prev.map(msg =>
+                    msg.id === aiMessageId ? { ...msg, ...finalAiMessageContent } : msg
                 ));
             }
-             if (!isCancelledRef.current) {
-                playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/receive.mp3', 0.4);
+
+        } catch (error: any) {
+            console.error("Error sending message:", error);
+            const errorMessage = `Sorry, I encountered an error. Please try again. Details: ${error.message}`;
+             setMessages(prev => prev.map(msg =>
+                msg.id === aiMessageId ? { ...msg, text: errorMessage, status: 'sent' } : msg
+            ));
+        } finally {
+            setIsLoading(false);
+            setFileAttachment(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
             }
-        } catch (error) {
-            console.error("Streaming Error:", error);
-            if (!isCancelledRef.current) {
-                fullText += "\n\nSorry, an error occurred while generating the response.";
-                playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/error.mp3', 0.4);
-            }
+            // Ensure the final state is not streaming
+            setMessages(prev => prev.map(msg => 
+                msg.id === aiMessageId && msg.status === 'streaming' ? { ...msg, status: 'sent' } : msg
+            ));
         }
-
-        if (isCancelledRef.current) {
-            return; // Stop all further processing if cancelled
-        }
-        
-        let finalAiMessage: Message | null = null;
-        
-        let toolCall;
-        try {
-            const jsonMatch = fullText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                toolCall = JSON.parse(jsonMatch[0]);
-            }
-        } catch (e) { /* Not a valid JSON object, so not a tool call */ }
-
-        if (toolCall?.tool_call === 'initiate_workflow') {
-            setMessages(prev => prev.filter(m => m.id !== aiMessageId)); 
-            executeWorkflow(toolCall.goal, file); 
-            setIsLoading(false); 
-            return; 
-        }
-
-        if (toolCall?.tool_call) {
-            // FIX: Handle video generation as a special case. It's a long-running task.
-            // We initiate it, then exit the message processing flow to allow it to run in the background.
-            // The processVideoRequest function will handle UI updates for its message.
-            if (toolCall.tool_call === 'generate_video') {
-                processVideoRequest(toolCall.prompt, aiMessageId);
-                setIsLoading(false);
-                return;
-            }
-
-            let toolResponseText = '';
-            let updatedMessageData: Partial<Message> = {};
-
-            switch (toolCall.tool_call) {
-                case 'get_weather':
-                    const weather = await fetchWeather(toolCall.city);
-                    if ('error' in weather) {
-                        toolResponseText = weather.error;
-                    } else {
-                        toolResponseText = `The weather in ${weather.city} is ${weather.temperature} with ${weather.description}.`;
-                    }
-                    break;
-                case 'send_email':
-                    const { recipient, subject, body } = toolCall;
-                    const mailtoUrl = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                    toolResponseText = "I've drafted the email for you. You can review and send it from your default email client.";
-                    updatedMessageData = {
-                        requiresAction: 'open_mailto',
-                        actionData: { mailtoUrl },
-                        actionTaken: false,
-                    };
-                    break;
-                case 'google_search':
-                    const searchRes = await performGoogleSearch(toolCall.query);
-                    toolResponseText = searchRes.text || "Here's what I found based on my search.";
-                    updatedMessageData.sources = searchRes.sources;
-                    break;
-                case 'browse_webpage':
-                    toolResponseText = await browseWebpage(toolCall.url);
-                    break;
-                case 'generate_image':
-                    setMessages(prev => prev.map(m => 
-                        m.id === aiMessageId 
-                            ? { 
-                                ...m, 
-                                text: '', 
-                                segments: [], 
-                                generatedImage: { 
-                                    prompt: toolCall.prompt, 
-                                    aspectRatio: toolCall.aspectRatio || '1:1',
-                                    isLoading: true 
-                                } 
-                            } 
-                            : m
-                    ));
-                    const imageUrl = await generateImage(toolCall.prompt, toolCall.aspectRatio);
-                    if (isCancelledRef.current) return;
-                    if (imageUrl) {
-                        toolResponseText = `Here is the image you requested for: "${toolCall.prompt}"`;
-                        updatedMessageData.generatedImage = { prompt: toolCall.prompt, url: imageUrl, aspectRatio: toolCall.aspectRatio, isLoading: false };
-                        const newBase64 = imageUrl.split(',')[1];
-                        const newMimeType = imageUrl.match(/data:(.*);/)?.[1] || 'image/png';
-                        setLastActiveImage({
-                            name: 'generated-image.png',
-                            mimeType: newMimeType,
-                            base64: newBase64
-                        });
-                    } else {
-                        toolResponseText = `Sorry, I couldn't generate an image for "${toolCall.prompt}". It might have violated safety policies.`;
-                        updatedMessageData.generatedImage = undefined;
-                    }
-                    break;
-                 case 'edit_image':
-                    const imageToEdit = file || lastActiveImage;
-                    if (imageToEdit) {
-                        setMessages(prev => prev.map(m => 
-                            m.id === aiMessageId 
-                                ? { 
-                                    ...m, 
-                                    text: '', 
-                                    segments: [], 
-                                    editedImage: { 
-                                        beforeUrl: `data:${imageToEdit.mimeType};base64,${imageToEdit.base64}`,
-                                        prompt: toolCall.prompt,
-                                        isLoading: true 
-                                    } 
-                                } 
-                                : m
-                        ));
-                        const editedUrl = await editImage(imageToEdit, toolCall.prompt);
-                        if (isCancelledRef.current) return;
-
-                        if (editedUrl) {
-                            toolResponseText = `I've edited the image as you requested.`;
-                             updatedMessageData.editedImage = { 
-                                 beforeUrl: `data:${imageToEdit.mimeType};base64,${imageToEdit.base64}`, 
-                                 afterUrl: editedUrl, 
-                                 prompt: toolCall.prompt,
-                                 isLoading: false
-                            };
-                            const newBase64 = editedUrl.split(',')[1];
-                            const newMimeType = editedUrl.match(/data:(.*);/)?.[1] || 'image/png';
-                            setLastActiveImage({
-                                name: 'edited-image.png',
-                                mimeType: newMimeType,
-                                base64: newBase64
-                            });
-                        } else {
-                            toolResponseText = "Sorry, I couldn't edit the image. It may have been blocked for safety reasons.";
-                             updatedMessageData.editedImage = undefined;
-                        }
-                    } else {
-                        toolResponseText = "You need to upload an image or have a generated image in the chat to edit it.";
-                    }
-                    break;
-                case 'summarize_document':
-                    if(fileContentForTool) {
-                        toolResponseText = await summarizeDocument(fileContentForTool);
-                    } else {
-                        toolResponseText = "Please upload a text document first to summarize it.";
-                    }
-                    break;
-                case 'create_storyboard':
-                    const prompts = toolCall.prompts.slice(0, 4); 
-                    const imagePromises = prompts.map((p: string) => generateImage(p, '16:9'));
-                    const urls = await Promise.all(imagePromises);
-                    if (urls.some(url => url !== null)) {
-                        toolResponseText = "Here is the storyboard you requested.";
-                        updatedMessageData.storyboardImages = prompts.map((p: string, i: number) => ({ prompt: p, url: urls[i]! })).filter(item => item.url);
-                    } else {
-                         toolResponseText = "Sorry, I was unable to generate images for the storyboard.";
-                    }
-                    break;
-                 case 'text_to_speech':
-                    const base64Audio = await generateSpeech(toolCall.text);
-                    if (base64Audio) {
-                        const pcmData = decode(base64Audio); // Uint8Array
-                        const wavBlob = pcmToWav(pcmData, 24000, 1, 16);
-                        const audioUrl = URL.createObjectURL(wavBlob);
-                        toolResponseText = `Here's the audio for you.`;
-                        updatedMessageData.audioUrl = audioUrl;
-                    } else {
-                        toolResponseText = "Sorry, I couldn't generate the speech for that text.";
-                    }
-                    break;
-
-                default:
-                    toolResponseText = `I'm not familiar with the tool: ${toolCall.tool_call}`;
-                    break;
-            }
-
-            finalAiMessage = {
-                ...aiMessage,
-                text: toolResponseText,
-                segments: parseMarkdown(toolResponseText),
-                status: 'sent',
-                ...updatedMessageData,
-            };
-            setHistory(prev => [...prev, { role: 'model', parts: [{ text: toolResponseText }] }]);
-
-        } else {
-             finalAiMessage = { ...aiMessage, text: fullText, segments: parseMarkdown(fullText), status: 'sent' };
-             setHistory(prev => [...prev, { role: 'model', parts: [{ text: fullText }] }]);
-        }
-        
-        if(finalAiMessage) {
-            setMessages(prev => prev.map(m => m.id === aiMessageId ? finalAiMessage! : m));
-        }
-
-        setIsLoading(false);
-
-    }, [isLoading, history, executeWorkflow, userSettings, lastActiveImage, currentPersona, processVideoRequest]);
-
-    const handleQuickAction = (prompt: string) => {
-        const composerTextarea = document.querySelector('.composer-textarea') as HTMLTextAreaElement;
-        if (composerTextarea) {
-             setInput(prompt);
-            composerTextarea.focus();
-        }
-    };
-
-    const handleClearChat = () => {
-        setMessages([]);
-        setHistory([]);
-        setSessionFiles([]);
-        setIsSettingsOpen(false);
-    };
-
-    const handleLogout = async () => {
-        await logout();
-        navigateTo('home');
     };
     
-    // --- Live Conversation Logic ---
-    const stopLiveConversation = useCallback(async () => {
-        if (sessionPromiseRef.current) {
-            const session = await sessionPromiseRef.current;
-            session.close();
-            sessionPromiseRef.current = null;
-        }
+    // Function to handle tool calls
+    const handleToolCall = async (jsonString: string, aiMessageId: string) => {
+        try {
+            const toolData = JSON.parse(jsonString);
+            const { tool_call, goal, ...args } = toolData;
+            
+            setMessages(prev => prev.map(msg =>
+                msg.id === aiMessageId ? { ...msg, text: `Running tool: ${tool_call}...`, status: 'sent' } : msg
+            ));
+            
+            let resultMessage = '';
+            
+            switch (tool_call) {
+                case 'get_weather':
+                    const weather = await fetchWeather(args.city);
+                     if ('error' in weather) {
+                        resultMessage = weather.error;
+                    } else {
+                        // Don't add a text message, instead add a message with a WeatherData object
+                        setMessages(prev => prev.map(msg =>
+                            msg.id === aiMessageId ? { ...msg, text: '', weatherData: weather } : msg
+                        ));
+                        return; // Exit early to avoid overwriting with text
+                    }
+                    break;
+                case 'generate_image':
+                    setMessages(prev => prev.map(msg => 
+                        msg.id === aiMessageId 
+                            ? { ...msg, text: '', generatedImage: { prompt: args.prompt, isLoading: true, aspectRatio: '1:1' } } 
+                            : msg
+                    ));
+                    const imageUrl = await generateImage(args.prompt);
+                     setMessages(prev => prev.map(msg => 
+                        msg.id === aiMessageId 
+                            ? { ...msg, generatedImage: { ...msg.generatedImage!, url: imageUrl || 'error', isLoading: false } }
+                            : msg
+                    ));
+                    return;
+                case 'edit_image':
+                    if (!fileAttachment) {
+                        resultMessage = "Please upload an image first to use the edit tool.";
+                        break;
+                    }
+                    setMessages(prev => prev.map(msg =>
+                        msg.id === aiMessageId
+                            ? { ...msg, text: '', editedImage: { beforeUrl: `data:${fileAttachment.mimeType};base64,${fileAttachment.base64}`, prompt: args.prompt, isLoading: true } }
+                            : msg
+                    ));
+                    const editedUrl = await editImage(fileAttachment, args.prompt);
+                    setMessages(prev => prev.map(msg =>
+                        msg.id === aiMessageId
+                            ? { ...msg, editedImage: { ...msg.editedImage!, afterUrl: editedUrl || 'error', isLoading: false } }
+                            : msg
+                    ));
+                    return;
+                case 'generate_video':
+                    setMessages(prev => prev.map(msg =>
+                        msg.id === aiMessageId ? { ...msg, text: '', generatedVideo: { status: 'generating', prompt: args.prompt } } : msg
+                    ));
+                    try {
+                        // FIX: Added a check for window.aistudio to prevent runtime errors when the object is not available.
+                        if (window.aistudio) {
+                            // FIX: Added a check for hasSelectedApiKey to prevent API calls without a selected key.
+                            const hasKey = await window.aistudio.hasSelectedApiKey();
+                            if (!hasKey) {
+                                // FIX: Added a call to openSelectKey to prompt the user to select an API key.
+                                await window.aistudio.openSelectKey();
+                            }
+                        }
+                        const ai = new GoogleGenAI({apiKey: API_KEY});
+                        let operation: GenerateVideosOperation | undefined = await ai.models.generateVideos({
+                            model: 'veo-3.1-fast-generate-preview',
+                            prompt: args.prompt,
+                            config: { numberOfVideos: 1, resolution: '720p', aspectRatio: '16:9' }
+                        });
 
-        if (mediaStreamRef.current) {
-            mediaStreamRef.current.getTracks().forEach(track => track.stop());
-            mediaStreamRef.current = null;
-        }
+                        while (operation && !operation.done) {
+                            await new Promise(resolve => setTimeout(resolve, 10000));
+                            operation = await ai.operations.getVideosOperation({ operation: operation });
+                        }
+                        
+                        const downloadLink = operation?.response?.generatedVideos?.[0]?.video?.uri;
+                        if (downloadLink) {
+                            const videoBlob = await fetchVideoFromUri(downloadLink);
+                            const videoUrl = URL.createObjectURL(videoBlob);
+                            setMessages(prev => prev.map(msg =>
+                                msg.id === aiMessageId ? { ...msg, generatedVideo: { ...msg.generatedVideo!, status: 'completed', url: videoUrl } } : msg
+                            ));
+                        } else {
+                            throw new Error("Video generation completed, but no download link was found.");
+                        }
+                    } catch (error: any) {
+                         setMessages(prev => prev.map(msg =>
+                            msg.id === aiMessageId ? { ...msg, generatedVideo: { ...msg.generatedVideo!, status: 'error' }, text: `Video Generation Error: ${error.message}` } : msg
+                        ));
+                    }
+                    return;
+                case 'summarize_document':
+                    // We already have the file content from the streamMessageToChat function call
+                     const fileContent = (await streamMessageToChat(chatHistory, "summarize", fileAttachment, null, userProfile)).fileContent;
+                    if (!fileContent) {
+                        resultMessage = "Sorry, I couldn't read the attached file. Please ensure it's a valid text file.";
+                    } else {
+                        const summary = await summarizeDocument(fileContent);
+                        resultMessage = `Here is a summary of the document:\n\n${summary}`;
+                    }
+                    break;
+                case 'text_to_speech':
+                     const audioBase64 = await generateSpeech(args.text);
+                    if (audioBase64) {
+                        const audioBlob = pcmToWav(decode(audioBase64), 24000, 1, 16);
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                         setMessages(prev => prev.map(msg =>
+                            msg.id === aiMessageId ? { ...msg, text: `Audio for: "${args.text}"`, audioUrl } : msg
+                        ));
+                        return;
+                    } else {
+                        resultMessage = "Sorry, I couldn't generate the audio at this time.";
+                    }
+                    break;
+                 case 'create_storyboard':
+                    const prompts = args.prompts as string[];
+                    const storyboardImages: { prompt: string, url: string }[] = [];
+                    // Add a loading state
+                    setMessages(prev => prev.map(msg =>
+                        msg.id === aiMessageId ? { ...msg, text: `Generating ${prompts.length} storyboard panels...` } : msg
+                    ));
+                    for (const prompt of prompts) {
+                        const url = await generateImage(prompt);
+                        if (url) {
+                            storyboardImages.push({ prompt, url });
+                        }
+                    }
+                     setMessages(prev => prev.map(msg =>
+                        msg.id === aiMessageId ? { ...msg, text: "Here's your storyboard:", storyboardImages } : msg
+                    ));
+                    return;
+                case 'create_powerpoint':
+                    setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, generatedFile: { filename: `${args.topic}.pptx`, message: 'Generating presentation...', type: 'pptx', isPreviewLoading: true } } : msg));
+                    const pptData = await generatePresentationContent(args.topic, args.num_slides || 5);
+                    if ('error' in pptData) {
+                         setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: pptData.error, generatedFile: undefined } : msg));
+                    } else {
+                        // Generate a preview image from the first slide's content
+                        const previewPrompt = `Create a visually appealing title slide image for a presentation titled "${args.topic}". The style should be professional and modern. Include the title prominently.`;
+                        const previewUrl = await generateImage(previewPrompt, '16:9');
+                        setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, generatedFile: { ...msg.generatedFile!, data: pptData, message: 'Presentation ready for download.', previewImageUrl: previewUrl, isPreviewLoading: false } } : msg));
+                    }
+                    return;
+                case 'create_word_document':
+                    setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, generatedFile: { filename: `${args.topic}.docx`, message: 'Generating document...', type: 'docx' } } : msg));
+                    const docData = await generateWordContent(args.topic, args.sections);
+                    if ('error' in docData) {
+                         setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: docData.error, generatedFile: undefined } : msg));
+                    } else {
+                         setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, generatedFile: { ...msg.generatedFile!, data: docData, message: 'Document ready for download.' } } : msg));
+                    }
+                    return;
+                case 'create_excel_spreadsheet':
+                    setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, generatedFile: { filename: `${args.filename}.xlsx`, message: 'Generating spreadsheet...', type: 'xlsx' } } : msg));
+                    const excelData = await generateExcelContent(args.data_description, args.columns);
+                    if ('error' in excelData) {
+                        setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: excelData.error, generatedFile: undefined } : msg));
+                    } else {
+                        setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, generatedFile: { ...msg.generatedFile!, data: { ...excelData, filename: args.filename }, message: 'Spreadsheet ready for download.' } } : msg));
+                    }
+                    return;
+                case 'generate_qr_code':
+                    const qrText = args.text;
+                    const qrDataUrl = await new Promise<string>((resolve) => {
+                        QRCode.toDataURL(qrText, { width: 256, margin: 2 }, (err: any, url: string) => {
+                            if (err) resolve('');
+                            else resolve(url);
+                        });
+                    });
+                     if (qrDataUrl) {
+                        setMessages(prev => prev.map(msg =>
+                            msg.id === aiMessageId ? { ...msg, text: '', generatedQRCode: { text: qrText, dataUrl: qrDataUrl } } : msg
+                        ));
+                    } else {
+                        resultMessage = "Sorry, I couldn't generate the QR code.";
+                    }
+                    return;
 
-        if (audioContextRefs.current.input) {
-            audioContextRefs.current.input.close();
-            audioContextRefs.current.input = null;
-        }
-        if (audioContextRefs.current.output) {
-            audioContextRefs.current.output.close();
-            audioContextRefs.current.output = null;
-        }
-        if (audioContextRefs.current.scriptProcessor) {
-            audioContextRefs.current.scriptProcessor.disconnect();
-            audioContextRefs.current.scriptProcessor = null;
-        }
+                case 'initiate_workflow':
+                    const initialWorkflow: Workflow = {
+                        goal: goal,
+                        plan: [],
+                        steps: [],
+                        status: 'running',
+                        finalContent: null
+                    };
+                    setMessages(prev => prev.map(msg => msg.id === aiMessageId ? { ...msg, text: '', workflow: initialWorkflow } : msg));
+                    await executeWorkflow(goal, aiMessageId);
+                    return;
+                default:
+                    resultMessage = `Unknown tool: ${tool_call}`;
+            }
 
-        setLiveConnectionState('disconnected');
-    }, []);
-
-    const startLiveConversation = useCallback(async () => {
-        if (!ai || liveConnectionState !== 'disconnected') return;
-
-        setLiveConnectionState('connecting');
+            setMessages(prev => prev.map(msg =>
+                msg.id === aiMessageId ? { ...msg, text: resultMessage } : msg
+            ));
+            
+        } catch (error: any) {
+            console.error("Error parsing or handling tool call:", error);
+            setMessages(prev => prev.map(msg =>
+                msg.id === aiMessageId ? { ...msg, text: `Error processing tool request: ${error.message}` } : msg
+            ));
+        }
+    };
+    
+    // Workflow Execution Logic
+    const executeWorkflow = async (goal: string, messageId: string, approvalStatus: 'approved' | 'denied' | null = null, approvedStepIndex: number = -1) => {
+        let currentWorkflow: Workflow | undefined;
+        setMessages(prev => {
+            const newMessages = [...prev];
+            const msgIndex = newMessages.findIndex(m => m.id === messageId);
+            if (msgIndex > -1 && newMessages[msgIndex].workflow) {
+                currentWorkflow = { ...newMessages[msgIndex].workflow! };
+                if (approvalStatus === 'approved' && currentWorkflow.steps[approvedStepIndex]) {
+                     currentWorkflow.steps[approvedStepIndex].status = 'running';
+                     currentWorkflow.status = 'running';
+                }
+                if (approvalStatus === 'denied' && currentWorkflow.steps[approvedStepIndex]) {
+                    currentWorkflow.steps[approvedStepIndex].status = 'denied';
+                    currentWorkflow.status = 'denied';
+                    currentWorkflow.finalContent = "Workflow stopped by user.";
+                }
+            }
+            return newMessages;
+        });
+        
+        if (!currentWorkflow || currentWorkflow.status === 'denied') return;
 
         try {
-            mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Step 1: Generate a plan if it doesn't exist
+            if (currentWorkflow.plan.length === 0) {
+                 const planResult = await generatePlan(goal);
+                if ('error' in planResult) throw new Error(planResult.error);
+                currentWorkflow.plan = planResult.plan;
+                 currentWorkflow.steps = planResult.plan.map(p => ({ summary: p, status: 'pending' }));
+                 setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, workflow: currentWorkflow } : msg));
+            }
+            
+            // Step 2: Execute steps until completion or error
+            while (currentWorkflow.status === 'running') {
+                const result = await runWorkflowStep(currentWorkflow.goal, currentWorkflow.plan, currentWorkflow.steps.filter(s => s.status === 'completed'));
+                if ('error' in result) throw new Error(result.error);
+                
+                const { step_summary, tool_call } = result;
 
-            const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-            const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-            const outputNode = outputAudioContext.createGain();
-            outputNode.connect(outputAudioContext.destination);
+                // Find the next pending step to update
+                const nextStepIndex = currentWorkflow.steps.findIndex(s => s.status === 'pending');
+                if (nextStepIndex === -1) {
+                    // This case might happen if the agent decides to finish early.
+                    // We'll let the 'finish' tool handle the final state.
+                } else {
+                    currentWorkflow.steps[nextStepIndex].summary = step_summary;
+                    currentWorkflow.steps[nextStepIndex].tool_call = tool_call;
+                    currentWorkflow.steps[nextStepIndex].status = 'running';
+                }
 
-            audioContextRefs.current.input = inputAudioContext;
-            audioContextRefs.current.output = outputAudioContext;
+                setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, workflow: currentWorkflow } : msg));
+                
+                // --- TOOL EXECUTION ---
+                let tool_output: StructuredToolOutput = null;
+
+                if (tool_call.name === 'finish') {
+                    currentWorkflow.status = 'completed';
+                    currentWorkflow.finalContent = tool_call.args.final_content;
+                } else if (tool_call.name === 'request_user_approval') {
+                     currentWorkflow.status = 'paused_for_approval';
+                     if (nextStepIndex !== -1) {
+                         currentWorkflow.steps[nextStepIndex].status = 'paused_for_approval';
+                     }
+                } else {
+                    // All other tools
+                    switch(tool_call.name) {
+                        case 'search_and_summarize':
+                            const searchRes = await performGoogleSearch(tool_call.args.query);
+                            tool_output = { type: 'text', content: searchRes.text || "No results found." };
+                            break;
+                        case 'write_file':
+                            const updatedFiles = { ...sessionFiles.reduce((acc, file) => ({...acc, [file.name]: file.content}), {}), [tool_call.args.filename]: tool_call.args.content };
+                            // FIX: Added explicit string conversion to satisfy the VirtualFile type.
+                            setSessionFiles(Object.entries(updatedFiles).map(([name, content]) => ({ name, content: String(content) })));
+                            tool_output = { type: 'file_generated', filename: tool_call.args.filename, message: 'File written successfully.' };
+                            break;
+                         case 'create_powerpoint':
+                            const pptData = await generatePresentationContent(tool_call.args.topic, tool_call.args.num_slides || 5);
+                            if ('error' in pptData) throw new Error(pptData.error);
+                            await createPptxFile(pptData, tool_call.args.topic);
+                            tool_output = { type: 'file_generated', filename: `${tool_call.args.topic}.pptx`, message: 'PowerPoint presentation downloaded.' };
+                            break;
+                         case 'create_word_document':
+                            const docData = await generateWordContent(tool_call.args.topic, tool_call.args.sections);
+                            if ('error' in docData) throw new Error(docData.error);
+                            await createDocxFile(docData);
+                            tool_output = { type: 'file_generated', filename: `${docData.title}.docx`, message: 'Word document downloaded.' };
+                            break;
+                        case 'create_excel_spreadsheet':
+                             const excelData = await generateExcelContent(tool_call.args.data_description, tool_call.args.columns);
+                            if ('error' in excelData) throw new Error(excelData.error);
+                            const fullExcelData: ExcelData = { ...excelData, filename: tool_call.args.filename };
+                            await createXlsxFile(fullExcelData);
+                            tool_output = { type: 'file_generated', filename: `${tool_call.args.filename}.xlsx`, message: 'Excel spreadsheet downloaded.' };
+                            break;
+                        default:
+                            tool_output = { type: 'text', content: `Error: Unknown tool '${tool_call.name}' called by agent.` };
+                            break;
+                    }
+                    if (nextStepIndex !== -1) {
+                        currentWorkflow.steps[nextStepIndex].status = 'completed';
+                        currentWorkflow.steps[nextStepIndex].tool_output = tool_output;
+                    }
+                }
+
+                setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, workflow: { ...currentWorkflow! } } : msg));
+            }
+
+        } catch (error: any) {
+             // FIX: Explicitly type `updatedWorkflow` as `Workflow` to prevent type widening on the `status` property.
+             const updatedWorkflow: Workflow = { ...currentWorkflow!, status: 'error', finalContent: `An error occurred: ${error.message}` };
+             setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, workflow: updatedWorkflow } : msg));
+        }
+    };
+
+    const handleWorkflowApproval = (messageId: string, stepIndex: number) => {
+        executeWorkflow(messages.find(m => m.id === messageId)?.workflow?.goal || '', messageId, 'approved', stepIndex);
+    };
+
+    const handleWorkflowDenial = (messageId: string, stepIndex: number) => {
+        executeWorkflow(messages.find(m => m.id === messageId)?.workflow?.goal || '', messageId, 'denied', stepIndex);
+    };
+
+    const handleDownloadGeneratedFile = async (message: Message) => {
+        if (!message.generatedFile || !message.generatedFile.data) return;
+        
+        switch(message.generatedFile.type) {
+            case 'pptx':
+                await createPptxFile(message.generatedFile.data as PresentationData, message.generatedFile.filename.replace('.pptx', ''));
+                break;
+            case 'docx':
+                 await createDocxFile(message.generatedFile.data as WordData);
+                break;
+            case 'xlsx':
+                 await createXlsxFile(message.generatedFile.data as ExcelData);
+                break;
+        }
+    };
+    
+    
+     const startLiveConversation = async () => {
+        setIsLive(true);
+        setLiveStatus('Initializing...');
+        
+        // FIX: Replaced `new GoogleGenAI(API_KEY)` with `new GoogleGenAI({apiKey: API_KEY})` to align with the latest SDK initialization method.
+        const ai = new GoogleGenAI({apiKey: API_KEY});
+
+        inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+        outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        let nextStartTime = 0;
+        const outputNode = outputAudioContextRef.current.createGain();
+        const sources = new Set<AudioBufferSourceNode>();
+
+        try {
+            setLiveStatus('Waiting for microphone permission...');
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaStreamRef.current = stream;
+            setLiveStatus('Connecting to AikonAI...');
 
             sessionPromiseRef.current = ai.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
                 callbacks: {
                     onopen: () => {
-                        const source = inputAudioContext.createMediaStreamSource(mediaStreamRef.current!);
-                        const scriptProcessor = inputAudioContext.createScriptProcessor(4096, 1, 1);
+                        setLiveStatus('Connected! You can start speaking.');
+                        playSound('https://aistudio.google.com/static/sounds/call_start.mp3');
                         
+                        if (!inputAudioContextRef.current || !mediaStreamRef.current) return;
+                        const source = inputAudioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
+                        const scriptProcessor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
+                        scriptProcessorRef.current = scriptProcessor;
+
                         scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
                             const pcmBlob = createBlob(inputData);
@@ -1622,271 +1119,401 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                 session.sendRealtimeInput({ media: pcmBlob });
                             });
                         };
-                        
                         source.connect(scriptProcessor);
-                        scriptProcessor.connect(inputAudioContext.destination);
-                        audioContextRefs.current.scriptProcessor = scriptProcessor;
-                        setLiveConnectionState('connected');
+                        scriptProcessor.connect(inputAudioContextRef.current.destination);
                     },
                     onmessage: async (message: LiveServerMessage) => {
-                        if (message.serverContent?.inputTranscription) {
-                            currentInputTranscriptionRef.current += message.serverContent.inputTranscription.text;
-                        }
-                        if (message.serverContent?.outputTranscription) {
-                            currentOutputTranscriptionRef.current += message.serverContent.outputTranscription.text;
-                        }
-
-                        if (message.serverContent?.turnComplete) {
-                            const userInput = currentInputTranscriptionRef.current.trim();
-                            const aiOutput = currentOutputTranscriptionRef.current.trim();
-
-                            if (userInput) {
-                                const userMessage: Message = {
-                                    id: Date.now().toString(),
-                                    text: userInput,
-                                    sender: 'user',
-                                    timestamp: new Date(),
-                                    status: 'sent',
-                                };
-                                setMessages(prev => [...prev, userMessage]);
-                            }
-
-                            if (aiOutput) {
-                                 const aiMessage: Message = {
-                                    id: (Date.now() + 1).toString(),
-                                    text: aiOutput,
-                                    sender: 'ai',
-                                    timestamp: new Date(),
-                                    status: 'sent',
-                                };
-                                setMessages(prev => [...prev, aiMessage]);
-                            }
-                            
-                            if (userInput || aiOutput) {
-                                const newHistory: Content[] = [];
-                                if(userInput) newHistory.push({ role: 'user', parts: [{ text: userInput }] });
-                                if(aiOutput) newHistory.push({ role: 'model', parts: [{ text: aiOutput }] });
-                                setHistory(prev => [...prev, ...newHistory]);
-                            }
-
-                            currentInputTranscriptionRef.current = '';
-                            currentOutputTranscriptionRef.current = '';
-                        }
-                        
-                        const base64EncodedAudioString = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-                        if (base64EncodedAudioString && audioContextRefs.current.output) {
-                            const outputCtx = audioContextRefs.current.output;
-                            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputCtx.currentTime);
-                            
-                            const audioBuffer = await decodeAudioData(decode(base64EncodedAudioString), outputCtx, 24000, 1);
-                            
-                            const source = outputCtx.createBufferSource();
+                        const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData.data;
+                        if (base64Audio && outputAudioContextRef.current) {
+                             nextStartTime = Math.max(nextStartTime, outputAudioContextRef.current.currentTime);
+                            const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContextRef.current, 24000, 1);
+                            const source = outputAudioContextRef.current.createBufferSource();
                             source.buffer = audioBuffer;
                             source.connect(outputNode);
-                            source.addEventListener('ended', () => { audioContextRefs.current.sources.delete(source); });
-                            
-                            source.start(nextStartTimeRef.current);
-                            nextStartTimeRef.current += audioBuffer.duration;
-                            audioContextRefs.current.sources.add(source);
+                             source.addEventListener('ended', () => { sources.delete(source); });
+                            source.start(nextStartTime);
+                            nextStartTime += audioBuffer.duration;
+                            sources.add(source);
                         }
-
-                         const interrupted = message.serverContent?.interrupted;
-                        if (interrupted) {
-                            for (const source of audioContextRefs.current.sources.values()) {
+                        
+                         if (message.serverContent?.interrupted) {
+                            for (const source of sources.values()) {
                                 source.stop();
-                                audioContextRefs.current.sources.delete(source);
+                                sources.delete(source);
                             }
-                            nextStartTimeRef.current = 0;
+                            nextStartTime = 0;
                         }
                     },
                     onerror: (e: ErrorEvent) => {
                         console.error('Live session error:', e);
-                        setLiveConnectionState('error');
+                        setLiveStatus(`Connection error: ${e.message}`);
                         stopLiveConversation();
                     },
-                    onclose: (e: CloseEvent) => {
-                        stopLiveConversation();
+                    onclose: () => {
+                        setLiveStatus('Disconnected.');
+                        stopLiveConversation(false); // Don't try to close session again
                     },
                 },
                 config: {
                     responseModalities: [Modality.AUDIO],
                     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
-                    outputAudioTranscription: {},
-                    inputAudioTranscription: {},
                 },
             });
 
-        } catch (error) {
-            console.error("Failed to start live conversation:", error);
-            setLiveConnectionState('error');
-            stopLiveConversation();
+        } catch (error: any) {
+            console.error('Failed to start live conversation:', error);
+            setLiveStatus(`Error: ${error.message}`);
+            setIsLive(false);
         }
-    }, [liveConnectionState, stopLiveConversation]);
-
-    const handleToggleLiveMode = useCallback(() => {
-        if (liveConnectionState === 'disconnected' || liveConnectionState === 'error') {
-            startLiveConversation();
-        } else {
-            stopLiveConversation();
-        }
-    }, [liveConnectionState, startLiveConversation, stopLiveConversation]);
-
-
-    const PersonaMenu: React.FC<{ onSelect: (persona: Persona) => void }> = ({ onSelect }) => (
-        <div className="persona-menu">
-            {PERSONAS.map(p => (
-                <div key={p.name} className="persona-menu-item" onClick={() => onSelect(p)}>
-                    <span className="icon">{p.icon}</span>
-                    <span>{p.name}</span>
-                </div>
-            ))}
-        </div>
-    );
-
-    const WelcomeScreen: React.FC = () => {
-        const DeepSearchIcon = () => (<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16.1521 3.34537C15.4297 2.62291 14.5885 2.01916 13.6705 1.56543M12 2V3M2 12H3M4.92893 4.92893L5.63604 5.63604M4.92893 19.0711L5.63604 18.364M12 22V21M19.0711 19.0711L18.364 18.364M19.0711 4.92893L18.364 5.63604M7.84787 3.34537C8.57034 2.62291 9.41153 2.01916 10.3295 1.56543M12 17C9.23858 17 7 14.7614 7 12C7 9.23858 9.23858 7 12 7C14.7614 7 17 9.23858 17 12C17 14.7614 14.7614 17 12 17Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path></svg>);
-        const CreateImageIcon = () => (<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 16.5V7.5M7.5 12H16.5M17.5 2.5H6.5C4.29086 2.5 2.5 4.29086 2.5 6.5V17.5C2.5 19.7091 4.29086 21.5 6.5 21.5H17.5C19.7091 21.5 21.5 19.7091 21.5 17.5V6.5C21.5 4.29086 19.7091 2.5 17.5 2.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"></path></svg>);
-        const PersonasIcon = () => (<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4.5 7.5V16.5C4.5 17.3284 5.17157 18 6 18H18C18.8284 18 19.5 17.3284 19.5 16.5V7.5C19.5 6.67157 18.8284 6 18 6H6C5.17157 6 4.5 6.67157 4.5 7.5Z" stroke="currentColor" strokeWidth="2"></path><path d="M2.5 11V16.5C2.5 18.433 4.067 20 6 20H18C19.933 20 21.5 18.433 21.5 16.5V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"></path></svg>);
-        const VoiceIcon = () => (<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 12H8.01M12 12H12.01M16 12H16.01M5 12H5.01M19 12H19.01M2 12H2.01M22 12H22.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"></path></svg>);
-
-        return (
-            <div className="chat-welcome-screen">
-                <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="welcome-logo" />
-                <h1 className="welcome-title">AikonAI</h1>
-                <div className="welcome-actions">
-                    <button className="action-pill" onClick={() => handleQuickAction("Deep search the latest trends in renewable energy.")}>
-                        <DeepSearchIcon /> DeepSearch
-                    </button>
-                     <button className="action-pill" onClick={() => handleQuickAction("Create an image of a futuristic city at sunset, cinematic style.")}>
-                        <CreateImageIcon /> Create Image
-                    </button>
-                    <div className="persona-menu-container" ref={personaMenuRef}>
-                        <button className="action-pill" onClick={() => setIsPersonaMenuOpen(prev => !prev)}>
-                            <PersonasIcon /> Pick Personas
-                        </button>
-                        {isPersonaMenuOpen && <PersonaMenu onSelect={(p) => {
-                            setCurrentPersona(p);
-                            setIsPersonaMenuOpen(false);
-                            handleQuickAction(`Hello! Please act as my ${p.name}.`);
-                        }} />}
-                    </div>
-                    <button className="action-pill" onClick={handleToggleLiveMode}>
-                        <VoiceIcon /> Voice
-                    </button>
-                </div>
-            </div>
-        );
     };
 
-    const isEmpty = messages.length === 0;
+    const stopLiveConversation = (closeSession = true) => {
+        if (closeSession && sessionPromiseRef.current) {
+            sessionPromiseRef.current.then(session => session.close());
+            playSound('https://aistudio.google.com/static/sounds/call_end.mp3');
+        }
+        
+        scriptProcessorRef.current?.disconnect();
+        mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+        inputAudioContextRef.current?.close();
+        outputAudioContextRef.current?.close();
+        
+        sessionPromiseRef.current = null;
+        scriptProcessorRef.current = null;
+        mediaStreamRef.current = null;
+        inputAudioContextRef.current = null;
+        outputAudioContextRef.current = null;
+        
+        setIsLive(false);
+    };
+
+    const handleExit = () => {
+        if (isGuest) {
+            window.location.reload(); // Simple way to reset for guest
+        } else if (user) {
+            logout(); // Signs out the Firebase user
+        }
+    };
+
 
     return (
         <div className="chat-page-container">
-            {liveConnectionState !== 'disconnected' && (
-                <LiveConversationOverlay 
-                    connectionState={liveConnectionState}
-                    onDisconnect={stopLiveConversation}
-                />
-            )}
             <header className="chat-header">
-                 <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="chat-header-logo" />
-                 <div className="chat-header-actions">
-                    {user ? (
-                        <>
-                            <button onClick={() => setIsSettingsOpen(true)}>Settings</button>
-                            <button className="primary" onClick={handleLogout}>Log Out</button>
-                        </>
-                    ) : (
-                        <>
-                            <button onClick={() => navigateTo('home')}>Sign In</button>
-                            <button className="primary" onClick={() => navigateTo('home')}>Sign Up</button>
-                        </>
-                    )}
-                 </div>
-            </header>
-            
-            <main className="flex-grow flex flex-col min-h-0">
-                 {isEmpty && !isLoading ? <WelcomeScreen /> : (
-                    <div ref={chatWindowRef} className="message-log-container">
-                         {!isEmpty && <SessionFileManager 
-                            files={sessionFiles} 
-                            onOpenFile={(filename) => {
-                                const fileContent = sessionFiles.find(f => f.name === filename)?.content;
-                                if(fileContent) {
-                                    setCanvasFiles({ [filename]: fileContent });
-                                    setIsCanvasVisible(true);
-                                }
-                            }} 
-                            onDownloadFile={handleDownloadFile}
-                        />}
-                        {messages.map((msg, index) => (
-                            <MessageLogItem
-                                key={msg.id}
-                                message={msg}
-                                onApprove={(stepIndex) => handleApproval(stepIndex, true)}
-                                onDeny={(stepIndex) => handleApproval(stepIndex, false)}
-                                onViewImage={setViewingImage}
-                                userProfile={authUserProfile}
-                                style={{ animationDelay: `${Math.min(index * 100, 1000)}ms` }}
-                            />
-                        ))}
-                        {isLoading && <TypingIndicator />}
-                        <div ref={bottomOfChatRef} />
+                <div className="flex items-center space-x-3">
+                    <h1 className="text-xl font-bold tracking-wider">AikonAI</h1>
+                    <span className="text-xs font-semibold text-amber-400 bg-amber-900/50 px-2 py-0.5 rounded-md border border-amber-600/50">BETA</span>
+                </div>
+                <div className="chat-header-actions">
+                    <div className="agent-toggle">
+                        <span className={`text-xs font-bold transition-colors ${isAgentModeEnabled ? 'text-amber-400' : 'text-gray-400'}`}>AGENT MODE</span>
+                        <button 
+                            className={`toggle-switch ${isAgentModeEnabled ? 'on' : ''}`}
+                            onClick={() => setIsAgentModeEnabled(!isAgentModeEnabled)}
+                            aria-label={`Turn agent mode ${isAgentModeEnabled ? 'off' : 'on'}`}
+                        >
+                            <motion.div className="toggle-thumb" layout />
+                        </button>
                     </div>
-                )}
+                     <button onClick={() => setIsSettingsModalOpen(true)}>Settings</button>
+                    <button onClick={handleExit}>Exit</button>
+                    <button onClick={toggleTheme} className="theme-toggle-button" aria-label="Toggle theme">
+                        {theme === 'dark' ? 
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg> : 
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                        }
+                    </button>
+                </div>
+            </header>
+
+            <main ref={messageLogRef} onScroll={handleScroll} className="message-log-container">
+                <AnimatePresence>
+                    {messages.length === 0 ? (
+                        <motion.div 
+                             className="chat-welcome-screen"
+                             initial={{ opacity: 0 }}
+                             animate={{ opacity: 1 }}
+                             exit={{ opacity: 0 }}
+                        >
+                            <h2 className="welcome-title">Hello, {userProfile?.aboutYou || 'there'}.</h2>
+                            <p className="text-xl text-gray-400 mt-2">How can AikonAI help you today?</p>
+                            <div className="welcome-actions">
+                                <button className="action-pill" disabled={isLoading} onClick={startLiveConversation}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                                    Start Live Conversation
+                                </button>
+                                {personas.slice(0, 5).map(p => (
+                                     <button key={p.name} className="action-pill" disabled={isLoading} onClick={() => setActivePersona(p)}>
+                                        <span className="text-lg">{p.icon}</span> {p.name}
+                                    </button>
+                                ))}
+                                {personas.length > 5 && (
+                                     <button className="action-pill" disabled={isLoading} onClick={() => setIsPersonaMenuOpen(true)}>+ More Personas</button>
+                                )}
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <div className="max-w-3xl mx-auto w-full px-4">
+                            {messages.map(message => (
+                                <motion.div
+                                    key={message.id}
+                                    className={`message-log-item ${message.sender}`}
+                                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                                    layout
+                                >
+                                    {message.sender === 'ai' && (
+                                        <div className={`message-avatar ai-avatar`}>
+                                        </div>
+                                    )}
+                                    <div className="message-content-wrapper">
+                                        {message.text && (
+                                            <div className={`message-content ${message.status === 'streaming' ? 'streaming' : ''}`}>
+                                                {parseMarkdown(message.text).map((segment, index) => {
+                                                    if (segment.type === 'paragraph') {
+                                                        return <div key={index} dangerouslySetInnerHTML={{ __html: renderParagraph(segment.content) }} />;
+                                                    } else {
+                                                        return <CodeBlock key={index} code={segment.content} language={segment.language} filename={segment.filename} />;
+                                                    }
+                                                })}
+                                            </div>
+                                        )}
+                                        {message.status === 'streaming' && !message.text && (
+                                            <div className={`typing-indicator persona-${activePersona?.name.toLowerCase().replace(/ /g, '-') || 'default'}`}>
+                                                <span></span><span></span><span></span>
+                                            </div>
+                                        )}
+                                         {message.weatherData && <WeatherCard data={message.weatherData} />}
+                                         {message.generatedImage && (
+                                            message.generatedImage.isLoading ? (
+                                                <SkeletonImageLoader aspectRatio={message.generatedImage.aspectRatio || '1:1'} prompt={message.generatedImage.prompt} />
+                                            ) : (
+                                                <img src={message.generatedImage.url} alt={message.generatedImage.prompt} className="rounded-lg mt-2" />
+                                            )
+                                        )}
+                                        {message.editedImage && (
+                                            message.editedImage.isLoading ? (
+                                                <SkeletonImageLoader aspectRatio="1:1" prompt={message.editedImage.prompt} />
+                                            ) : (
+                                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                                    <img src={message.editedImage.beforeUrl} alt="Original" className="rounded-lg" />
+                                                    <img src={message.editedImage.afterUrl} alt={message.editedImage.prompt} className="rounded-lg" />
+                                                </div>
+                                            )
+                                        )}
+                                         {message.generatedVideo && (
+                                            <div className="mt-2">
+                                                {message.generatedVideo.status === 'generating' && <div className="skeleton-loader aspect-16-9"><span>Generating video... This can take a few minutes.</span></div>}
+                                                {message.generatedVideo.status === 'completed' && message.generatedVideo.url && <video src={message.generatedVideo.url} controls className="rounded-lg w-full" />}
+                                                {message.generatedVideo.status === 'error' && <p className="text-red-400">Video generation failed.</p>}
+                                            </div>
+                                        )}
+                                        {message.audioUrl && (
+                                            <audio controls src={message.audioUrl} className="mt-2 w-full"></audio>
+                                        )}
+                                         {message.storyboardImages && <StoryboardDisplay images={message.storyboardImages} />}
+                                         {message.generatedFile && (
+                                            message.generatedFile.type === 'pptx' ? (
+                                                <PPTPreviewCard 
+                                                    data={message.generatedFile.data as PresentationData}
+                                                    filename={message.generatedFile.filename}
+                                                    onDownload={() => handleDownloadGeneratedFile(message)}
+                                                    previewImageUrl={message.generatedFile.previewImageUrl}
+                                                    isPreviewLoading={message.generatedFile.isPreviewLoading}
+                                                />
+                                            ) : (
+                                                 <div className="file-generated-output">
+                                                    <p>{message.generatedFile.message}</p>
+                                                    <button className="ppt-preview-download-btn" onClick={() => handleDownloadGeneratedFile(message)}>
+                                                        <DownloadIcon /> Download
+                                                    </button>
+                                                </div>
+                                            )
+                                        )}
+                                        {message.generatedQRCode && (
+                                            <div className="qr-code-output">
+                                                <img src={message.generatedQRCode.dataUrl} alt={`QR code for ${message.generatedQRCode.text}`} />
+                                                <p>{message.generatedQRCode.text}</p>
+                                            </div>
+                                        )}
+                                         {message.workflow && <WorkflowBubble workflow={message.workflow} onApprove={(stepIndex) => handleWorkflowApproval(message.id, stepIndex)} onDeny={(stepIndex) => handleWorkflowDenial(message.id, stepIndex)} />}
+                                        <SourceDisplay sources={message.sources || []} />
+                                    </div>
+                                    {message.sender === 'user' && (
+                                        <div className="message-avatar user-avatar">
+                                            {userProfile?.aboutYou?.charAt(0) || 'U'}
+                                        </div>
+                                    )}
+                                </motion.div>
+                            ))}
+
+                            {isLoading && messages.length > 0 && messages[messages.length-1].sender !== 'ai' && (
+                                <motion.div 
+                                    className="message-log-item ai"
+                                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                    layout
+                                >
+                                    <div className="message-avatar ai-avatar">
+                                    </div>
+                                    <div className="message-content-wrapper">
+                                        <div className={`typing-indicator persona-${activePersona?.name.toLowerCase().replace(/ /g, '-') || 'default'}`}>
+                                            <span></span><span></span><span></span>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </div>
+                    )}
+                </AnimatePresence>
             </main>
             
-            {!isEmpty && (
-                <div className="chat-actions-bar">
-                    <div className="chat-actions-inner">
-                        {currentPersona && (
-                            <div className="action-pill active-persona-indicator">
-                                <span>{currentPersona.icon} {currentPersona.name}</span>
-                                <button onClick={() => setCurrentPersona(null)} title="Clear Persona">&times;</button>
+            <div className="chat-composer-container">
+                {fileAttachment && (
+                    <motion.div
+                        className="composer-file-preview"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                    >
+                         <div className="composer-file-preview-inner">
+                            <div className="composer-file-info">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                                <span>{fileAttachment.name}</span>
                             </div>
-                        )}
-                        <div className="persona-menu-container" ref={personaMenuRef}>
-                            <button className="action-pill" onClick={() => setIsPersonaMenuOpen(prev => !prev)}>
-                                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-4 h-4"><path d="M4.5 7.5V16.5C4.5 17.3284 5.17157 18 6 18H18C18.8284 18 19.5 17.3284 19.5 16.5V7.5C19.5 6.67157 18.8284 6 18 6H6C5.17157 6 4.5 6.67157 4.5 7.5Z" stroke="currentColor" strokeWidth="2"></path><path d="M2.5 11V16.5C2.5 18.433 4.067 20 6 20H18C19.933 20 21.5 18.433 21.5 16.5V11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"></path></svg>
-                                Pick Personas
+                            <button onClick={removeFileAttachment} className="composer-icon-button" aria-label="Remove attachment">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
                             </button>
-                            {isPersonaMenuOpen && <PersonaMenu onSelect={(p) => {
-                                setCurrentPersona(p);
-                                setIsPersonaMenuOpen(false);
-                            }} />}
                         </div>
+                    </motion.div>
+                )}
+                <div className="chat-composer">
+                    <div className="persona-menu-container">
+                        <motion.button 
+                            className="composer-icon-button"
+                            onClick={() => setIsPersonaMenuOpen(!isPersonaMenuOpen)}
+                            whileTap={{ scale: 0.9 }}
+                            aria-label="Select Persona"
+                        >
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </motion.button>
+                         <AnimatePresence>
+                        {isPersonaMenuOpen && (
+                             <motion.div
+                                className="persona-menu"
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            >
+                                {personas.map(p => (
+                                     <div key={p.name} className="persona-tooltip-wrapper">
+                                        <div 
+                                            className={`persona-menu-item ${activePersona?.name === p.name ? 'selected' : ''}`}
+                                            onClick={() => { setActivePersona(p); setIsPersonaMenuOpen(false); }}
+                                        >
+                                            <span className="icon">{p.icon}</span>
+                                            <span>{p.name}</span>
+                                        </div>
+                                        <div className="persona-tooltip">{p.description}</div>
+                                    </div>
+                                ))}
+                                 <div className="create-persona-button">
+                                    <div className="persona-menu-item" onClick={() => { setEditingPersona(null); setIsPersonaModalOpen(true); setIsPersonaMenuOpen(false); }}>
+                                        <span className="icon">➕</span>
+                                        <span>Create New Persona</span>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+                        </AnimatePresence>
                     </div>
+                    <button className="composer-icon-button" onClick={() => fileInputRef.current?.click()} aria-label="Attach file">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} />
+                    <textarea
+                        ref={textareaRef}
+                        className="composer-textarea"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                        placeholder="Ask AikonAI..."
+                        rows={1}
+                        disabled={isLoading}
+                    />
+                    <motion.button 
+                        className="composer-icon-button composer-send-button"
+                        onClick={() => handleSendMessage()}
+                        disabled={isLoading || (!input.trim() && !fileAttachment)}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        aria-label="Send message"
+                    >
+                         {isLoading ? 
+                            <div className="w-5 h-5 border-2 border-t-transparent border-gray-500 rounded-full animate-spin"></div> :
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                        }
+                    </motion.button>
                 </div>
-            )}
-
-            <ChatComposer 
-                onSendMessage={handleSendMessage} 
-                isLoading={isLoading} 
-                input={input}
-                setInput={setInput}
-                file={file}
-                setFile={setFile}
-                onCancel={handleCancel}
-            />
-
-            <CodeCanvas
-                isVisible={isCanvasVisible}
-                onClose={() => setIsCanvasVisible(false)}
-                files={canvasFiles}
-            />
+                 {activePersona && (
+                    <motion.div
+                        className="active-persona-indicator"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                    >
+                        <span>{activePersona.icon}</span>
+                        <span>{activePersona.name}</span>
+                        <button onClick={() => setActivePersona(null)} aria-label="Clear active persona">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                        </button>
+                    </motion.div>
+                )}
+            </div>
             
-            <SettingsModal 
-                isOpen={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
-                profile={userSettings}
-                onSave={(settings) => {
-                    setUserSettings(p => ({...p, ...settings}));
-                    setIsSettingsOpen(false);
-                }}
-                onDeleteAllChats={handleClearChat}
-            />
+             <AnimatePresence>
+            {isLive && (
+                <motion.div 
+                    className="live-overlay"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                >
+                    <div className="live-content">
+                        <div className={`live-orb ${liveStatus.startsWith('Connected') ? 'connected' : ''}`}>
+                            <div className="live-orb-inner"></div>
+                        </div>
+                        <p className="live-status">{liveStatus}</p>
+                        <button className="live-disconnect-button" onClick={() => stopLiveConversation()}>
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M14.414 14.414a2 2 0 01-2.828 0L10 12.828l-1.586 1.586a2 2 0 11-2.828-2.828L7.172 10 5.586 8.414a2 2 0 112.828-2.828L10 7.172l1.586-1.586a2 2 0 112.828 2.828L12.828 10l1.586 1.586zM2 10a8 8 0 1116 0 8 8 0 01-16 0z" /></svg>
+                            Disconnect
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+            </AnimatePresence>
+            <AnimatePresence>
+                {isSettingsModalOpen && (
+                    <SettingsModal
+                        isOpen={isSettingsModalOpen}
+                        onClose={() => setIsSettingsModalOpen(false)}
+                        profile={userProfile}
+                        onSave={(settings) => {
+                            if (user?.uid) {
+                                // Assume updateUserProfile exists in firebase services
+                                // updateUserProfile(user.uid, settings);
+                                refetchProfile();
+                            }
+                            setIsSettingsModalOpen(false);
+                        }}
+                        onDeleteAllChats={() => {
+                            setMessages([]);
+                            setChatHistory([]);
+                            setIsSettingsModalOpen(false);
+                        }}
+                    />
+                )}
+            </AnimatePresence>
 
-            {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
         </div>
     );
 };

@@ -6,6 +6,7 @@ declare global {
     var PptxGenJS: any;
     var docx: any;
     var ExcelJS: any;
+    var QRCode: any;
 }
 
 
@@ -96,7 +97,7 @@ export interface Message {
         prompt: string;
     };
     segments?: MarkdownSegment[]; // For rendering mixed content
-    requiresAction?: 'nsfw_confirmation' | 'open_mailto';
+    requiresAction?: 'nsfw_confirmation' | 'open_mailto' | 'workflow_confirmation';
     actionData?: any; // To store data needed for an action, e.g., the mailto URL
     actionTaken?: boolean;
     tasks?: Task[]; // For displaying a list of tasks
@@ -107,6 +108,18 @@ export interface Message {
     codeExecutionResult?: {
         code: string;
         output: string;
+    };
+    generatedFile?: {
+        filename: string;
+        message: string;
+        data?: PresentationData | WordData | ExcelData;
+        type?: 'pptx' | 'docx' | 'xlsx';
+        previewImageUrl?: string; // For PPTX preview
+        isPreviewLoading?: boolean; // To show a shimmer/loader
+    };
+    generatedQRCode?: {
+        text: string;
+        dataUrl: string;
     };
 }
 
@@ -137,12 +150,15 @@ export interface UserProfile {
     photoURL: string | null;
     customInstructions?: string;
     aboutYou?: string; // How the AI should refer to the user
+    onboardingCompleted?: boolean;
 }
 
 export interface Persona {
     name: string;
     icon: string;
     systemInstruction: string;
+    description: string;
+    isCustom?: boolean;
 }
 
 // Data structures for file generation

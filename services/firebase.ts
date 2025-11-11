@@ -76,7 +76,8 @@ export const getUserProfile = async (user: User): Promise<UserProfile> => {
             email: user.email,
             photoURL: user.photoURL,
             customInstructions: '',
-            aboutYou: '',
+            aboutYou: user.displayName || '',
+            onboardingCompleted: false,
         };
         await setDoc(userDocRef, newUserProfile);
         return newUserProfile;

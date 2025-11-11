@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CanvasFiles } from '../types';
+import { motion, AnimatePresence } from 'framer-motion';
 
 declare const hljs: any;
 
@@ -80,61 +81,79 @@ const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) =>
         URL.revokeObjectURL(url);
     };
 
-    if (!isVisible) return null;
-
     return (
-        <div className={`code-canvas ${isVisible ? 'visible' : ''}`} onClick={onClose}>
-            <div className="code-canvas-container" onClick={(e) => e.stopPropagation()}>
-                <div className="code-canvas-header">
-                    <h3 className="text-lg font-bold text-amber-400">Code Canvas</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</button>
-                </div>
-                <div className="code-canvas-tabs">
-                    {fileKeys.map(filename => (
-                        <div
-                            key={filename}
-                            className={`code-canvas-tab ${activeFile === filename ? 'active' : ''}`}
-                            onClick={() => setActiveFile(filename)}
-                        >
-                            {filename}
+        <AnimatePresence>
+            {isVisible && (
+                <motion.div 
+                    className="code-canvas visible"
+                    onClick={onClose}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                >
+                    <motion.div 
+                        className="code-canvas-container" 
+                        onClick={(e) => e.stopPropagation()}
+                        initial={{ x: '100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '100%' }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    >
+                        <div className="code-canvas-header">
+                            <h3 className="text-lg font-bold text-amber-400">Code Canvas</h3>
+                            <motion.button whileTap={{scale: 0.9}} onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</motion.button>
                         </div>
-                    ))}
-                </div>
-                <div className="code-canvas-editor">
-                     <div ref={lineNumbersRef} className="line-numbers">
-                        {Array.from({ length: lineCount }, (_, i) => (
-                            <span key={i}>{i + 1}</span>
-                        ))}
-                    </div>
-                    <div className="editor-content">
-                        <textarea
-                            ref={textareaRef}
-                            value={currentCode}
-                            // The editor is readonly for now to focus on viewing.
-                            // To enable editing: onChange={(e) => activeFile && onCodeChange(activeFile, e.target.value)}
-                            readOnly
-                            onScroll={handleScroll}
-                            spellCheck="false"
-                            aria-label="Code editor"
-                            className="editor-textarea"
-                        />
-                        <div ref={codeEditorRef} className="highlight-container">
-                            <pre><code ref={codeRef} className={`hljs language-${language}`}>
-                                {/* Content is set via ref to prevent React re-rendering issues with hljs */}
-                            </code></pre>
+                        <div className="code-canvas-tabs">
+                            {fileKeys.map(filename => (
+                                <div
+                                    key={filename}
+                                    className={`code-canvas-tab ${activeFile === filename ? 'active' : ''}`}
+                                    onClick={() => setActiveFile(filename)}
+                                >
+                                    {filename}
+                                    {activeFile === filename && (
+                                        <motion.div className="active-tab-indicator" layoutId="activeTabIndicator" />
+                                    )}
+                                </div>
+                            ))}
                         </div>
-                    </div>
-                </div>
-                 <div className="code-canvas-footer">
-                    <button onClick={handleDownload} className="copy-button">
-                        Download
-                    </button>
-                    <button onClick={handleCopy} className="copy-button">
-                        {isCopied ? 'Copied!' : 'Copy'}
-                    </button>
-                </div>
-            </div>
-        </div>
+                        <div className="code-canvas-editor">
+                            <div ref={lineNumbersRef} className="line-numbers">
+                                {Array.from({ length: lineCount }, (_, i) => (
+                                    <span key={i}>{i + 1}</span>
+                                ))}
+                            </div>
+                            <div className="editor-content">
+                                <textarea
+                                    ref={textareaRef}
+                                    value={currentCode}
+                                    // The editor is readonly for now to focus on viewing.
+                                    // To enable editing: onChange={(e) => activeFile && onCodeChange(activeFile, e.target.value)}
+                                    readOnly
+                                    onScroll={handleScroll}
+                                    spellCheck="false"
+                                    aria-label="Code editor"
+                                    className="editor-textarea"
+                                />
+                                <div ref={codeEditorRef} className="highlight-container">
+                                    <pre><code ref={codeRef} className={`hljs language-${language}`}>
+                                        {/* Content is set via ref to prevent React re-rendering issues with hljs */}
+                                    </code></pre>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="code-canvas-footer">
+                            <motion.button whileHover={{scale: 1.1}} whileTap={{scale: 0.9}} onClick={handleDownload} className="copy-button">
+                                Download
+                            </motion.button>
+                            <motion.button whileHover={{scale: 1.1}} whileTap={{scale: 0.9}} onClick={handleCopy} className="copy-button">
+                                {isCopied ? 'Copied!' : 'Copy'}
+                            </motion.button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 
