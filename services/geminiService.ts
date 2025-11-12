@@ -143,7 +143,6 @@ For any of the tools below, you MUST ONLY respond with the corresponding JSON ob
    - \`{"tool_call": "generate_qr_code", "text": "The text or URL to encode in the QR code."}\`
 `;
 
-// FIX: Update function signature to return the full streaming result, including the final response promise.
 export const streamMessageToChat = async (
     currentHistory: Content[],
     message: string,
@@ -153,12 +152,7 @@ export const streamMessageToChat = async (
     chatToContinue?: Chat,
     customInstructions?: string, // This will contain the persona's systemInstruction
     isAgentModeEnabled?: boolean,
-): Promise<{ 
-    stream: AsyncGenerator<GenerateContentResponse>; 
-    response: Promise<GenerateContentResponse>;
-    historyWithUserMessage: Content[], 
-    fileContent: string | null 
-}> => {
+): Promise<{ stream: AsyncGenerator<GenerateContentResponse>; historyWithUserMessage: Content[], fileContent: string | null }> => {
     
     const ai = getAiInstance();
     
@@ -228,9 +222,8 @@ export const streamMessageToChat = async (
     
     modelConfig.contents = historyWithUserMessage;
 
-    // FIX: Correctly handle the returned object containing both the stream and the response promise.
-    const result = await ai.models.generateContentStream(modelConfig);
-    return { ...result, historyWithUserMessage, fileContent };
+    const stream = await ai.models.generateContentStream(modelConfig);
+    return { stream, historyWithUserMessage, fileContent };
 };
 
 
