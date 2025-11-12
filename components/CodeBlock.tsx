@@ -17,9 +17,12 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, filename }) => {
         if (codeRef.current) {
             if (typeof hljs !== 'undefined') {
                 try {
+                    // Set content imperatively to avoid React conflicts with hljs
+                    codeRef.current.textContent = code;
                     hljs.highlightElement(codeRef.current);
                 } catch (e) {
-                    console.error("Highlight.js error:", e);
+                    // Log error as a string to avoid circular structure issues
+                    console.error("Highlight.js error:", String(e));
                 }
             }
         }
@@ -73,7 +76,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, filename }) => {
             </div>
             <pre>
                 <code ref={codeRef} className={`language-${language}`}>
-                    {code}
+                    {/* The code content is set by the useEffect hook */}
                 </code>
             </pre>
         </div>
