@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { CanvasFiles } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,8 +41,7 @@ const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) =>
                 try {
                     hljs.highlightElement(codeRef.current);
                 } catch(e) {
-                    // Log error as a string to avoid circular structure issues
-                    console.error("Highlight.js error:", String(e));
+                    console.error("Highlight.js error:", e);
                 }
             }
         }

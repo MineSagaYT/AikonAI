@@ -16,6 +16,20 @@ import { motion, AnimatePresence, Variants } from 'framer-motion';
 import WeatherCard from '../WeatherCard';
 
 
+const API_KEY = "AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs";
+
+// Add a global type definition for the aistudio window object to avoid TypeScript errors.
+// The `aistudio` property on Window requires a named type `AIStudio` to prevent conflicts with other global declarations.
+declare global {
+    interface AIStudio {
+        hasSelectedApiKey: () => Promise<boolean>;
+        openSelectKey: () => Promise<void>;
+    }
+    interface Window {
+        aistudio?: AIStudio;
+    }
+}
+
 // Sound effects utility
 const playSound = (src: string, volume: number = 0.5) => {
     try {
@@ -1499,12 +1513,13 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     break;
 
                 case 'generate_video':
-                    let operation = await generateVideo(args.prompt);
+                    let operation = await generateVideo(); // This needs to be implemented with the correct API
                     if (operation) {
                         updateMessage(aiMessageId, { generatedVideo: { status: 'generating', prompt: args.prompt } });
+                        const getAi = () => new GoogleGenAI({ apiKey: "AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs" });
                         while (operation && !operation.done) {
-                            await new Promise(resolve => setTimeout(resolve, 10000));
-                            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+                             const ai = getAi();
                             operation = await ai.operations.getVideosOperation({ operation: operation });
                         }
                         if (operation?.response?.generatedVideos?.[0]?.video?.uri) {
@@ -1515,7 +1530,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                              updateMessage(aiMessageId, { generatedVideo: { status: 'error', prompt: args.prompt } });
                         }
                     } else {
-                         updateMessage(aiMessageId, { text: "Video generation failed to start.", status: 'sent' });
+                         updateMessage(aiMessageId, { text: "Video generation is not available at the moment.", status: 'sent' });
                     }
                     break;
 
@@ -1626,23 +1641,13 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     updateMessage(aiMessageId, { text: `I'm not sure how to handle the tool: ${tool_call}`, status: 'sent' });
                     break;
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error(`Error handling tool call ${tool_call}:`, error);
-            const errorMessage = error.toString();
-            // Updated error handling for Vercel environment
-            if (errorMessage.includes('RESOURCE_EXHAUSTED') || errorMessage.includes('API key not valid') || errorMessage.includes('key is invalid')) {
-                 updateMessage(aiMessageId, { 
-                    text: `This feature is currently experiencing very high demand or has reached its usage limit. Please try again in a few moments.`,
-                    status: 'sent', 
-                    segments: parseMarkdown(`This feature is currently experiencing very high demand or has reached its usage limit. Please try again in a few moments.`)
-                });
-            } else {
-                updateMessage(aiMessageId, { text: `Sorry, something went wrong while trying to use the ${tool_call} tool. Please try again.`, status: 'sent' });
-            }
+            updateMessage(aiMessageId, { text: `Sorry, something went wrong while trying to use the ${tool_call} tool.`, status: 'sent' });
         } finally {
             setCurrentActivity(null);
         }
-    }, [lastActiveImage, initiateWorkflow]);
+    }, [lastActiveImage, executeConfirmedWorkflow]);
     
     // The following function handles the standard chat message submission.
     const handleSendMessage = async (message: string, file: FileAttachment | null) => {
@@ -1851,7 +1856,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaStreamRef.current = stream;
 
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: API_KEY });
 
             const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
             const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -1949,7 +1954,6 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         hidden: { opacity: 0, y: 20 },
         visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
     };
-    
 
     return (
         <div className="chat-page-container">
