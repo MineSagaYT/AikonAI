@@ -7,13 +7,13 @@ const proModel = 'gemini-2.5-flash'; // To reduce cost, switched from gemini-2.5
 // FIX: Updated deprecated veo model to a supported one.
 const veoModel = 'veo-3.1-fast-generate-preview';
 const flashImageModel = 'gemini-2.5-flash-image';
-// Switched to flashImageModel to reduce cost
-// const imagenModel = 'imagen-4.0-generate-001'; 
+// Switched to a production-ready Imagen model to avoid quota issues on Vercel.
+const imagenModel = 'imagen-4.0-generate-001'; 
 const ttsModel = 'gemini-2.5-flash-preview-tts';
 
 const getAiInstance = () => {
-    const apiKey = "AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs";
-    return new GoogleGenAI({ apiKey });
+    // The API key MUST be obtained exclusively from the environment variable `process.env.API_KEY`.
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 
@@ -230,31 +230,34 @@ export const streamMessageToChat = async (
 export const generateImage = async (prompt: string, aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' = '1:1'): Promise<string | null> => {
     try {
         const ai = getAiInstance();
-        const response = await ai.models.generateContent({
-            model: flashImageModel,
-            contents: {
-                parts: [{ text: prompt }],
-            },
+        // Using the dedicated Imagen model for more reliable generation in production environments.
+        const response = await ai.models.generateImages({
+            model: imagenModel,
+            prompt: prompt,
             config: {
-                responseModalities: [Modality.IMAGE],
-            },
+                numberOfImages: 1,
+                aspectRatio: aspectRatio,
+                outputMimeType: 'image/png' // Request PNG for better quality
+            }
         });
 
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
-            if (part.inlineData) {
-                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-            }
+        const base64ImageBytes = response.generatedImages[0]?.image?.imageBytes;
+        if (base64ImageBytes) {
+            return `data:image/png;base64,${base64ImageBytes}`;
         }
         return null;
     } catch (error) {
         console.error("Image generation error:", error);
-        return null;
+        throw error;
     }
 };
 
 export const editImage = async (imageFile: FileAttachment, prompt: string): Promise<string | null> => {
     try {
         const ai = getAiInstance();
+        // Note: 'gemini-2.5-flash-image' is the correct model for image editing (image in -> image out).
+        // This model can be subject to stricter quotas on external hosts. If this fails, the user
+        // may need to request a quota increase from their Google Cloud project.
         const response = await ai.models.generateContent({
             model: flashImageModel,
             contents: {
@@ -274,27 +277,33 @@ export const editImage = async (imageFile: FileAttachment, prompt: string): Prom
         return null;
     } catch (error) {
         console.error("Image editing error:", error);
-        return null;
+        throw error;
     }
 }
 
-export const generateVideo = async (): Promise<GenerateVideosOperation | null> => {
+export const generateVideo = async (prompt: string): Promise<GenerateVideosOperation | null> => {
     try {
         const ai = getAiInstance();
-        // This is a placeholder. You'll need to implement the actual video generation logic.
-        // The Gemini API does not yet support video generation in this manner.
-        // This is a conceptual implementation.
-        console.warn("Video generation is not yet supported by the Gemini API in this library version.");
-        return null;
+        const operation = await ai.models.generateVideos({
+            model: veoModel,
+            prompt: prompt,
+            config: {
+                numberOfVideos: 1,
+                resolution: '720p',
+                aspectRatio: '16:9'
+            }
+        });
+        return operation;
     } catch (error) {
         console.error("Video generation error:", error);
-        return null;
+        throw error; // Re-throw to be caught by the UI
     }
 };
 
 
 export const fetchVideoFromUri = async (uri: string): Promise<Blob> => {
-    const response = await fetch(`${uri}&key=AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs`);
+    // The response.body contains the MP4 bytes. You must append an API key when fetching from the download link.
+    const response = await fetch(`${uri}&key=${process.env.API_KEY}`);
     return await response.blob();
 };
 
@@ -317,7 +326,7 @@ export const generateSpeech = async (text: string): Promise<string | null> => {
         return base64Audio || null;
     } catch (error) {
         console.error("Speech generation error:", error);
-        return null;
+        throw error;
     }
 };
 
@@ -395,7 +404,7 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
         return result;
     } catch (error) {
         console.error("Error generating Word content:", error);
-        return { error: "Failed to generate document content." };
+        throw error;
     }
 };
 
@@ -435,7 +444,7 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
         return result;
     } catch (error) {
         console.error("Error generating Excel content:", error);
-        return { error: "Failed to generate spreadsheet data." };
+        throw error;
     }
 };
 
@@ -576,7 +585,7 @@ export const performGoogleSearch = async (query: string): Promise<{ text: string
 
 export const browseWebpage = async (url: string, question: string): Promise<string> => {
      try {
-        const response = await fetch(`https://web-proxy.labs.google.com/v1/web/page?url=${encodeURIComponent(url)}&key=${"AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs"}`);
+        const response = await fetch(`https://web-proxy.labs.google.com/v1/web/page?url=${encodeURIComponent(url)}&key=${process.env.API_KEY}`);
         if (!response.ok) {
             return `Error: Could not fetch content from ${url}. Status: ${response.status}`;
         }
