@@ -144,13 +144,14 @@ export interface ChatListItem {
 }
 
 export interface UserProfile {
-    uid: string;
+    uid: string; // Will now be the username
     displayName: string | null;
     email: string | null;
     photoURL: string | null;
     customInstructions?: string;
     aboutYou?: string; // How the AI should refer to the user
     onboardingCompleted?: boolean;
+    pin: string;
 }
 
 export interface Persona {

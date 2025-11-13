@@ -78,6 +78,8 @@ export const getUserProfile = async (user: User): Promise<UserProfile> => {
             customInstructions: '',
             aboutYou: user.displayName || '',
             onboardingCompleted: false,
+            // FIX: Add default empty pin to satisfy UserProfile type. This flow is for Google Sign-In, which doesn't use a PIN.
+            pin: '',
         };
         await setDoc(userDocRef, newUserProfile);
         return newUserProfile;
