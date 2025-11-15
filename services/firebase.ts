@@ -1,286 +1,149 @@
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User } from 'firebase/auth';
-import { 
-    getFirestore, 
-    doc, 
-    setDoc, 
-    getDoc, 
-    collection, 
-    query, 
-    where, 
-    orderBy, 
-    getDocs, 
-    addDoc, 
-    serverTimestamp, 
-    updateDoc,
-    limit,
-    writeBatch
-} from '@firebase/firestore';
 import { Content } from '@google/genai';
 import { Task, ChatListItem, UserProfile } from '../types';
 
-// IMPORTANT: Replace with your actual Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBjYtrHqwMtmjPK6eX_VZqS9nDJDkbxpUk",
-  authDomain: "aikonai10.firebaseapp.com",
-  projectId: "aikonai10",
-  storageBucket: "aikonai10.firebasestorage.app",
-  messagingSenderId: "917159525687",
-  appId: "1:917159525687:web:434555844601fc33772eb2",
-  measurementId: "G-EZVNL8DL3C"
-};
+// This service is now a mock that uses localStorage to align with the app's local-only auth system.
+// This resolves all "Missing or insufficient permissions" errors by removing the need for a backend.
 
-const app = initializeApp(firebaseConfig);
+const USER_DATA_PREFIX = 'aikon_user_';
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-
-export type { User }; // Export the User type from firebase/auth
-export type { Task }; // Re-export the Task type for use in other components
-
-const provider = new GoogleAuthProvider();
-
-export const signInWithGoogle = async (): Promise<User | null> => {
-    try {
-        const result = await signInWithPopup(auth, provider);
-        // Ensure user profile exists after sign-in
-        await getUserProfile(result.user);
-        return result.user;
-    } catch (error) {
-        console.error("Error during Google sign-in:", error);
-        return null;
+// Helper to get all data for a user
+const getUserData = (userId: string) => {
+    const data = localStorage.getItem(`${USER_DATA_PREFIX}${userId}`);
+    if (data) {
+        return JSON.parse(data);
     }
-};
-
-export const logout = async (): Promise<void> => {
-    try {
-        await signOut(auth);
-    } catch (error) {
-        console.error("Error signing out:", error);
-    }
-};
-
-
-export const getUserProfile = async (user: User): Promise<UserProfile> => {
-    const userDocRef = doc(db, 'users', user.uid);
-    const docSnap = await getDoc(userDocRef);
-
-    if (docSnap.exists()) {
-        return docSnap.data() as UserProfile;
-    } else {
-        // If profile doesn't exist, create it
-        const newUserProfile: UserProfile = {
-            uid: user.uid,
-            displayName: user.displayName,
-            email: user.email,
-            photoURL: user.photoURL,
+    // Return a default structure if no user data exists
+    return {
+        profile: {
+            uid: userId,
+            displayName: userId,
+            email: null,
+            photoURL: null,
             customInstructions: '',
-            aboutYou: user.displayName || '',
+            aboutYou: userId,
             onboardingCompleted: false,
-            // FIX: Add default empty pin to satisfy UserProfile type. This flow is for Google Sign-In, which doesn't use a PIN.
-            pin: '',
-        };
-        await setDoc(userDocRef, newUserProfile);
-        return newUserProfile;
-    }
+            pin: '', // Pin is checked by AuthContext
+        },
+        chats: {},
+        tasks: [],
+    };
+};
+
+// Helper to save all data for a user
+const saveUserData = (userId: string, data: any) => {
+    localStorage.setItem(`${USER_DATA_PREFIX}${userId}`, JSON.stringify(data));
+};
+
+
+export const getUserProfile = async (user: { uid: string }): Promise<UserProfile> => {
+    const userData = getUserData(user.uid);
+    return userData.profile;
 };
 
 export const updateUserProfile = async (userId: string, profileData: Partial<UserProfile>): Promise<void> => {
-    try {
-        const userDocRef = doc(db, 'users', userId);
-        await updateDoc(userDocRef, profileData);
-    } catch (error) {
-        console.error("Error updating user profile:", error);
-    }
+    const userData = getUserData(userId);
+    userData.profile = { ...userData.profile, ...profileData };
+    saveUserData(userId, userData);
 };
 
 export const createChat = async (userId: string): Promise<string> => {
-    try {
-        const chatsCollectionRef = collection(db, 'users', userId, 'chats');
-        const newChatDoc = await addDoc(chatsCollectionRef, {
-            title: 'New Chat',
-            createdAt: serverTimestamp(),
-            history: [],
-        });
-        return newChatDoc.id;
-    } catch (error) {
-        console.error("Error creating new chat:", error);
-        throw error;
-    }
+    const userData = getUserData(userId);
+    const newChatId = Date.now().toString();
+    userData.chats[newChatId] = {
+        id: newChatId,
+        title: 'New Chat',
+        createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+        history: [],
+    };
+    saveUserData(userId, userData);
+    return newChatId;
 };
 
 export const getChatList = async (userId: string): Promise<ChatListItem[]> => {
-    try {
-        const chatsCollectionRef = collection(db, 'users', userId, 'chats');
-        const q = query(chatsCollectionRef, orderBy('createdAt', 'desc'));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        } as ChatListItem));
-    } catch (error) {
-        console.error("Error getting chat list:", error);
-        return [];
-    }
+    const userData = getUserData(userId);
+    const chats = userData.chats || {};
+    return Object.values(chats)
+        .map((chat: any) => ({
+            id: chat.id,
+            title: chat.title,
+            createdAt: chat.createdAt,
+        }))
+        .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
 };
 
 export const updateChatTitle = async (userId: string, chatId: string, title: string): Promise<void> => {
-    try {
-        const chatDocRef = doc(db, 'users', userId, 'chats', chatId);
-        await updateDoc(chatDocRef, { title });
-    } catch (error) {
-        console.error("Error updating chat title:", error);
+    const userData = getUserData(userId);
+    if (userData.chats && userData.chats[chatId]) {
+        userData.chats[chatId].title = title;
+        saveUserData(userId, userData);
     }
 };
 
 export const deleteAllChatsForUser = async (userId: string): Promise<void> => {
-    try {
-        const chatsCollectionRef = collection(db, 'users', userId, 'chats');
-        const querySnapshot = await getDocs(chatsCollectionRef);
-        
-        const batch = writeBatch(db);
-        querySnapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        
-        await batch.commit();
-    } catch (error) {
-        console.error("Error deleting all chats:", error);
-    }
+    const userData = getUserData(userId);
+    userData.chats = {};
+    saveUserData(userId, userData);
 };
 
-
-/**
- * Saves the chat history for a given user and chat to Firestore.
- * @param userId The UID of the user.
- * @param chatId The ID of the specific chat.
- * @param history The chat history array to save.
- */
 export const saveChatHistory = async (userId: string, chatId: string, history: Content[]): Promise<void> => {
-    try {
-        const chatDocRef = doc(db, 'users', userId, 'chats', chatId);
-        await updateDoc(chatDocRef, { history });
-    } catch (error) {
-        console.error("Error saving chat history:", error);
+    const userData = getUserData(userId);
+    if (userData.chats && userData.chats[chatId]) {
+        userData.chats[chatId].history = history;
+        saveUserData(userId, userData);
     }
 };
 
-/**
- * Retrieves the chat history for a given user and chat from Firestore.
- * @param userId The UID of the user.
- * @param chatId The ID of the specific chat.
- * @returns The chat history array or null if not found/error.
- */
 export const getChatHistory = async (userId: string, chatId: string): Promise<Content[] | null> => {
-    try {
-        const chatDocRef = doc(db, 'users', userId, 'chats', chatId);
-        const docSnap = await getDoc(chatDocRef);
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data && Array.isArray(data.history)) {
-                 return data.history as Content[];
-            }
-        }
-        return []; // Return empty array if no history
-    } catch (error) {
-        console.error("Error retrieving chat history:", error);
-        return null;
+    const userData = getUserData(userId);
+    if (userData.chats && userData.chats[chatId]) {
+        return userData.chats[chatId].history || [];
     }
+    return [];
 };
 
-/**
- * Retrieves all tasks for a given user from Firestore, ordered by creation time.
- * @param userId The UID of the user.
- * @returns An array of tasks or an empty array if none found.
- */
+
+// --- Task Management using Local Storage ---
+
 export const getTasks = async (userId: string): Promise<Task[]> => {
-    try {
-        const tasksColRef = collection(db, 'tasks');
-        const q = query(tasksColRef, where('userId', '==', userId), orderBy('createdAt', 'desc'));
-        const querySnapshot = await getDocs(q);
-        const tasks: Task[] = [];
-        querySnapshot.forEach((doc) => {
-            tasks.push({ id: doc.id, ...doc.data() } as Task);
-        });
-        return tasks;
-    } catch (error) {
-        console.error("Error retrieving tasks:", error);
-        return [];
-    }
+    const userData = getUserData(userId);
+    return (userData.tasks || []).sort((a: Task, b: Task) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 };
 
-/**
- * Adds a new task for a given user to Firestore.
- * @param userId The UID of the user.
- * @param description The content of the task.
- * @returns The newly created task object or null on failure.
- */
 export const addTask = async (userId: string, description: string): Promise<Task | null> => {
-    try {
-        const tasksColRef = collection(db, 'tasks');
-        const docRef = await addDoc(tasksColRef, {
-            userId,
-            description,
-            completed: false,
-            createdAt: serverTimestamp(),
-        });
-        const newDocSnap = await getDoc(docRef);
-        if (newDocSnap.exists()) {
-            return { id: newDocSnap.id, ...newDocSnap.data() } as Task;
-        }
-        return null;
-    } catch (error) {
-        console.error("Error adding task:", error);
-        return null;
-    }
+    const userData = getUserData(userId);
+    const newTask: Task = {
+        id: Date.now().toString(),
+        description,
+        completed: false,
+        createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
+    };
+    userData.tasks = [newTask, ...(userData.tasks || [])];
+    saveUserData(userId, userData);
+    return newTask;
 };
 
-/**
- * Updates the completion status of a specific task.
- * @param userId The UID of the user - used for authorization in security rules (not implemented here)
- * @param taskId The ID of the task document.
- * @param completed The new completion status.
- */
 export const updateTaskStatus = async (userId: string, taskId: string, completed: boolean): Promise<void> => {
-    try {
-        const taskDocRef = doc(db, 'tasks', taskId);
-        await updateDoc(taskDocRef, { completed });
-    } catch (error) {
-        console.error("Error updating task status:", error);
+    const userData = getUserData(userId);
+    const taskIndex = (userData.tasks || []).findIndex((t: Task) => t.id === taskId);
+    if (taskIndex > -1) {
+        userData.tasks[taskIndex].completed = completed;
+        saveUserData(userId, userData);
     }
 };
 
-/**
- * Finds an uncompleted task by its description and updates its status to complete.
- * @param userId The UID of the user.
- * @param description The description of the task to complete.
- * @returns The updated task or null if not found/error.
- */
 export const completeTaskByDescription = async (userId: string, description: string): Promise<Task | null> => {
-    try {
-        const tasksColRef = collection(db, 'tasks');
-        const q = query(tasksColRef,
-            where('userId', '==', userId),
-            where('description', '==', description), 
-            where('completed', '==', false),
-            orderBy('createdAt', 'asc'), // Get the oldest one first
-            limit(1)
-        );
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-            const taskToCompleteDoc = querySnapshot.docs[0];
-            await updateDoc(taskToCompleteDoc.ref, { completed: true });
-            const updatedDocSnap = await getDoc(taskToCompleteDoc.ref);
-             if (updatedDocSnap.exists()) {
-                return { id: updatedDocSnap.id, ...updatedDocSnap.data() } as Task;
-            }
-        }
-        return null; // Task not found
-    } catch (error) {
-        console.error("Error completing task by description:", error);
-        return null;
+    const userData = getUserData(userId);
+    const taskIndex = (userData.tasks || []).findIndex((t: Task) => t.description === description && !t.completed);
+    if (taskIndex > -1) {
+        userData.tasks[taskIndex].completed = true;
+        saveUserData(userId, userData);
+        return userData.tasks[taskIndex];
     }
+    return null;
 };
+
+// We keep these exports for compatibility, but they are not used in a local storage context.
+export const auth = {};
+// FIX: Removed incorrect export for 'User' type which is not defined.
+export type { Task }; // Re-export the Task type for use in other components

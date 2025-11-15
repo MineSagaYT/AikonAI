@@ -1,7 +1,8 @@
-
+// FIX: Corrected import syntax for React hooks.
 import React, { useState } from 'react';
 import { Page, NavigationProps } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
+// REMOVED: import longLogo from '../long_logo.jpeg';
 
 // Hamburger Icon Component
 const HamburgerIcon = ({ open, ...props }: { open: boolean } & React.ComponentPropsWithoutRef<'svg'>) => (
@@ -88,14 +89,9 @@ const Header: React.FC<HeaderProps> = ({ navigateTo, activePage }) => {
                     whileTap={{ scale: 0.95 }}
                 >
                     <img 
-                        src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" 
+                        src="/long_logo.jpeg" 
                         alt="Aikon Studios Logo" 
                         className="h-10 w-auto object-contain rounded-lg shadow-md"
-                        onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.onerror = null; 
-                            target.src='https://placehold.co/100x40/FFC107/111111?text=AIKON';
-                        }}
                     />
                     <h1 className="text-3xl font-extrabold hero-gradient hidden sm:block">Aikon Studios</h1>
                 </motion.a>

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData } from '../../types';
 import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction } from '../../services/geminiService';
@@ -10,9 +11,9 @@ import TaskList from '../TaskList';
 import SettingsModal from '../SettingsModal';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../LoadingSpinner';
-// FIX: Imported Variants type from framer-motion to resolve typing errors.
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import WeatherCard from '../WeatherCard';
+// REMOVED: import shortLogo from '../../short_logo.jpeg';
 
 
 
@@ -191,8 +192,8 @@ For all other requests, you MUST respond ONLY with the JSON for the 'create_stor
 
 const CUSTOM_PERSONAS_STORAGE_KEY = 'aikon-custom-personas';
 
-const DownloadIcon: React.FC = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+const DownloadIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} {...props}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
 );
@@ -493,7 +494,6 @@ const MessageLogItem = memo(({ message, onApprove, onDeny, onViewImage, userProf
     const statusText = message.text || (message.segments && message.segments[0]?.content);
     const isStatusUpdate = statusText?.startsWith('STATUS:') || statusText?.startsWith('Browsing') || statusText?.startsWith('Analyzing');
 
-    // FIX: Explicitly typed itemVariants with Variants to fix type inference issue with the 'transition.type' property.
     const itemVariants: Variants = {
         hidden: { opacity: 0, y: 10, x: isAi ? -20 : 20, scale: 0.98 },
         visible: {
@@ -515,7 +515,7 @@ const MessageLogItem = memo(({ message, onApprove, onDeny, onViewImage, userProf
                 layout
              >
                  <div className="message-avatar ai-avatar">
-                     <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
+                     <img src="/short_logo.jpeg" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
                  </div>
                  <div className="message-content-wrapper" style={{ padding: '0.8rem 1.25rem' }}>
                     <div className="message-content status-update">
@@ -790,7 +790,7 @@ const MessageLogItem = memo(({ message, onApprove, onDeny, onViewImage, userProf
         >
             {isAi && (
                 <div className="message-avatar ai-avatar">
-                     <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
+                     <img src="/short_logo.jpeg" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
                 </div>
             )}
              <div className="message-content-wrapper">
@@ -837,7 +837,7 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ activity, persona }) 
             exit={{ opacity: 0, scale: 0.95 }}
         >
             <div className="message-avatar ai-avatar">
-                <img src="/fetch/file/uploaded:Gemini_Generated_Image_5g4oit5g4oit5g4o.jpg-061ec57d-1239-4e36-910a-030c8a2e32e5" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
+                <img src="/short_logo.jpeg" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
             </div>
             <div className={indicatorClasses}>
                 <span></span><span></span><span></span>
@@ -853,7 +853,6 @@ const ChatComposer: React.FC<{
     input: string;
     setInput: (value: string) => void;
     attachments: FileAttachment[];
-// FIX: Changed type of `setAttachments` to `React.Dispatch<React.SetStateAction<FileAttachment[]>>` to correctly type the state setter function, resolving issues with functional updates.
     setAttachments: React.Dispatch<React.SetStateAction<FileAttachment[]>>;
     onCancel: () => void;
 }> = ({ onSendMessage, isLoading, input, setInput, attachments, setAttachments, onCancel }) => {
@@ -885,7 +884,6 @@ const ChatComposer: React.FC<{
             const filesArray = Array.from(selectedFiles);
             const filesToProcess = filesArray;
 
-            // FIX: Explicitly cast `file` to `File` as `currentFile` to resolve type inference issues within the loop and callback.
             for (const file of filesToProcess) {
                 const currentFile = file as File;
                 const reader = new FileReader();
@@ -912,8 +910,6 @@ const ChatComposer: React.FC<{
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf("image") !== -1) {
-                // FIX: The type narrowing from `if (blob)` was not being carried into the `onload` callback.
-                // Creating `fileBlob` preserves the narrowed `File` type for use in the callback.
                 const blob: File | null = items[i].getAsFile();
                 if (blob) {
                     const fileBlob = blob;
@@ -1189,7 +1185,6 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [history, setHistory] = useState<Content[]>([]);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    // FIX: Destructure 'currentUser' from useAuth() and alias it. The properties 'userProfile' and 'user' do not exist on the AuthContextType.
     const { currentUser: authUserProfile } = useAuth();
     
     const [userSettings, setUserSettings] = useState<Partial<UserProfile>>({});
@@ -1639,470 +1634,401 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                         updateMessage(aiMessageId, { text: pptData.error, status: 'sent', segments: parseMarkdown(pptData.error) });
                     } else {
                         updateMessage(aiMessageId, {
-                            generatedFile: { type: 'pptx', filename: `${args.topic.replace(/ /g, '_')}.pptx`, message: `I've prepared a presentation on "${args.topic}".`, data: pptData, isPreviewLoading: true }
+                            generatedFile: { type: 'pptx', filename: `${args.topic.replace(/ /g, '_')}.pptx`, message: `I've prepared a presentation on "${args.topic}".`, data: pptData, isPreviewLoading: true },
+                            text: '',
+                            status: 'sent'
                         });
-                        const firstSlide = pptData.slides[0];
-                        const previewPrompt = `Create a visually appealing, professional title slide for a presentation titled "${firstSlide.title}". The style should be modern, clean, and corporate. Include abstract graphic elements related to the topic. Do not include any text other than the title.`;
-                        try {
-                            const imageUrl = await generateImage(previewPrompt, '16:9');
-                            updateMessage(aiMessageId, {
-                                generatedFile: { type: 'pptx', filename: `${args.topic.replace(/ /g, '_')}.pptx`, message: `I've prepared a presentation on "${args.topic}".`, data: pptData, isPreviewLoading: false, previewImageUrl: imageUrl || undefined }
-                            });
-                        } catch (e) {
-                            console.error("Failed to generate PPT preview:", e);
-                            updateMessage(aiMessageId, {
-                                generatedFile: { type: 'pptx', filename: `${args.topic.replace(/ /g, '_')}.pptx`, message: `I've prepared a presentation on "${args.topic}".`, data: pptData, isPreviewLoading: false }
-                            });
-                        }
+
+                        // Generate a preview image for the first slide
+                        const previewPrompt = `Create a visually appealing, abstract, professional title slide background image for a presentation titled "${args.topic}". Use a modern, corporate style with colors like deep blue, gold, and white. Minimalist design.`;
+                        const previewUrl = await generateImage(previewPrompt, '16:9');
+                        updateMessage(aiMessageId, {
+                             generatedFile: { type: 'pptx', filename: `${args.topic.replace(/ /g, '_')}.pptx`, message: `I've prepared a presentation on "${args.topic}".`, data: pptData, isPreviewLoading: false, previewImageUrl: previewUrl || undefined },
+                        });
                     }
                     break;
-                
+
                 case 'create_word_document':
-                    setCurrentActivity('workflow');
+                     setCurrentActivity('workflow');
                     updateMessage(aiMessageId, { text: `STATUS: Generating content for document on "${args.topic}"...` });
                     const docData = await generateWordContent(args.topic, args.sections);
                     if ('error' in docData) {
-                        updateMessage(aiMessageId, { text: docData.error, status: 'sent' });
+                        updateMessage(aiMessageId, { text: docData.error, status: 'sent', segments: parseMarkdown(docData.error) });
                     } else {
-                        updateMessage(aiMessageId, {
-                            generatedFile: { type: 'docx', filename: `${args.topic.replace(/ /g, '_')}.docx`, message: `Here is the document about "${args.topic}".`, data: docData }
+                         updateMessage(aiMessageId, {
+                            generatedFile: { type: 'docx', filename: `${args.topic.replace(/ /g, '_')}.docx`, message: `Here is the Word document on "${args.topic}".`, data: docData },
+                            text: '',
+                            status: 'sent'
                         });
                     }
                     break;
-                
+
                  case 'create_excel_spreadsheet':
-                     setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating data for spreadsheet: "${args.data_description}"...` });
+                    setCurrentActivity('workflow');
+                    updateMessage(aiMessageId, { text: `STATUS: Generating spreadsheet data for "${args.data_description}"...` });
                     const excelData = await generateExcelContent(args.data_description, args.columns);
                     if ('error' in excelData) {
-                        updateMessage(aiMessageId, { text: excelData.error, status: 'sent' });
+                        updateMessage(aiMessageId, { text: excelData.error, status: 'sent', segments: parseMarkdown(excelData.error) });
                     } else {
-                        updateMessage(aiMessageId, {
-                             generatedFile: { type: 'xlsx', filename: `${args.filename}.xlsx`, message: `I've created the spreadsheet "${args.filename}.xlsx".`, data: {...excelData, filename: args.filename} }
+                         updateMessage(aiMessageId, {
+                            generatedFile: { type: 'xlsx', filename: `${args.filename}.xlsx`, message: `Here is the spreadsheet for "${args.data_description}".`, data: { ...excelData, filename: args.filename } },
+                            text: '',
+                            status: 'sent'
                         });
                     }
                     break;
                 
                 case 'create_pdf_document':
                     setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating content for PDF on "${args.topic}"...` });
-                    const pdfData = await generateWordContent(args.topic, args.sections);
-                    if ('error' in pdfData) {
-                        updateMessage(aiMessageId, { text: pdfData.error, status: 'sent', segments: parseMarkdown(pdfData.error) });
+                    updateMessage(aiMessageId, { text: `STATUS: Generating content for PDF document on "${args.topic}"...` });
+                    const pdfDocData = await generateWordContent(args.topic, args.sections);
+                    if ('error' in pdfDocData) {
+                        updateMessage(aiMessageId, { text: pdfDocData.error, status: 'sent', segments: parseMarkdown(pdfDocData.error) });
                     } else {
-                        updateMessage(aiMessageId, {
-                            generatedFile: { type: 'pdf', filename: `${args.topic.replace(/ /g, '_')}.pdf`, message: `I've created the PDF document about "${args.topic}".`, data: pdfData }
-                        });
-                    }
-                    break;
-
-                case 'generate_qr_code':
-                    setCurrentActivity('chat');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating QR code for "${args.text}"...` });
-                    const dataUrl = await QRCode.toDataURL(args.text, { errorCorrectionLevel: 'H' });
-                    updateMessage(aiMessageId, { generatedQRCode: { text: args.text, dataUrl } });
-                    break;
-                
-                case 'create_storyboard':
-                    setCurrentActivity('image_gen');
-                    updateMessage(aiMessageId, {
-                        storyboardImages: args.prompts.map((p: string) => ({ prompt: p, url: '' }))
-                    });
-
-                    try {
-                        const imageUrls = await Promise.all(
-                            args.prompts.map((p: string) => generateImage(p, '1:1'))
-                        );
-
-                        updateMessage(aiMessageId, {
+                         await createPdfFile(pdfDocData);
+                         updateMessage(aiMessageId, {
+                            generatedFile: { type: 'pdf', filename: `${args.topic.replace(/ /g, '_')}.pdf`, message: `Your PDF document on "${args.topic}" has been downloaded.` },
                             text: '',
-                            status: 'sent',
-                            storyboardImages: args.prompts.map((prompt: string, i: number) => ({
-                                prompt,
-                                url: imageUrls[i] || ''
-                            }))
+                            status: 'sent'
                         });
-                    } catch (e) {
-                        console.error("Storyboard generation failed", e);
-                        updateMessage(aiMessageId, { text: "Sorry, I couldn't create the storyboard images.", status: 'sent' });
+                    }
+                    break;
+                
+                case 'generate_qr_code':
+                    setCurrentActivity('workflow');
+                    updateMessage(aiMessageId, { text: `STATUS: Generating QR code for "${args.text}"...` });
+                    if (typeof QRCode !== 'undefined') {
+                        try {
+                            const dataUrl = await QRCode.toDataURL(args.text, { width: 256, margin: 2 });
+                             updateMessage(aiMessageId, { generatedQRCode: { text: args.text, dataUrl }, text: '', status: 'sent' });
+                        } catch(err) {
+                            updateMessage(aiMessageId, { text: "Sorry, I couldn't generate a QR code for that text.", status: 'sent', segments: parseMarkdown("Sorry, I couldn't generate a QR code for that text.") });
+                        }
+                    } else {
+                         updateMessage(aiMessageId, { text: "QR code generation library is not available.", status: 'sent', segments: parseMarkdown("QR code generation library is not available.") });
                     }
                     break;
 
-                case 'initiate_workflow':
-                    setMessages(prev => prev.filter(m => m.id !== aiMessageId));
-                    await initiateWorkflow(args.goal, attachments);
+                case 'summarize_document':
+                    const textFile = attachments.find(f => f.mimeType.startsWith('text/') || f.mimeType.endsWith('pdf') || f.mimeType.endsWith('csv'));
+                    if (!textFile) {
+                        updateMessage(aiMessageId, { text: "Please upload a text-based document to summarize.", status: 'sent', segments: parseMarkdown("Please upload a text-based document to summarize.") });
+                        return;
+                    }
+                    setCurrentActivity('browsing');
+                    updateMessage(aiMessageId, { text: `STATUS: Summarizing ${textFile.name}...` });
+                    const content = atob(textFile.base64);
+                    const summary = await summarizeDocument(content);
+                     updateMessage(aiMessageId, { text: summary, status: 'sent', segments: parseMarkdown(summary) });
                     break;
-                
+
                 case 'send_email':
-                    const { recipient, subject, body } = args;
-                    const mailtoUrl = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                    updateMessage(aiMessageId, { 
+                    const mailtoUrl = `mailto:${args.recipient}?subject=${encodeURIComponent(args.subject)}&body=${encodeURIComponent(args.body)}`;
+                    updateMessage(aiMessageId, {
+                        text: `I've prepared a draft email to **${args.recipient}**. You can review and send it from your default email app.`,
                         requiresAction: 'open_mailto',
                         actionData: { mailtoUrl },
-                        text: `I've drafted an email to ${recipient} for you. Click the button to open it in your default email client to review and send.`,
-                        segments: parseMarkdown(`I've drafted an email to ${recipient} for you. Click the button to open it in your default email client to review and send.`),
-                        status: 'sent'
+                        status: 'sent',
+                        segments: parseMarkdown(`I've prepared a draft email to **${args.recipient}**. You can review and send it from your default email app.`)
                     });
-                    break;
-
-                case 'list_files':
-                    const fileList = sessionFiles.length > 0 ? sessionFiles.map(f => `- ${f.name}`).join('\n') : "There are no files in the current session.";
-                    updateMessage(aiMessageId, { text: `Current session files:\n${fileList}`, status: 'sent', segments: parseMarkdown(`Current session files:\n${fileList}`) });
                     break;
                 
-                case 'read_file': {
-                    const file = sessionFiles.find(f => f.name === args.filename);
-                    const content = file ? `Content of ${args.filename}:\n\n---\n\n${file.content}` : `Error: File '${args.filename}' not found in the session.`;
-                    updateMessage(aiMessageId, { text: content, status: 'sent', segments: parseMarkdown(content) });
+                case 'initiate_workflow':
+                     initiateWorkflow(args.goal, attachments);
+                    // Clear the placeholder message
+                    setMessages(prev => prev.filter(m => m.id !== aiMessageId));
                     break;
-                }
-
-                case 'write_file': {
-                    const { filename, content } = args;
-                    setSessionFiles(prevFiles => {
-                        const existingIndex = prevFiles.findIndex(f => f.name === filename);
+                
+                 case 'list_files':
+                    const fileList = sessionFiles.map(f => f.name).join('\n') || "No files in the session.";
+                    updateMessage(aiMessageId, { text: fileList, status: 'sent', segments: parseMarkdown(fileList) });
+                    break;
+                case 'read_file':
+                    const fileToRead = sessionFiles.find(f => f.name === args.filename);
+                    const fileContent = fileToRead ? fileToRead.content : `Error: File '${args.filename}' not found in the session.`;
+                    updateMessage(aiMessageId, { text: fileContent, status: 'sent', segments: parseMarkdown(fileContent) });
+                    break;
+                case 'write_file':
+                    const newFile = { name: args.filename, content: args.content };
+                    setSessionFiles(prev => {
+                        const existingIndex = prev.findIndex(f => f.name === newFile.name);
                         if (existingIndex > -1) {
-                            const newFiles = [...prevFiles];
-                            newFiles[existingIndex] = { name: filename, content };
-                            return newFiles;
-                        } else {
-                            return [...prevFiles, { name: filename, content }];
+                            const updated = [...prev];
+                            updated[existingIndex] = newFile;
+                            return updated;
                         }
+                        return [...prev, newFile];
                     });
-                    const confirmationText = `File '${filename}' has been saved to the session.`;
-                    updateMessage(aiMessageId, { text: confirmationText, status: 'sent', segments: parseMarkdown(confirmationText) });
+                    setCanvasFiles(prev => ({...prev, [newFile.name]: newFile.content}));
+                    updateMessage(aiMessageId, { text: `File "${args.filename}" has been written to the session.`, status: 'sent', segments: parseMarkdown(`File "${args.filename}" has been written to the session.`) });
                     break;
-                }
-
-                case 'execute_python_code': {
-                    updateMessage(aiMessageId, { text: `STATUS: Executing Python code...` });
+                case 'execute_python_code':
                     const output = await executePythonCode(args.code, sessionFiles);
-                    updateMessage(aiMessageId, {
-                        text: '',
-                        status: 'sent',
-                        codeExecutionResult: { code: args.code, output }
-                    });
+                    updateMessage(aiMessageId, { codeExecutionResult: { code: args.code, output: output }, text: '', status: 'sent' });
                     break;
-                }
-
-
+                
                 default:
-                    updateMessage(aiMessageId, { text: `I'm not sure how to handle the tool: ${tool_call}`, status: 'sent' });
-                    break;
+                    updateMessage(aiMessageId, { text: `Unknown tool: ${tool_call}`, status: 'sent' });
             }
         } catch (error) {
             console.error(`Error handling tool call ${tool_call}:`, error);
-            updateMessage(aiMessageId, { text: `Sorry, something went wrong while trying to use the ${tool_call} tool.`, status: 'sent' });
+            updateMessage(aiMessageId, { text: `Sorry, an error occurred while trying to use the ${tool_call} tool.`, status: 'sent' });
         } finally {
-            setCurrentActivity(null);
+             setCurrentActivity(null);
         }
-    }, [lastActiveImage, initiateWorkflow, executeConfirmedWorkflow, sessionFiles, attachments]);
+    }, [lastActiveImage, attachments, sessionFiles, initiateWorkflow]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFiles = e.target.files;
-        if (selectedFiles) {
-            const filesArray = Array.from(selectedFiles);
-            let filesToProcess: File[] = [];
-    
-            const isSpecialMode = isAgentModeEnabled || currentPersona?.name === 'Developer Sandbox' || currentPersona?.name === 'Personal Finance Assistant';
-    
-            if (filesArray.length > 1 && !isSpecialMode) {
-                // In standard mode, only allow multiple images
-                const allImages = filesArray.every(f => f.type.startsWith('image/'));
-                if (allImages) {
-                    filesToProcess = filesArray;
-                } else {
-                    console.warn("In standard mode, you can only upload multiple images or a single file of any type.");
-                    if (fileInputRef.current) {
-                        fileInputRef.current.value = '';
-                    }
-                    return;
-                }
-            } else {
-                // If in special mode OR only one file is selected, allow all.
-                filesToProcess = filesArray;
-            }
-    
-            for (const file of filesToProcess) {
-                const currentFile = file as File;
-                const reader = new FileReader();
-                reader.onload = (loadEvent) => {
-                    const base64 = (loadEvent.target?.result as string)?.split(',')[1];
-                    if (base64) {
-                        const newAttachment: FileAttachment = {
-                            name: currentFile.name,
-                            mimeType: currentFile.type,
-                            base64,
-                        };
-                        setAttachments(prev => [...prev, newAttachment]);
-                    }
-                };
-                reader.readAsDataURL(currentFile);
-            }
-        }
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
-    
-    // The following function handles the standard chat message submission.
-    const handleSendMessage = async (message: string, files: FileAttachment[]) => {
-        if (!message && files.length === 0) return;
+    const handleSendMessage = useCallback(async (message: string, files: FileAttachment[]) => {
+        if (isLoading || (!message.trim() && files.length === 0)) return;
+
+        setIsLoading(true);
+        setCurrentActivity('chat');
+        isCancelledRef.current = false;
         
-        if (files.length > 0) {
-            setLastActiveImage(files.find(f => f.mimeType.startsWith('image/')) || files[0]);
+        // Find the last active image if any are attached
+        const imageAttachments = files.filter(f => f.mimeType.startsWith('image/'));
+        if (imageAttachments.length > 0) {
+            setLastActiveImage(imageAttachments[imageAttachments.length - 1]);
+        }
+        
+        // Also add uploaded files to the session for the Developer Sandbox persona
+        if (currentPersona?.name === 'Developer Sandbox' && files.length > 0) {
+            const newSessionFiles: VirtualFile[] = [];
+            for (const file of files) {
+                try {
+                    const content = atob(file.base64);
+                    newSessionFiles.push({ name: file.name, content });
+                } catch(e) { console.error(`Failed to decode file for sandbox: ${file.name}`, e); }
+            }
+             setSessionFiles(prev => {
+                const updatedFiles = [...prev];
+                newSessionFiles.forEach(newFile => {
+                    const existingIndex = updatedFiles.findIndex(f => f.name === newFile.name);
+                    if (existingIndex > -1) {
+                        updatedFiles[existingIndex] = newFile;
+                    } else {
+                        updatedFiles.push(newFile);
+                    }
+                });
+                return updatedFiles;
+            });
         }
 
-        const newMessage: Message = {
+
+        const userMessage: Message = {
             id: Date.now().toString(),
             text: message,
             sender: 'user',
             timestamp: new Date(),
             attachments: files,
         };
-        setMessages((prev) => [...prev, newMessage]);
-        
-        setIsLoading(true);
+        setMessages(prev => [...prev, userMessage]);
+        playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/send_message.mp3', 0.2);
 
-        // FIX: Ensure uploaded files are added to the session state for tools to use
-        if (files.length > 0) {
-            const newSessionFiles: VirtualFile[] = files
-                // Filter out non-text files that atob would corrupt
-                .filter(f => !f.mimeType.startsWith('image/') && !f.mimeType.startsWith('audio/') && !f.mimeType.startsWith('video/'))
-                .map(f => {
-                    try {
-                        return { name: f.name, content: atob(f.base64) };
-                    } catch (e) {
-                        console.error(`Could not decode file ${f.name}`, e);
-                        return { name: f.name, content: '[Error: Could not decode file content]'};
-                    }
-                });
-
-            setSessionFiles(prev => {
-                const updatedFiles = [...prev];
-                newSessionFiles.forEach(newFile => {
-                    const existingIndex = updatedFiles.findIndex(f => f.name === newFile.name);
-                    if (existingIndex > -1) {
-                        updatedFiles[existingIndex] = newFile; // Overwrite existing
-                    } else {
-                        updatedFiles.push(newFile); // Add new
-                    }
-                });
-                return updatedFiles;
-            });
-        }
-        
-        if (isAgentModeEnabled) {
-            await initiateWorkflow(message, files);
-            return;
-        }
-
-        // Set activity for visual feedback
-        if (/^generate (an? )?image/i.test(message)) {
-            setCurrentActivity('image_gen');
-        } else if (/^(browse|read|go to)/i.test(message)) {
-            setCurrentActivity('browsing');
-        } else {
-            setCurrentActivity('chat');
-        }
-        
+        let locationData: { latitude: number; longitude: number } | null = null;
         try {
-            const aiMessageId = (Date.now() + 1).toString();
-            const initialAiMessage: Message = {
-                id: aiMessageId,
-                text: '',
-                sender: 'ai',
-                timestamp: new Date(),
-                status: 'streaming',
-                sources: []
+             const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+            });
+            locationData = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
             };
-            setMessages((prev) => [...prev, initialAiMessage]);
+        } catch (error) {
+            console.warn("Geolocation permission denied or timed out.");
+        }
 
+        try {
             const { stream, historyWithUserMessage } = await streamMessageToChat(
                 history,
                 message,
                 files,
-                null, // No location for now
-                authUserProfile,
+                locationData,
+                userSettings as UserProfile,
                 undefined,
                 currentPersona?.systemInstruction,
                 isAgentModeEnabled
             );
-
             setHistory(historyWithUserMessage);
-            
-            let fullResponseText = '';
-            
+
+            let accumulatedText = '';
+            let aiMessageId = '';
+
             for await (const chunk of stream) {
-                const text = chunk.text;
-                if (text) {
-                    fullResponseText += text;
-                    setMessages((prev) =>
-                        prev.map((msg) =>
-                            msg.id === aiMessageId
-                                ? { ...msg, text: fullResponseText, segments: parseMarkdown(fullResponseText) }
-                                : msg
+                 if (isCancelledRef.current) break;
+                 
+                const chunkText = chunk.text;
+                accumulatedText += chunkText;
+                
+                if (!aiMessageId) {
+                    aiMessageId = Date.now().toString();
+                    const aiMessage: Message = {
+                        id: aiMessageId,
+                        text: accumulatedText,
+                        sender: 'ai',
+                        timestamp: new Date(),
+                        status: 'streaming',
+                        segments: parseMarkdown(accumulatedText),
+                    };
+                    setMessages(prev => [...prev, aiMessage]);
+                } else {
+                    setMessages(prev =>
+                        prev.map(m =>
+                            m.id === aiMessageId ? { ...m, text: accumulatedText, status: 'streaming', segments: parseMarkdown(accumulatedText) } : m
                         )
                     );
                 }
-                
-                if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-                    const chunks = chunk.candidates[0].groundingMetadata.groundingChunks;
-                    const sources: Source[] = chunks.reduce((acc: Source[], c: GroundingChunk) => {
-                        if (c.web?.uri && c.web.title) {
-                            acc.push({ uri: c.web.uri, title: c.web.title, type: 'web' });
-                        }
-                        return acc;
-                    }, []);
-                    
-                    if (sources.length > 0) {
-                         setMessages((prev) =>
-                            prev.map((msg) =>
-                                msg.id === aiMessageId
-                                    ? { ...msg, sources: [...(msg.sources || []), ...sources] }
-                                    : msg
-                            )
-                        );
-                    }
-                }
+            }
+            
+            if (isCancelledRef.current) {
+                 if (aiMessageId) {
+                    setMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: m.text + "\n\n---\n*Generation stopped by user.*", status: 'sent', segments: parseMarkdown(m.text + "\n\n---\n*Generation stopped by user.*") } : m));
+                 }
+                return;
             }
 
-            const jsonMatch = fullResponseText.match(/\{[\s\S]*\}/);
-            let toolCallHandled = false;
-
-            if (jsonMatch) {
+            // FIX: Removed unused `finalResponse` variable causing a TypeScript error.
+            // Also fixed a bug where chat history was not being updated with the AI's response
+            // due to a stale closure over the `messages` state array.
+            if (aiMessageId) {
+                setHistory(prev => [...prev, { role: 'model', parts: [{ text: accumulatedText }] }]);
+            }
+            
+            // Tool call detection
+            const toolCallMatch = accumulatedText.match(/\{[\s\S]*"tool_call":\s*"([\w_]+)"[\s\S]*\}/);
+            if (toolCallMatch) {
                 try {
-                    const parsedJson = JSON.parse(jsonMatch[0]);
-                    if (parsedJson.tool_call) {
-                        const conversationalText = fullResponseText.replace(jsonMatch[0], '').trim();
-                        
-                        setMessages(prev => prev.map(msg => 
-                            msg.id === aiMessageId 
-                                ? { ...msg, text: conversationalText, segments: parseMarkdown(conversationalText) }
-                                : msg
-                        ));
-                        
-                        await handleToolCall(aiMessageId, parsedJson);
-                        toolCallHandled = true;
-                    }
+                    const toolCallObject = JSON.parse(toolCallMatch[0]);
+                    setMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, text: '' } : m));
+                    await handleToolCall(aiMessageId, toolCallObject);
+                    return;
                 } catch (e) {
-                    // Not a valid JSON or not a tool call, treat as regular text.
+                    console.error("Failed to parse tool call JSON:", e, "Raw text:", toolCallMatch[0]);
+                     setMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, status: 'sent', segments: parseMarkdown(accumulatedText) } : m));
                 }
-            }
-
-            if (!toolCallHandled) {
-                setHistory((prev) => [...prev, { role: 'model', parts: [{ text: fullResponseText }] }]);
-                 setMessages((prev) =>
-                    prev.map((msg) =>
-                        msg.id === aiMessageId ? { ...msg, status: 'sent', segments: parseMarkdown(fullResponseText) } : msg
-                    )
-                );
+            } else {
+                // Finalize message state for normal text response
+                if (aiMessageId) {
+                     setMessages(prev => prev.map(m => m.id === aiMessageId ? { ...m, status: 'sent', segments: parseMarkdown(accumulatedText) } : m));
+                } else {
+                    // Handle case where AI responds with empty text (e.g., safety block)
+                     const emptyResponseMessage: Message = {
+                        id: Date.now().toString(),
+                        text: "I am unable to provide a response to this request.",
+                        sender: 'ai',
+                        timestamp: new Date(),
+                        status: 'sent',
+                        segments: parseMarkdown("I am unable to provide a response to this request.")
+                    };
+                    setMessages(prev => [...prev, emptyResponseMessage]);
+                }
             }
 
         } catch (error) {
-            console.error("Chat error:", error);
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: Date.now().toString(),
-                    text: "I encountered an error processing your request.",
-                    sender: 'ai',
-                    timestamp: new Date(),
-                },
-            ]);
+            console.error('Error sending message:', error);
+            const errorMessage: Message = {
+                id: Date.now().toString(),
+                text: 'Sorry, an error occurred. Please try again.',
+                sender: 'ai',
+                timestamp: new Date(),
+                status: 'sent',
+            };
+            setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
             setCurrentActivity(null);
+            playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/message_received.mp3', 0.2);
         }
+    }, [isLoading, history, userSettings, currentPersona, isAgentModeEnabled, handleToolCall]);
+
+    const handleQuickAction = (prompt: string, files: FileAttachment[] = []) => {
+        handleSendMessage(prompt, files);
     };
 
-    const handleCancel = () => {
-        setIsLoading(false);
-        setCurrentActivity(null);
-    };
-
-    // Settings modal helpers
-    const handleSaveSettings = (settings: Partial<UserProfile>) => {
-        setUserSettings(prev => ({ ...prev, ...settings }));
-        setIsSettingsOpen(false);
-    };
-    
-// FIX: The `user` variable is not available from the custom auth context. The function's purpose is to clear the current chat, not to log out. Removed firebase logout call.
-    const handleDeleteAllChats = async () => {
-        setMessages([]);
-        setHistory([]);
-        setIsSettingsOpen(false);
-    };
-
-    const handleDownloadGeneratedFile = (data: any, type: string, filename: string) => {
-        switch(type) {
-            case 'pptx':
-                createPptxFile(data, filename.replace('.pptx', ''));
-                break;
-            case 'docx':
-                 createDocxFile(data);
-                break;
-            case 'xlsx':
-                createXlsxFile(data);
-                break;
-            case 'pdf':
-                createPdfFile(data);
-                break;
-        }
-    };
-
-    const disconnectLiveConversation = useCallback(() => {
-        console.log("Disconnecting live conversation...");
-        sessionPromiseRef.current?.then(session => session.close());
-        
-        mediaStreamRef.current?.getTracks().forEach(track => track.stop());
-        mediaStreamRef.current = null;
-    
-        if (audioContextRefs.current.scriptProcessor) {
-            audioContextRefs.current.scriptProcessor.disconnect();
-            audioContextRefs.current.scriptProcessor = null;
-        }
-    
-        audioContextRefs.current.sources.forEach(source => source.stop());
-        audioContextRefs.current.sources.clear();
-        
-        audioContextRefs.current.input?.close();
-        audioContextRefs.current.output?.close();
-        audioContextRefs.current.input = null;
-        audioContextRefs.current.output = null;
-    
-        setLiveConnectionState('disconnected');
-    }, []);
-
-    const startLiveConversation = useCallback(async () => {
-        setLiveConnectionState('connecting');
-        
+    const handleDownloadGeneratedFile = async (data: any, type: 'pptx' | 'docx' | 'xlsx' | 'pdf', filename: string) => {
+        if (!data) return;
         try {
+            switch(type) {
+                case 'pptx': await createPptxFile(data as PresentationData, filename.replace('.pptx', '')); break;
+                case 'docx': await createDocxFile(data as WordData); break;
+                case 'xlsx': await createXlsxFile(data as ExcelData); break;
+                // PDF is downloaded immediately upon generation
+            }
+        } catch(e) {
+            console.error(`Error downloading ${type} file:`, e);
+            alert(`Could not download file. See console for details.`);
+        }
+    };
+    
+    // Manage Custom Personas
+    const handleSavePersona = (persona: Persona, originalName?: string) => {
+        let updatedPersonas;
+        if (originalName) { // Editing existing
+            updatedPersonas = availablePersonas.map(p => p.name === originalName ? persona : p);
+        } else { // Adding new
+             if (availablePersonas.some(p => p.name === persona.name)) {
+                alert("A persona with this name already exists.");
+                return;
+            }
+            updatedPersonas = [...availablePersonas, persona];
+        }
+        setAvailablePersonas(updatedPersonas);
+        const customPersonas = updatedPersonas.filter(p => p.isCustom);
+        localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(customPersonas));
+        
+        setIsCustomPersonaModalOpen(false);
+        setEditingPersona(null);
+        setCurrentPersona(persona);
+    };
+    
+    const handleDeletePersona = (name: string) => {
+        if (window.confirm(`Are you sure you want to delete the "${name}" persona?`)) {
+            const updatedPersonas = availablePersonas.filter(p => p.name !== name);
+            setAvailablePersonas(updatedPersonas);
+            const customPersonas = updatedPersonas.filter(p => p.isCustom);
+            localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(customPersonas));
+            if (currentPersona?.name === name) {
+                setCurrentPersona(null);
+            }
+        }
+    };
+
+    const handleClearAllConversations = async () => {
+        if (window.confirm("Are you sure you want to delete all your conversations? This action cannot be undone.")) {
+            if (authUserProfile?.uid) {
+                // This would be the place to call a Firebase service function if using backend
+                // await deleteAllChatsForUser(authUserProfile.uid);
+            }
+            setMessages([]);
+            setHistory([]);
+            setIsSettingsOpen(false);
+        }
+    };
+
+     const startLiveConversation = async () => {
+        try {
+            // FIX: Ensure correct persona instructions are passed to the live conversation.
+            let systemInstruction = (currentPersona?.systemInstruction || aikonPersonaInstruction);
+            if(userSettings?.aboutYou) {
+                systemInstruction += `\n\n---
+**USER PREFERENCES:**
+- The user wants you to address them as "${userSettings.aboutYou}". Use this name when appropriate in conversation.`;
+            }
+
+            setLiveConnectionState('connecting');
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaStreamRef.current = stream;
-
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
             const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
             const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
             const outputNode = outputAudioContext.createGain();
             outputNode.connect(outputAudioContext.destination);
-            audioContextRefs.current = {
-                input: inputAudioContext,
-                output: outputAudioContext,
-                scriptProcessor: null,
-                sources: new Set()
-            };
-            nextStartTimeRef.current = 0;
 
-            let systemInstruction = currentPersona?.systemInstruction || aikonPersonaInstruction;
-            if (authUserProfile?.aboutYou) {
-                systemInstruction += `\n\n---
-**USER PREFERENCES:**
-- The user wants you to address them as "${authUserProfile.aboutYou}". Use this name when appropriate in conversation.`;
-            }
+            audioContextRefs.current.input = inputAudioContext;
+            audioContextRefs.current.output = outputAudioContext;
 
-            const sessionPromise = ai.live.connect({
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            sessionPromiseRef.current = ai.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
                 callbacks: {
                     onopen: () => {
@@ -2114,7 +2040,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                         scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
                             const pcmBlob = createBlob(inputData);
-                            sessionPromise.then((session) => {
+                            sessionPromiseRef.current?.then((session) => {
                                 session.sendRealtimeInput({ media: pcmBlob });
                             });
                         };
@@ -2122,276 +2048,214 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                         scriptProcessor.connect(inputAudioContext.destination);
                     },
                     onmessage: async (message: LiveServerMessage) => {
-                        const base64EncodedAudioString = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                        if (base64EncodedAudioString) {
+                        const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+                        if (base64Audio) {
                             nextStartTimeRef.current = Math.max(nextStartTimeRef.current, outputAudioContext.currentTime);
-                            const audioBuffer = await decodeAudioData(decode(base64EncodedAudioString), outputAudioContext, 24000, 1);
-                            
-                            const source = outputAudioContext.createBufferSource();
-                            source.buffer = audioBuffer;
-                            source.connect(outputNode);
-                            source.addEventListener('ended', () => {
-                                audioContextRefs.current.sources.delete(source);
+                            const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContext, 24000, 1);
+                            const sourceNode = outputAudioContext.createBufferSource();
+                            sourceNode.buffer = audioBuffer;
+                            sourceNode.connect(outputNode);
+                            sourceNode.addEventListener('ended', () => {
+                                audioContextRefs.current.sources.delete(sourceNode);
                             });
-                            source.start(nextStartTimeRef.current);
+                            sourceNode.start(nextStartTimeRef.current);
                             nextStartTimeRef.current += audioBuffer.duration;
-                            audioContextRefs.current.sources.add(source);
-                        }
-
-                        if (message.serverContent?.interrupted) {
-                             for (const source of audioContextRefs.current.sources.values()) {
-                                source.stop();
-                                audioContextRefs.current.sources.delete(source);
-                            }
-                            nextStartTimeRef.current = 0;
+                            audioContextRefs.current.sources.add(sourceNode);
                         }
                     },
                     onerror: (e: ErrorEvent) => {
-                        console.error('Live connection error:', e);
+                        console.error('Live session error:', e);
                         setLiveConnectionState('error');
-                        disconnectLiveConversation();
                     },
-                    onclose: (e: CloseEvent) => {
-                        console.log('Live connection closed.');
-                        disconnectLiveConversation();
+                    onclose: () => {
+                        // This will be handled by the disconnect function
                     },
                 },
                 config: {
                     responseModalities: [Modality.AUDIO],
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' }}},
-                    systemInstruction: systemInstruction
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } },
+                    },
+                    systemInstruction: systemInstruction,
                 },
             });
-
-            sessionPromiseRef.current = sessionPromise;
-
         } catch (error) {
-            console.error("Failed to start live conversation:", error);
+            console.error('Failed to start live conversation:', error);
             setLiveConnectionState('error');
-            disconnectLiveConversation();
-        }
-
-    }, [currentPersona, disconnectLiveConversation, authUserProfile]);
-
-    const handleEditPersona = (persona: Persona) => {
-        setEditingPersona(persona);
-        setIsCustomPersonaModalOpen(true);
-    };
-
-    const handleDeletePersona = (personaName: string) => {
-        if (window.confirm(`Are you sure you want to delete the "${personaName}" persona? This action cannot be undone.`)) {
-            setAvailablePersonas(prev => {
-                const newPersonas = prev.filter(p => p.name !== personaName);
-                localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(newPersonas.filter(p => p.isCustom)));
-                return newPersonas;
-            });
-            if (currentPersona?.name === personaName) {
-                setCurrentPersona(null);
-            }
-        }
-    };
-
-    const handleSavePersona = (persona: Persona, originalName?: string) => {
-        setAvailablePersonas(prev => {
-            let newPersonas;
-            if (originalName && originalName !== persona.name) {
-                // Name changed, treat as replace
-                 newPersonas = prev.map(p => (p.name === originalName ? persona : p));
-            } else if (originalName) {
-                 // Editing existing
-                 newPersonas = prev.map(p => (p.name === originalName ? persona : p));
-            } else {
-                // Creating new
-                newPersonas = [...prev.filter(p => p.name !== persona.name), persona];
-            }
-            
-            localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(newPersonas.filter(p => p.isCustom)));
-            return newPersonas;
-        });
-        setCurrentPersona(persona);
-        setIsCustomPersonaModalOpen(false);
-        setEditingPersona(null);
-    };
-
-
-    const welcomeContainerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.2, delayChildren: 0.2 }
         }
     };
     
-    // FIX: Explicitly typed welcomeItemVariants with Variants to fix type inference issue with the 'transition.type' property.
-    const welcomeItemVariants: Variants = {
-        hidden: { opacity: 0, y: 20 },
-        visible: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100 } }
+    const stopLiveConversation = () => {
+        mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+        audioContextRefs.current.input?.close();
+        audioContextRefs.current.output?.close();
+        audioContextRefs.current.scriptProcessor?.disconnect();
+        audioContextRefs.current.sources.forEach(source => source.stop());
+        audioContextRefs.current.sources.clear();
+        sessionPromiseRef.current?.then(session => session.close());
+        
+        sessionPromiseRef.current = null;
+        mediaStreamRef.current = null;
+        audioContextRefs.current = { input: null, output: null, scriptProcessor: null, sources: new Set() };
+        nextStartTimeRef.current = 0;
+        setLiveConnectionState('disconnected');
     };
 
     return (
         <div className="chat-page-container">
-            <header className="chat-header">
+             <header className="chat-header">
                 <div className="flex items-center gap-3">
-                    <div>
-                         <h1 className="font-bold text-lg leading-none">AikonAI <span className="text-xs text-amber-500 ml-2 font-normal px-2 py-0.5 border border-amber-500/30 rounded-full">BETA</span></h1>
-                         {currentPersona && <span className="text-xs text-gray-400 flex items-center gap-1">As {currentPersona.icon} {currentPersona.name}</span>}
-                    </div>
+                    <img src="/short_logo.jpeg" alt="AikonAI Logo" className="chat-header-logo" />
+                    <span className="font-bold text-lg">AikonAI</span>
                 </div>
                 <div className="chat-header-actions">
-                    <div className="agent-toggle" title="Enable Autonomous Agent Mode">
-                         <span className={`hidden sm:inline text-xs font-bold mr-2 ${isAgentModeEnabled ? 'text-amber-400' : 'text-gray-500'}`}>AGENT MODE</span>
-                         <motion.button 
-                            className={`toggle-switch ${isAgentModeEnabled ? 'on' : ''}`} 
-                            onClick={() => setIsAgentModeEnabled(!isAgentModeEnabled)}
-                            whileTap={{ scale: 0.9 }}
-                        >
-                            <motion.div className="toggle-thumb" layout />
-                        </motion.button>
-                    </div>
-                    <motion.button onClick={() => setIsSettingsOpen(true)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Settings</motion.button>
-                    <motion.button onClick={() => navigateTo('home')} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Exit</motion.button>
-                    <motion.button className="theme-toggle-button" onClick={toggleTheme} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <motion.button 
+                        className="theme-toggle-button" 
+                        onClick={toggleTheme}
+                        whileTap={{ scale: 0.9, rotate: 15 }}
+                    >
                          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
                     </motion.button>
+                     <div className="hidden md:flex items-center gap-2">
+                        <span className="text-sm font-medium mr-1">Agent Mode</span>
+                        <button 
+                            className={`toggle-switch ${isAgentModeEnabled ? 'on' : ''}`}
+                            onClick={() => setIsAgentModeEnabled(!isAgentModeEnabled)}
+                            aria-label="Toggle Agent Mode"
+                        >
+                            <motion.div className="toggle-thumb" layout transition={{ type: "spring", stiffness: 700, damping: 30 }} />
+                        </button>
+                    </div>
+                    <button onClick={() => setIsSettingsOpen(true)}>Settings</button>
+                    <button onClick={() => navigateTo('home')} className="primary">Exit</button>
                 </div>
             </header>
-
-            <div className="message-log-container">
+            
+            <main ref={chatWindowRef} className={`message-log-container ${messages.length > 0 ? '' : 'flex'}`}>
                 {messages.length === 0 ? (
-                    <motion.div 
-                        className="chat-welcome-screen"
-                        variants={welcomeContainerVariants}
-                        initial="hidden"
-                        animate="visible"
-                    >
-                        <motion.h2 variants={welcomeItemVariants} className="welcome-title">{welcomeMessage}</motion.h2>
-                        <motion.div variants={welcomeContainerVariants} className="welcome-actions">
-                             <motion.button 
-                                    variants={welcomeItemVariants}
-                                    onClick={startLiveConversation}
-                                    className="action-pill"
-                                    title="Start a real-time voice conversation"
-                                    whileHover={{ y: -4 }}
-                                    whileTap={{ scale: 0.95 }}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93V17h-2v-2.07A8.002 8.002 0 012 8V6a1 1 0 112 0v2a6 6 0 1012 0V6a1 1 0 112 0v2a8.002 8.002 0 01-5 7.484z" clipRule="evenodd" /></svg>
-                                    Start Live Conversation
-                                </motion.button>
-                             {availablePersonas.map((persona, idx) => (
-                                <motion.button 
-                                    key={idx} 
-                                    variants={welcomeItemVariants}
-                                    onClick={() => setCurrentPersona(persona)}
-                                    className={`action-pill ${currentPersona?.name === persona.name ? 'border-amber-500 bg-amber-500/10 text-amber-400' : ''}`}
-                                    title={persona.description}
-                                    whileHover={{ y: -4 }}
-                                    whileTap={{ scale: 0.95 }}
-                                >
-                                    <span>{persona.icon}</span>
-                                    {persona.name}
-                                </motion.button>
-                            ))}
-                             <motion.button 
-                                variants={welcomeItemVariants} 
-                                onClick={() => setIsCustomPersonaModalOpen(true)} 
-                                className="action-pill border-dashed border-gray-600 text-gray-500 hover:border-amber-500 hover:text-amber-400"
-                                whileHover={{ y: -4 }}
-                                whileTap={{ scale: 0.95 }}
-                             >
-                                + Create Persona
-                            </motion.button>
-                        </motion.div>
-                    </motion.div>
-                ) : (
-                    <div className="w-full flex flex-col items-center">
-                         <AnimatePresence>
-                             {messages.map((msg) => (
-                                <MessageLogItem
-                                    key={msg.id}
-                                    message={msg}
-                                    userProfile={authUserProfile}
-                                    onApprove={(stepIdx) => { /* Implement logic to resume workflow */ }}
-                                    onDeny={(stepIndex) => { /* Implement logic to deny workflow step */ }}
-                                    onViewImage={setViewingImage}
-                                    onDownloadGeneratedFile={handleDownloadGeneratedFile}
-                                    onConfirmWorkflow={handleConfirmWorkflow}
-                                    onCancelWorkflow={handleCancelWorkflow}
-                                />
-                            ))}
-                            {isLoading && <TypingIndicator activity={currentActivity} persona={currentPersona} />}
-                        </AnimatePresence>
-                        <div ref={bottomOfChatRef} />
+                    <div className="chat-welcome-screen">
+                        <motion.img 
+                            src="/short_logo.jpeg" 
+                            alt="AikonAI Logo" 
+                            className="welcome-logo" 
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.2 }}
+                        />
+                         <h1 className="welcome-title">{welcomeMessage}</h1>
+                         <div className="welcome-actions">
+                            <motion.button className="action-pill" onClick={() => handleQuickAction("Write a blog post about the future of AI")} whileHover={{ y: -4 }}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> Write a blog post</motion.button>
+                            <motion.button className="action-pill" onClick={() => handleQuickAction("Create a 5-slide presentation on quantum computing")} whileHover={{ y: -4 }}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> Create a presentation</motion.button>
+                            <motion.button className="action-pill" onClick={() => fileInputRef.current?.click()} whileHover={{ y: -4 }}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg> Analyze a document</motion.button>
+                            <motion.button className="action-pill" onClick={startLiveConversation} whileHover={{ y: -4 }}><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg> Start Live Conversation</motion.button>
+                        </div>
                     </div>
+                ) : (
+                    <AnimatePresence initial={false}>
+                        {messages.map((msg) => (
+                             <MessageLogItem
+                                key={msg.id}
+                                message={msg}
+                                onApprove={() => {}}
+                                onDeny={() => {}}
+                                onViewImage={setViewingImage}
+                                userProfile={authUserProfile}
+                                onDownloadGeneratedFile={handleDownloadGeneratedFile}
+                                onConfirmWorkflow={handleConfirmWorkflow}
+                                onCancelWorkflow={handleCancelWorkflow}
+                             />
+                        ))}
+                         {isLoading && <TypingIndicator activity={currentActivity} persona={currentPersona} />}
+                    </AnimatePresence>
                 )}
-            </div>
+                 <div ref={bottomOfChatRef} />
+            </main>
 
-             {messages.length > 0 && (
-                <div className="chat-actions-bar">
-                    <div className="chat-actions-inner" ref={personaMenuRef}>
-                        <div className="persona-menu-container">
-                             <motion.div
+             <div className="chat-actions-bar">
+                <div className="chat-actions-inner">
+                    <AnimatePresence>
+                        {currentPersona && (
+                             <motion.div 
                                 className="active-persona-indicator"
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                <button onClick={() => setIsPersonaMenuOpen(prev => !prev)} className="flex items-center gap-2 pr-2">
-                                    <span>{currentPersona?.icon || '👤'}</span>
-                                    <span className="hidden sm:inline font-semibold">{currentPersona?.name || 'Default Persona'}</span>
-                                </button>
-                                {currentPersona && (
-                                    <button onClick={() => setCurrentPersona(null)} title="Clear Persona" className="font-mono">&times;</button>
-                                )}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                             >
+                                <span>{currentPersona.icon}</span>
+                                <span className="font-semibold">{currentPersona.name}</span>
+                                <button onClick={() => setCurrentPersona(null)} title="Reset to default persona">&times;</button>
                             </motion.div>
-
-                            <AnimatePresence>
-                                {isPersonaMenuOpen && (
-                                    <motion.div
-                                        className="persona-menu"
-                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    >
-                                        <div 
-                                            className={`persona-menu-item ${!currentPersona ? 'selected' : ''}`}
-                                            onClick={() => { setCurrentPersona(null); setIsPersonaMenuOpen(false); }}
-                                        >
-                                            <span className="icon">👤</span>
-                                            Default
-                                        </div>
-                                        {availablePersonas.map(persona => (
-                                            <div
-                                                key={persona.name}
+                        )}
+                    </AnimatePresence>
+                    <div className="persona-menu-container" ref={personaMenuRef}>
+                        <motion.button 
+                            className="action-pill"
+                            onClick={() => setIsPersonaMenuOpen(!isPersonaMenuOpen)}
+                            whileHover={{ y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                        >
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
+                           {currentPersona ? 'Change Persona' : 'Default Persona'}
+                        </motion.button>
+                         <AnimatePresence>
+                            {isPersonaMenuOpen && (
+                                <motion.div 
+                                    className="persona-menu"
+                                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                >
+                                     {availablePersonas.map(persona => (
+                                         <div key={persona.name} className="persona-tooltip-wrapper">
+                                            <div 
                                                 className={`persona-menu-item ${currentPersona?.name === persona.name ? 'selected' : ''}`}
-                                                onClick={() => { setCurrentPersona(persona); setIsPersonaMenuOpen(false); }}
+                                                onClick={() => {
+                                                    setCurrentPersona(persona);
+                                                    setIsPersonaMenuOpen(false);
+                                                }}
                                             >
                                                 <span className="icon">{persona.icon}</span>
                                                 <span className="flex-grow">{persona.name}</span>
-                                                 {persona.isCustom && (
+                                                {persona.isCustom && (
                                                     <div className="persona-item-actions">
-                                                         <button className="edit-btn" onClick={(e) => { e.stopPropagation(); handleEditPersona(persona); setIsPersonaMenuOpen(false); }} title="Edit Persona">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                                        <button 
+                                                            className="edit-btn"
+                                                            onClick={(e) => { e.stopPropagation(); setEditingPersona(persona); setIsCustomPersonaModalOpen(true); }}
+                                                            title="Edit Persona"
+                                                        >
+                                                            ✏️
                                                         </button>
-                                                         <button className="delete-btn" onClick={(e) => { e.stopPropagation(); handleDeletePersona(persona.name); }} title="Delete Persona">
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        <button 
+                                                            className="delete-btn"
+                                                            onClick={(e) => { e.stopPropagation(); handleDeletePersona(persona.name); }}
+                                                            title="Delete Persona"
+                                                        >
+                                                            🗑️
                                                         </button>
                                                     </div>
-                                                 )}
+                                                )}
                                             </div>
-                                        ))}
-                                        <div className="create-persona-button">
-                                            <div className="persona-menu-item" onClick={() => { setIsCustomPersonaModalOpen(true); setIsPersonaMenuOpen(false); }}>
-                                                <span className="icon">+</span> Create New Persona
+                                             <div className="persona-tooltip">
+                                                <p className="font-bold mb-1">{persona.name}</p>
+                                                <p>{persona.description}</p>
                                             </div>
                                         </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
+                                    ))}
+                                    <div 
+                                        className="persona-menu-item create-persona-button"
+                                        onClick={() => { setEditingPersona(null); setIsCustomPersonaModalOpen(true); setIsPersonaMenuOpen(false); }}
+                                    >
+                                        <span className="icon">➕</span>
+                                        <span>Create New Persona</span>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
-            )}
-
-
+            </div>
+            
             <ChatComposer
                 onSendMessage={handleSendMessage}
                 isLoading={isLoading}
@@ -2399,32 +2263,45 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 setInput={setInput}
                 attachments={attachments}
                 setAttachments={setAttachments}
-                onCancel={handleCancel}
+                onCancel={() => isCancelledRef.current = true}
             />
 
             <AnimatePresence>
                 {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
-                {liveConnectionState !== 'disconnected' && <LiveConversationOverlay connectionState={liveConnectionState} onDisconnect={disconnectLiveConversation} />}
-                 {isCustomPersonaModalOpen && <CustomPersonaModal 
-                    onClose={() => {
-                        setIsCustomPersonaModalOpen(false);
-                        setEditingPersona(null);
-                    }} 
-                    onSave={handleSavePersona}
-                    personaToEdit={editingPersona}
-                 />}
             </AnimatePresence>
-
-            <SettingsModal
-                isOpen={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
-                profile={userSettings}
-                onSave={handleSaveSettings}
-                onDeleteAllChats={handleDeleteAllChats}
+            
+            <AnimatePresence>
+                {isSettingsOpen && <SettingsModal 
+                    isOpen={isSettingsOpen} 
+                    onClose={() => setIsSettingsOpen(false)} 
+                    profile={userSettings}
+                    onSave={(newSettings) => {
+                        setUserSettings(prev => ({...prev, ...newSettings}));
+                        setIsSettingsOpen(false);
+                    }}
+                    onDeleteAllChats={handleClearAllConversations}
+                />}
+            </AnimatePresence>
+            
+             <AnimatePresence>
+                {liveConnectionState !== 'disconnected' && <LiveConversationOverlay connectionState={liveConnectionState} onDisconnect={stopLiveConversation} />}
+            </AnimatePresence>
+            
+            <AnimatePresence>
+                {isCustomPersonaModalOpen && <CustomPersonaModal 
+                    onClose={() => setIsCustomPersonaModalOpen(false)} 
+                    onSave={handleSavePersona} 
+                    personaToEdit={editingPersona} 
+                />}
+            </AnimatePresence>
+            
+            <CodeCanvas
+                files={canvasFiles}
+                isVisible={isCanvasVisible}
+                onClose={() => setIsCanvasVisible(false)}
             />
         </div>
     );
 };
 
-// FIX: Added default export to make the component available for import in other modules.
 export default AikonChatPage;
