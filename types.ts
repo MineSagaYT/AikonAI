@@ -7,6 +7,7 @@ declare global {
     var docx: any;
     var ExcelJS: any;
     var QRCode: any;
+    var jspdf: any;
 }
 
 
@@ -76,7 +77,8 @@ export interface Message {
     timestamp: Date;
     // FIX: Add 'streaming' to the possible status values to support streaming messages.
     status?: 'sent' | 'read' | 'streaming';
-    imageUrl?: string;
+    imageUrls?: string[];
+    attachments?: FileAttachment[];
     sources?: Source[];
     weatherData?: WeatherData;
     generatedImage?: {
@@ -113,7 +115,7 @@ export interface Message {
         filename: string;
         message: string;
         data?: PresentationData | WordData | ExcelData;
-        type?: 'pptx' | 'docx' | 'xlsx';
+        type?: 'pptx' | 'docx' | 'xlsx' | 'pdf';
         previewImageUrl?: string; // For PPTX preview
         isPreviewLoading?: boolean; // To show a shimmer/loader
     };

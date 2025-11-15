@@ -1,22 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData } from '../../types';
-import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo } from '../../services/geminiService';
+import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode } from '../../services/geminiService';
 import { fetchWeather } from '../../services/weatherService';
 import { GenerateVideosOperation, Content, GenerateContentResponse, GoogleGenAI, Modality, GroundingChunk, Blob as GenAI_Blob, LiveServerMessage } from '@google/genai';
-import { parseMarkdown, renderParagraph, createPptxFile, createDocxFile, createXlsxFile } from '../../utils/markdown';
+import { parseMarkdown, renderParagraph, createPptxFile, createDocxFile, createXlsxFile, createPdfFile } from '../../utils/markdown';
 import CodeBlock from '../CodeBlock';
 import CodeCanvas from '../CodeCanvas';
 import TaskList from '../TaskList';
 import SettingsModal from '../SettingsModal';
 import { useAuth } from '../../context/AuthContext';
-import { logout } from '../../services/firebase';
 import LoadingSpinner from '../LoadingSpinner';
 // FIX: Imported Variants type from framer-motion to resolve typing errors.
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import WeatherCard from '../WeatherCard';
 
 
-const API_KEY = "AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs";
 
 // Add a global type definition for the aistudio window object to avoid TypeScript errors.
 // The `aistudio` property on Window requires a named type `AIStudio` to prevent conflicts with other global declarations.
@@ -170,6 +168,25 @@ For all other requests, you MUST respond ONLY with the JSON for the 'create_stor
         description: 'Provides educational content on budgeting, saving, and general investment principles in a clear, calm tone.',
         systemInstruction: `You are an expert personal finance assistant. You will be given a spreadsheet containing the user’s budget and financial details. Your role is to: 1. **Interpret the budget** – read and understand the spreadsheet categories (income, expenses, savings, debt, investments, etc.). 2. **Answer finance-related questions** – provide clear, tailored answers that reference the user’s own budget data. 3. **Offer best practices** – give guidance based on sound personal finance principles (e.g., budgeting, saving, debt reduction, emergency funds, investing basics). 4. **Stay practical** – ensure explanations are simple, actionable, and adapted to the user’s context. 5. **Maintain neutrality** – do not make speculative investment recommendations or guarantee outcomes. When the user asks a question, combine insights from their budget with general financial best practices to produce helpful, trustworthy advice.`
     },
+    {
+        name: 'Developer Sandbox',
+        icon: '💻',
+        description: 'A powerful code interpreter for running Python, managing files, and performing data analysis.',
+        systemInstruction: `You are 'Developer Sandbox', a powerful AI code interpreter. Your goal is to help users by writing, executing, and debugging Python code.
+- **Environment**: You have a sandboxed Python environment with common libraries like pandas, numpy, and matplotlib. You also have a temporary virtual file system.
+- **Tool Usage**: You MUST use the following tools to interact with the environment. Respond ONLY with the tool's JSON object. Do not add any conversational text.
+  - \`list_files\`: To see files in the current session.
+  - \`read_file\`: To read the content of a file.
+  - \`write_file\`: To create or overwrite a file.
+  - \`execute_python_code\`: To run Python code.
+- **Workflow**:
+  1. Understand the user's goal.
+  2. If necessary, write code to a file using \`write_file\`.
+  3. Execute the code using \`execute_python_code\`.
+  4. Analyze the output and present the final answer to the user, or explain the next step if the task is multi-step.
+- **Plotting**: If asked to create a plot, use matplotlib. The execution environment will capture the plot as an image and return it.
+- **User Interaction**: Be concise. Explain your plan briefly if needed, then use the tools. Present the final result clearly.`
+    },
 ];
 
 const CUSTOM_PERSONAS_STORAGE_KEY = 'aikon-custom-personas';
@@ -258,7 +275,7 @@ const WorkflowBubble = memo(({ workflow, onApprove, onDeny }: { workflow: Workfl
             case 'write_file': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
             case 'read_file': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>;
             case 'finish': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
-            default: return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+            default: return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
         }
     }
 
@@ -709,13 +726,29 @@ const MessageLogItem = memo(({ message, onApprove, onDeny, onViewImage, userProf
 
         return (
             <div className={`message-content ${streamingClass}`}>
-                 {message.imageUrl && message.sender === 'user' && (
-                    <img 
-                        src={message.imageUrl} 
-                        alt="User attachment" 
-                        className="rounded-lg max-w-full md:max-w-xs mb-2 cursor-pointer transition-transform hover:scale-105"
-                        onClick={() => onViewImage(message.imageUrl)}
-                    />
+                 {message.sender === 'user' && message.attachments && message.attachments.length > 0 && (
+                    <div className="user-attachments-container mb-2">
+                        {message.attachments.map((att, index) => {
+                            if (att.mimeType.startsWith('image/')) {
+                                const url = `data:${att.mimeType};base64,${att.base64}`;
+                                return (
+                                    <img
+                                        key={index}
+                                        src={url}
+                                        alt={att.name}
+                                        className="rounded-lg max-w-[120px] max-h-[120px] object-cover cursor-pointer transition-transform hover:scale-105"
+                                        onClick={() => onViewImage(url)}
+                                    />
+                                );
+                            }
+                            return (
+                                <div key={index} className="file-attachment-chip" title={att.name}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 119.52 9.52l3.45-3.451a.75.75 0 111.061 1.06l-3.45 3.452a1.125 1.125 0 001.59 1.591l3.456-3.554a3 3 0 000-4.242z" clipRule="evenodd" /></svg>
+                                    <span className="truncate">{att.name}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
                 {message.segments && message.segments.length > 0 ? (
                     message.segments.map((segment, segIndex) => {
@@ -815,23 +848,24 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ activity, persona }) 
 
 
 const ChatComposer: React.FC<{
-    onSendMessage: (message: string, file: FileAttachment | null) => void;
+    onSendMessage: (message: string, files: FileAttachment[]) => void;
     isLoading: boolean;
     input: string;
     setInput: (value: string) => void;
-    file: FileAttachment | null;
-    setFile: (file: FileAttachment | null) => void;
+    attachments: FileAttachment[];
+// FIX: Changed type of `setAttachments` to `React.Dispatch<React.SetStateAction<FileAttachment[]>>` to correctly type the state setter function, resolving issues with functional updates.
+    setAttachments: React.Dispatch<React.SetStateAction<FileAttachment[]>>;
     onCancel: () => void;
-}> = ({ onSendMessage, isLoading, input, setInput, file, setFile, onCancel }) => {
+}> = ({ onSendMessage, isLoading, input, setInput, attachments, setAttachments, onCancel }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSendMessage = () => {
         const trimmedInput = input.trim();
-        if (trimmedInput || file) {
-            onSendMessage(trimmedInput, file);
+        if (trimmedInput || attachments.length > 0) {
+            onSendMessage(trimmedInput, attachments);
             setInput('');
-            setFile(null);
+            setAttachments([]);
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
             }
@@ -846,20 +880,28 @@ const ChatComposer: React.FC<{
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            const reader = new FileReader();
-            reader.onload = (loadEvent) => {
-                const base64 = (loadEvent.target?.result as string)?.split(',')[1];
-                if (base64) {
-                    setFile({
-                        name: selectedFile.name,
-                        mimeType: selectedFile.type,
-                        base64,
-                    });
-                }
-            };
-            reader.readAsDataURL(selectedFile);
+        const selectedFiles = e.target.files;
+        if (selectedFiles) {
+            const filesArray = Array.from(selectedFiles);
+            const filesToProcess = filesArray;
+
+            // FIX: Explicitly cast `file` to `File` as `currentFile` to resolve type inference issues within the loop and callback.
+            for (const file of filesToProcess) {
+                const currentFile = file as File;
+                const reader = new FileReader();
+                reader.onload = (loadEvent) => {
+                    const base64 = (loadEvent.target?.result as string)?.split(',')[1];
+                    if (base64) {
+                        const newAttachment: FileAttachment = {
+                            name: currentFile.name,
+                            mimeType: currentFile.type,
+                            base64,
+                        };
+                        setAttachments(prev => [...prev, newAttachment]);
+                    }
+                };
+                reader.readAsDataURL(currentFile);
+            }
         }
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -870,24 +912,31 @@ const ChatComposer: React.FC<{
         const items = e.clipboardData.items;
         for (let i = 0; i < items.length; i++) {
             if (items[i].type.indexOf("image") !== -1) {
-                const blob = items[i].getAsFile();
+                // FIX: The type narrowing from `if (blob)` was not being carried into the `onload` callback.
+                // Creating `fileBlob` preserves the narrowed `File` type for use in the callback.
+                const blob: File | null = items[i].getAsFile();
                 if (blob) {
+                    const fileBlob = blob;
                      const reader = new FileReader();
                     reader.onload = (loadEvent) => {
                          const base64 = (loadEvent.target?.result as string)?.split(',')[1];
                         if (base64) {
-                            setFile({
+                             setAttachments(prev => [...prev, {
                                 name: 'pasted-image.png',
-                                mimeType: blob.type,
+                                mimeType: fileBlob.type,
                                 base64,
-                            });
+                            }]);
                         }
                     };
-                    reader.readAsDataURL(blob);
+                    reader.readAsDataURL(fileBlob);
                 }
                 break;
             }
         }
+    };
+    
+    const removeAttachment = (indexToRemove: number) => {
+        setAttachments(prev => prev.filter((_, index) => index !== indexToRemove));
     };
 
     useEffect(() => {
@@ -902,27 +951,33 @@ const ChatComposer: React.FC<{
     return (
         <div className="chat-composer-container">
              <AnimatePresence>
-                {file && (
+                {attachments.length > 0 && (
                     <motion.div
                         className="composer-file-preview"
                         initial={{ opacity: 0, y: 10, height: 0 }}
                         animate={{ opacity: 1, y: 0, height: 'auto' }}
                         exit={{ opacity: 0, y: 10, height: 0 }}
                     >
-                        <div className="composer-file-preview-inner">
-                            <div className="composer-file-info">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                                <span>{file.name}</span>
-                            </div>
-                            <motion.button 
-                                onClick={() => setFile(null)} 
-                                className="composer-icon-button" 
-                                title="Remove file"
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                            >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </motion.button>
+                        <div className="composer-multi-file-container">
+                            {attachments.map((att, index) => (
+                                <motion.div key={index} className="composer-file-thumb" layout>
+                                    {att.mimeType.startsWith('image/') ? (
+                                        <img src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name} />
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center p-1 text-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                            <span className="text-xs truncate w-full mt-1">{att.name}</span>
+                                        </div>
+                                    )}
+                                    <button 
+                                        onClick={() => removeAttachment(index)} 
+                                        className="remove-attachment-btn"
+                                        title="Remove file"
+                                    >
+                                        &times;
+                                    </button>
+                                </motion.div>
+                            ))}
                         </div>
                     </motion.div>
                 )}
@@ -942,7 +997,8 @@ const ChatComposer: React.FC<{
                     ref={fileInputRef}
                     onChange={handleFileChange}
                     className="hidden"
-                    accept="image/*,text/plain,application/pdf,.csv,.json,.xml"
+                    accept="image/*,text/*,.pdf,.csv,.json,.xml,.html,.css,.js,.ts,.tsx,.py,.md"
+                    multiple
                 />
                 <motion.textarea
                     ref={textareaRef}
@@ -957,7 +1013,7 @@ const ChatComposer: React.FC<{
                 />
                  <motion.button
                     onClick={handleSendMessage}
-                    disabled={isLoading || (!input.trim() && !file)}
+                    disabled={isLoading || (!input.trim() && attachments.length === 0)}
                     className="composer-icon-button composer-send-button"
                     title="Send"
                     whileHover={{ scale: 1.1 }}
@@ -1050,11 +1106,29 @@ const LiveConversationOverlay: React.FC<{
 };
 
 
-const CustomPersonaModal: React.FC<{ onClose: () => void; onSave: (persona: Persona) => void; }> = ({ onClose, onSave }) => {
+const CustomPersonaModal: React.FC<{
+    onClose: () => void;
+    onSave: (persona: Persona, originalName?: string) => void;
+    personaToEdit?: Persona | null;
+}> = ({ onClose, onSave, personaToEdit }) => {
     const [name, setName] = useState('');
     const [icon, setIcon] = useState('');
     const [description, setDescription] = useState('');
     const [systemInstruction, setSystemInstruction] = useState('');
+    
+    useEffect(() => {
+        if (personaToEdit) {
+            setName(personaToEdit.name);
+            setIcon(personaToEdit.icon);
+            setDescription(personaToEdit.description);
+            setSystemInstruction(personaToEdit.systemInstruction);
+        } else {
+            setName('');
+            setIcon('');
+            setDescription('');
+            setSystemInstruction('');
+        }
+    }, [personaToEdit]);
 
     const handleSave = () => {
         if (name.trim() && systemInstruction.trim()) {
@@ -1064,7 +1138,7 @@ const CustomPersonaModal: React.FC<{ onClose: () => void; onSave: (persona: Pers
                 description: description.trim(),
                 systemInstruction: systemInstruction.trim(),
                 isCustom: true,
-            });
+            }, personaToEdit?.name);
         }
     };
 
@@ -1082,7 +1156,7 @@ const CustomPersonaModal: React.FC<{ onClose: () => void; onSave: (persona: Pers
                 exit={{ y: 20, scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             >
-                <h2>Create Custom Persona</h2>
+                <h2>{personaToEdit ? 'Edit Custom Persona' : 'Create Custom Persona'}</h2>
                 <div className="form-group">
                     <label htmlFor="persona-name">Persona Name</label>
                     <input id="persona-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Sarcastic Python Developer" />
@@ -1115,7 +1189,8 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [history, setHistory] = useState<Content[]>([]);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const { userProfile: authUserProfile, user } = useAuth();
+    // FIX: Destructure 'currentUser' from useAuth() and alias it. The properties 'userProfile' and 'user' do not exist on the AuthContextType.
+    const { currentUser: authUserProfile } = useAuth();
     
     const [userSettings, setUserSettings] = useState<Partial<UserProfile>>({});
     
@@ -1177,7 +1252,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     }, [authUserProfile]);
 
     const [input, setInput] = useState('');
-    const [file, setFile] = useState<FileAttachment | null>(null);
+    const [attachments, setAttachments] = useState<FileAttachment[]>([]);
     const [viewingImage, setViewingImage] = useState<string | null>(null);
     const [lastActiveImage, setLastActiveImage] = useState<FileAttachment | null>(null);
 
@@ -1195,7 +1270,9 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     });
     const [isCustomPersonaModalOpen, setIsCustomPersonaModalOpen] = useState(false);
+    const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
     const personaMenuRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Code Interpreter State
     const [sessionFiles, setSessionFiles] = useState<VirtualFile[]>([]);
@@ -1307,20 +1384,26 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         return { output, updatedFiles };
     }, []);
 
-    const executeConfirmedWorkflow = useCallback(async (goal: string, plan: string[], file: FileAttachment | null) => {
+    const executeConfirmedWorkflow = useCallback(async (goal: string, plan: string[], files: FileAttachment[]) => {
         setIsLoading(true);
         setCurrentActivity('workflow');
         playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/workflow_start.mp3', 0.5);
         
         let localSessionFiles = [...sessionFiles];
-        if (file) {
-            try {
-                const content = atob(file.base64);
-                const newFile = { name: file.name, content };
-                localSessionFiles = localSessionFiles.filter(f => f.name !== newFile.name);
-                localSessionFiles.push(newFile);
-                setSessionFiles(localSessionFiles); // Update UI immediately
-            } catch(e) { console.error("Error decoding file for workflow:", e); }
+        if (files && files.length > 0) {
+            for (const file of files) {
+                try {
+                    const content = atob(file.base64);
+                    const newFile = { name: file.name, content };
+                    const existingIndex = localSessionFiles.findIndex(f => f.name === newFile.name);
+                    if (existingIndex > -1) {
+                        localSessionFiles[existingIndex] = newFile;
+                    } else {
+                        localSessionFiles.push(newFile);
+                    }
+                } catch(e) { console.error(`Error decoding file ${file.name} for workflow:`, e); }
+            }
+            setSessionFiles(localSessionFiles);
         }
 
         let workflow: Workflow = { goal, plan, steps: [], status: 'running', finalContent: null };
@@ -1395,7 +1478,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         setCurrentActivity(null);
     }, [sessionFiles, handleWorkflowToolCall]);
 
-    const initiateWorkflow = async (goal: string, file: FileAttachment | null) => {
+    const initiateWorkflow = async (goal: string, files: FileAttachment[]) => {
         setIsLoading(true);
         setCurrentActivity('workflow');
         
@@ -1433,7 +1516,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             sender: 'ai',
             timestamp: new Date(),
             requiresAction: 'workflow_confirmation',
-            actionData: { goal, plan: planResult.plan, file },
+            actionData: { goal, plan: planResult.plan, files },
             actionTaken: false,
         };
         setMessages(prev => [...prev, confirmationMessage]);
@@ -1450,8 +1533,8 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             : m
         ));
     
-        const { goal, plan, file } = message.actionData;
-        await executeConfirmedWorkflow(goal, plan, file);
+        const { goal, plan, files } = message.actionData;
+        await executeConfirmedWorkflow(goal, plan, files);
     
     }, [messages, executeConfirmedWorkflow]);
     
@@ -1513,10 +1596,10 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     break;
 
                 case 'generate_video':
-                    let operation = await generateVideo(); // This needs to be implemented with the correct API
+                    let operation = await generateVideo(args.prompt);
                     if (operation) {
                         updateMessage(aiMessageId, { generatedVideo: { status: 'generating', prompt: args.prompt } });
-                        const getAi = () => new GoogleGenAI({ apiKey: "AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs" });
+                        const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
                         while (operation && !operation.done) {
                             await new Promise(resolve => setTimeout(resolve, 5000));
                              const ai = getAi();
@@ -1599,6 +1682,19 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                         });
                     }
                     break;
+                
+                case 'create_pdf_document':
+                    setCurrentActivity('workflow');
+                    updateMessage(aiMessageId, { text: `STATUS: Generating content for PDF on "${args.topic}"...` });
+                    const pdfData = await generateWordContent(args.topic, args.sections);
+                    if ('error' in pdfData) {
+                        updateMessage(aiMessageId, { text: pdfData.error, status: 'sent', segments: parseMarkdown(pdfData.error) });
+                    } else {
+                        updateMessage(aiMessageId, {
+                            generatedFile: { type: 'pdf', filename: `${args.topic.replace(/ /g, '_')}.pdf`, message: `I've created the PDF document about "${args.topic}".`, data: pdfData }
+                        });
+                    }
+                    break;
 
                 case 'generate_qr_code':
                     setCurrentActivity('chat');
@@ -1634,8 +1730,61 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
 
                 case 'initiate_workflow':
                     setMessages(prev => prev.filter(m => m.id !== aiMessageId));
-                    await initiateWorkflow(args.goal, lastActiveImage);
+                    await initiateWorkflow(args.goal, attachments);
                     break;
+                
+                case 'send_email':
+                    const { recipient, subject, body } = args;
+                    const mailtoUrl = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                    updateMessage(aiMessageId, { 
+                        requiresAction: 'open_mailto',
+                        actionData: { mailtoUrl },
+                        text: `I've drafted an email to ${recipient} for you. Click the button to open it in your default email client to review and send.`,
+                        segments: parseMarkdown(`I've drafted an email to ${recipient} for you. Click the button to open it in your default email client to review and send.`),
+                        status: 'sent'
+                    });
+                    break;
+
+                case 'list_files':
+                    const fileList = sessionFiles.length > 0 ? sessionFiles.map(f => `- ${f.name}`).join('\n') : "There are no files in the current session.";
+                    updateMessage(aiMessageId, { text: `Current session files:\n${fileList}`, status: 'sent', segments: parseMarkdown(`Current session files:\n${fileList}`) });
+                    break;
+                
+                case 'read_file': {
+                    const file = sessionFiles.find(f => f.name === args.filename);
+                    const content = file ? `Content of ${args.filename}:\n\n---\n\n${file.content}` : `Error: File '${args.filename}' not found in the session.`;
+                    updateMessage(aiMessageId, { text: content, status: 'sent', segments: parseMarkdown(content) });
+                    break;
+                }
+
+                case 'write_file': {
+                    const { filename, content } = args;
+                    setSessionFiles(prevFiles => {
+                        const existingIndex = prevFiles.findIndex(f => f.name === filename);
+                        if (existingIndex > -1) {
+                            const newFiles = [...prevFiles];
+                            newFiles[existingIndex] = { name: filename, content };
+                            return newFiles;
+                        } else {
+                            return [...prevFiles, { name: filename, content }];
+                        }
+                    });
+                    const confirmationText = `File '${filename}' has been saved to the session.`;
+                    updateMessage(aiMessageId, { text: confirmationText, status: 'sent', segments: parseMarkdown(confirmationText) });
+                    break;
+                }
+
+                case 'execute_python_code': {
+                    updateMessage(aiMessageId, { text: `STATUS: Executing Python code...` });
+                    const output = await executePythonCode(args.code, sessionFiles);
+                    updateMessage(aiMessageId, {
+                        text: '',
+                        status: 'sent',
+                        codeExecutionResult: { code: args.code, output }
+                    });
+                    break;
+                }
+
 
                 default:
                     updateMessage(aiMessageId, { text: `I'm not sure how to handle the tool: ${tool_call}`, status: 'sent' });
@@ -1647,14 +1796,61 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         } finally {
             setCurrentActivity(null);
         }
-    }, [lastActiveImage, executeConfirmedWorkflow]);
+    }, [lastActiveImage, initiateWorkflow, executeConfirmedWorkflow, sessionFiles, attachments]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFiles = e.target.files;
+        if (selectedFiles) {
+            const filesArray = Array.from(selectedFiles);
+            let filesToProcess: File[] = [];
+    
+            const isSpecialMode = isAgentModeEnabled || currentPersona?.name === 'Developer Sandbox' || currentPersona?.name === 'Personal Finance Assistant';
+    
+            if (filesArray.length > 1 && !isSpecialMode) {
+                // In standard mode, only allow multiple images
+                const allImages = filesArray.every(f => f.type.startsWith('image/'));
+                if (allImages) {
+                    filesToProcess = filesArray;
+                } else {
+                    console.warn("In standard mode, you can only upload multiple images or a single file of any type.");
+                    if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                    }
+                    return;
+                }
+            } else {
+                // If in special mode OR only one file is selected, allow all.
+                filesToProcess = filesArray;
+            }
+    
+            for (const file of filesToProcess) {
+                const currentFile = file as File;
+                const reader = new FileReader();
+                reader.onload = (loadEvent) => {
+                    const base64 = (loadEvent.target?.result as string)?.split(',')[1];
+                    if (base64) {
+                        const newAttachment: FileAttachment = {
+                            name: currentFile.name,
+                            mimeType: currentFile.type,
+                            base64,
+                        };
+                        setAttachments(prev => [...prev, newAttachment]);
+                    }
+                };
+                reader.readAsDataURL(currentFile);
+            }
+        }
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
     
     // The following function handles the standard chat message submission.
-    const handleSendMessage = async (message: string, file: FileAttachment | null) => {
-        if (!message && !file) return;
+    const handleSendMessage = async (message: string, files: FileAttachment[]) => {
+        if (!message && files.length === 0) return;
         
-        if (file) {
-            setLastActiveImage(file);
+        if (files.length > 0) {
+            setLastActiveImage(files.find(f => f.mimeType.startsWith('image/')) || files[0]);
         }
 
         const newMessage: Message = {
@@ -1662,14 +1858,42 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             text: message,
             sender: 'user',
             timestamp: new Date(),
-            imageUrl: file?.mimeType.startsWith('image/') ? `data:${file.mimeType};base64,${file.base64}` : undefined,
+            attachments: files,
         };
         setMessages((prev) => [...prev, newMessage]);
         
         setIsLoading(true);
 
+        // FIX: Ensure uploaded files are added to the session state for tools to use
+        if (files.length > 0) {
+            const newSessionFiles: VirtualFile[] = files
+                // Filter out non-text files that atob would corrupt
+                .filter(f => !f.mimeType.startsWith('image/') && !f.mimeType.startsWith('audio/') && !f.mimeType.startsWith('video/'))
+                .map(f => {
+                    try {
+                        return { name: f.name, content: atob(f.base64) };
+                    } catch (e) {
+                        console.error(`Could not decode file ${f.name}`, e);
+                        return { name: f.name, content: '[Error: Could not decode file content]'};
+                    }
+                });
+
+            setSessionFiles(prev => {
+                const updatedFiles = [...prev];
+                newSessionFiles.forEach(newFile => {
+                    const existingIndex = updatedFiles.findIndex(f => f.name === newFile.name);
+                    if (existingIndex > -1) {
+                        updatedFiles[existingIndex] = newFile; // Overwrite existing
+                    } else {
+                        updatedFiles.push(newFile); // Add new
+                    }
+                });
+                return updatedFiles;
+            });
+        }
+        
         if (isAgentModeEnabled) {
-            await initiateWorkflow(message, file);
+            await initiateWorkflow(message, files);
             return;
         }
 
@@ -1697,7 +1921,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             const { stream, historyWithUserMessage } = await streamMessageToChat(
                 history,
                 message,
-                file,
+                files,
                 null, // No location for now
                 authUserProfile,
                 undefined,
@@ -1803,10 +2027,8 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         setIsSettingsOpen(false);
     };
     
+// FIX: The `user` variable is not available from the custom auth context. The function's purpose is to clear the current chat, not to log out. Removed firebase logout call.
     const handleDeleteAllChats = async () => {
-        if (user) {
-             await logout();
-        }
         setMessages([]);
         setHistory([]);
         setIsSettingsOpen(false);
@@ -1822,6 +2044,9 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 break;
             case 'xlsx':
                 createXlsxFile(data);
+                break;
+            case 'pdf':
+                createPdfFile(data);
                 break;
         }
     };
@@ -1856,7 +2081,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaStreamRef.current = stream;
 
-            const ai = new GoogleGenAI({ apiKey: API_KEY });
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
             const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
             const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -1939,6 +2164,46 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
 
     }, [currentPersona, disconnectLiveConversation]);
+
+    const handleEditPersona = (persona: Persona) => {
+        setEditingPersona(persona);
+        setIsCustomPersonaModalOpen(true);
+    };
+
+    const handleDeletePersona = (personaName: string) => {
+        if (window.confirm(`Are you sure you want to delete the "${personaName}" persona? This action cannot be undone.`)) {
+            setAvailablePersonas(prev => {
+                const newPersonas = prev.filter(p => p.name !== personaName);
+                localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(newPersonas.filter(p => p.isCustom)));
+                return newPersonas;
+            });
+            if (currentPersona?.name === personaName) {
+                setCurrentPersona(null);
+            }
+        }
+    };
+
+    const handleSavePersona = (persona: Persona, originalName?: string) => {
+        setAvailablePersonas(prev => {
+            let newPersonas;
+            if (originalName && originalName !== persona.name) {
+                // Name changed, treat as replace
+                 newPersonas = prev.map(p => (p.name === originalName ? persona : p));
+            } else if (originalName) {
+                 // Editing existing
+                 newPersonas = prev.map(p => (p.name === originalName ? persona : p));
+            } else {
+                // Creating new
+                newPersonas = [...prev.filter(p => p.name !== persona.name), persona];
+            }
+            
+            localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(newPersonas.filter(p => p.isCustom)));
+            return newPersonas;
+        });
+        setCurrentPersona(persona);
+        setIsCustomPersonaModalOpen(false);
+        setEditingPersona(null);
+    };
 
 
     const welcomeContainerVariants = {
@@ -2038,105 +2303,120 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                     message={msg}
                                     userProfile={authUserProfile}
                                     onApprove={(stepIdx) => { /* Implement logic to resume workflow */ }}
-                                    onDeny={(stepIdx) => { /* Implement logic to stop workflow */ }}
-                                    onViewImage={(url) => setViewingImage(url)}
+                                    onDeny={(stepIndex) => { /* Implement logic to deny workflow step */ }}
+                                    onViewImage={setViewingImage}
                                     onDownloadGeneratedFile={handleDownloadGeneratedFile}
                                     onConfirmWorkflow={handleConfirmWorkflow}
                                     onCancelWorkflow={handleCancelWorkflow}
                                 />
                             ))}
-                        </AnimatePresence>
-                         <AnimatePresence>
                             {isLoading && <TypingIndicator activity={currentActivity} persona={currentPersona} />}
-                         </AnimatePresence>
-                         <div ref={bottomOfChatRef} />
+                        </AnimatePresence>
+                        <div ref={bottomOfChatRef} />
                     </div>
                 )}
             </div>
 
-             {/* Persona Selector (Quick Switch) */}
-            <div className="chat-actions-bar">
-                 {currentPersona && (
-                    <motion.div 
-                        className="active-persona-indicator"
-                        layoutId="active-persona"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                    >
-                        <span>{currentPersona.icon} {currentPersona.name}</span>
-                        <motion.button onClick={() => setCurrentPersona(null)} whileTap={{ scale: 0.8 }}>&times;</motion.button>
-                    </motion.div>
-                )}
-            </div>
+             {messages.length > 0 && (
+                <div className="chat-actions-bar">
+                    <div className="chat-actions-inner" ref={personaMenuRef}>
+                        <div className="persona-menu-container">
+                             <motion.div
+                                className="active-persona-indicator"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                <button onClick={() => setIsPersonaMenuOpen(prev => !prev)} className="flex items-center gap-2 pr-2">
+                                    <span>{currentPersona?.icon || '👤'}</span>
+                                    <span className="hidden sm:inline font-semibold">{currentPersona?.name || 'Default Persona'}</span>
+                                </button>
+                                {currentPersona && (
+                                    <button onClick={() => setCurrentPersona(null)} title="Clear Persona" className="font-mono">&times;</button>
+                                )}
+                            </motion.div>
+
+                            <AnimatePresence>
+                                {isPersonaMenuOpen && (
+                                    <motion.div
+                                        className="persona-menu"
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                    >
+                                        <div 
+                                            className={`persona-menu-item ${!currentPersona ? 'selected' : ''}`}
+                                            onClick={() => { setCurrentPersona(null); setIsPersonaMenuOpen(false); }}
+                                        >
+                                            <span className="icon">👤</span>
+                                            Default
+                                        </div>
+                                        {availablePersonas.map(persona => (
+                                            <div
+                                                key={persona.name}
+                                                className={`persona-menu-item ${currentPersona?.name === persona.name ? 'selected' : ''}`}
+                                                onClick={() => { setCurrentPersona(persona); setIsPersonaMenuOpen(false); }}
+                                            >
+                                                <span className="icon">{persona.icon}</span>
+                                                <span className="flex-grow">{persona.name}</span>
+                                                 {persona.isCustom && (
+                                                    <div className="persona-item-actions">
+                                                         <button className="edit-btn" onClick={(e) => { e.stopPropagation(); handleEditPersona(persona); setIsPersonaMenuOpen(false); }} title="Edit Persona">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
+                                                        </button>
+                                                         <button className="delete-btn" onClick={(e) => { e.stopPropagation(); handleDeletePersona(persona.name); }} title="Delete Persona">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        </button>
+                                                    </div>
+                                                 )}
+                                            </div>
+                                        ))}
+                                        <div className="create-persona-button">
+                                            <div className="persona-menu-item" onClick={() => { setIsCustomPersonaModalOpen(true); setIsPersonaMenuOpen(false); }}>
+                                                <span className="icon">+</span> Create New Persona
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+                </div>
+            )}
+
 
             <ChatComposer
                 onSendMessage={handleSendMessage}
                 isLoading={isLoading}
                 input={input}
                 setInput={setInput}
-                file={file}
-                setFile={setFile}
+                attachments={attachments}
+                setAttachments={setAttachments}
                 onCancel={handleCancel}
             />
 
             <AnimatePresence>
                 {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
-            </AnimatePresence>
-            <AnimatePresence>
-                {isSettingsOpen && <SettingsModal 
-                    isOpen={isSettingsOpen} 
-                    onClose={() => setIsSettingsOpen(false)} 
-                    profile={userSettings} 
-                    onSave={handleSaveSettings} 
-                    onDeleteAllChats={handleDeleteAllChats} 
-                />}
-            </AnimatePresence>
-            <AnimatePresence>
-                {isCustomPersonaModalOpen && (
-                    <CustomPersonaModal 
-                        onClose={() => setIsCustomPersonaModalOpen(false)} 
-                        onSave={(newPersona) => {
-                            const updated = [...availablePersonas, newPersona];
-                            setAvailablePersonas(updated);
-                            localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(updated.filter(p => p.isCustom)));
-                            setCurrentPersona(newPersona);
-                            setIsCustomPersonaModalOpen(false);
-                        }} 
-                    />
-                )}
-            </AnimatePresence>
-            
-            <AnimatePresence>
-                {liveConnectionState !== 'disconnected' && (
-                    <LiveConversationOverlay 
-                        connectionState={liveConnectionState} 
-                        onDisconnect={disconnectLiveConversation} 
-                    />
-                )}
+                {liveConnectionState !== 'disconnected' && <LiveConversationOverlay connectionState={liveConnectionState} onDisconnect={disconnectLiveConversation} />}
+                 {isCustomPersonaModalOpen && <CustomPersonaModal 
+                    onClose={() => {
+                        setIsCustomPersonaModalOpen(false);
+                        setEditingPersona(null);
+                    }} 
+                    onSave={handleSavePersona}
+                    personaToEdit={editingPersona}
+                 />}
             </AnimatePresence>
 
-            {sessionFiles.length > 0 && (
-                <div className="fixed top-20 right-4 z-30">
-                    <motion.button 
-                        onClick={() => setIsCanvasVisible(true)}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-white p-2 rounded-lg shadow-lg border border-zinc-700 flex items-center gap-2 text-sm font-medium"
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
-                        Code Canvas ({sessionFiles.length})
-                    </motion.button>
-                </div>
-            )}
-            
-            <CodeCanvas 
-                files={sessionFiles.reduce((acc, f) => ({ ...acc, [f.name]: f.content }), {})}
-                isVisible={isCanvasVisible}
-                onClose={() => setIsCanvasVisible(false)}
+            <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                profile={userSettings}
+                onSave={handleSaveSettings}
+                onDeleteAllChats={handleDeleteAllChats}
             />
         </div>
     );
 };
 
+// FIX: Added default export to make the component available for import in other modules.
 export default AikonChatPage;

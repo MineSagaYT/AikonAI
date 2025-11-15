@@ -238,3 +238,65 @@ export const createXlsxFile = async (data: ExcelData): Promise<void> => {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
 };
+
+export const createPdfFile = async (data: WordData): Promise<void> => {
+    try {
+        // The jspdf library is loaded via CDN and available on the window object.
+        const { jsPDF } = jspdf;
+        const doc = new jsPDF({
+            orientation: 'p',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 15;
+        const maxLineWidth = pageWidth - margin * 2;
+        let y = 25; // Initial Y position
+
+        const addPageIfNeeded = (requiredHeight: number) => {
+            if (y + requiredHeight > pageHeight - margin) {
+                doc.addPage();
+                y = 20; // Y position on new page
+            }
+        };
+        
+        // Document Title
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(22);
+        doc.text(data.title, pageWidth / 2, y, { align: 'center' });
+        y += 20;
+
+        // Sections
+        for (const section of data.sections) {
+            addPageIfNeeded(20); // Space for heading + some content
+
+            // Section Title
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text(section.title, margin, y);
+            y += 10;
+            
+            // Section Content
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(12);
+
+            // Split text to fit within page width
+            const splitContent = doc.splitTextToSize(section.content, maxLineWidth);
+
+            for (const line of splitContent) {
+                addPageIfNeeded(7); // Approximate height of a line
+                doc.text(line, margin, y);
+                y += 7; // Line height
+            }
+            y += 10; // Space after section
+        }
+
+        doc.save(`${data.title.replace(/ /g, '_')}.pdf`);
+
+    } catch (error) {
+        console.error("Error generating PDF file:", error);
+        alert("An error occurred while generating the PDF. Please check the console for more details.");
+    }
+};

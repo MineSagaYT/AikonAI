@@ -1,8 +1,8 @@
 import { GoogleGenAI, GenerateContentResponse, Chat, Part, GroundingChunk, GenerateVideosOperation, Content, Modality, Type } from "@google/genai";
-import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile } from "../types";
+import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile, VirtualFile } from "../types";
 
 const defaultModel = 'gemini-2.5-flash';
-const proModel = 'gemini-2.5-flash'; // To reduce cost, switched from gemini-2.5-pro
+const proModel = 'gemini-2.5-pro';
 // User-specified model for video generation
 // FIX: Updated deprecated veo model to a supported one.
 const veoModel = 'veo-3.1-fast-generate-preview';
@@ -12,8 +12,7 @@ const flashImageModel = 'gemini-2.5-flash-image';
 const ttsModel = 'gemini-2.5-flash-preview-tts';
 
 const getAiInstance = () => {
-    const apiKey = "AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs";
-    return new GoogleGenAI({ apiKey });
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 
@@ -66,6 +65,117 @@ export const getCompetitorInsights = async (prompt: string): Promise<{ text: str
     } catch (error) {
         console.error("Error getting competitor insights:", error);
         throw error;
+    }
+};
+
+// FIX: Added missing exported functions to resolve import errors in AikonChatPage.tsx
+export const performGoogleSearch = async (query: string): Promise<{ text: string | null; sources: Source[] }> => {
+    try {
+        const ai = getAiInstance();
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: defaultModel,
+            contents: query,
+            config: {
+                tools: [{ googleSearch: {} }],
+            },
+        });
+
+        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        const sources: Source[] = groundingChunks.reduce((acc: Source[], chunk: GroundingChunk) => {
+            if (chunk.web?.uri && chunk.web.title) {
+                acc.push({ uri: chunk.web.uri, title: chunk.web.title, type: 'web' });
+            }
+            return acc;
+        }, []);
+
+
+        return { text: response.text, sources };
+    } catch (error) {
+        console.error("Error performing Google search:", error);
+        return { text: "Sorry, I couldn't perform the search.", sources: [] };
+    }
+};
+
+export const browseWebpage = async (url: string, question: string): Promise<string> => {
+    try {
+        const ai = getAiInstance();
+        // This is a simplified approach. A real implementation would fetch the page content.
+        // For this project, we'll ask the AI to "virtually" browse it based on its knowledge.
+        const prompt = `Based on your knowledge of the content at the URL "${url}", please answer the following question: "${question}". If you don't have specific knowledge of this page's content, say so.`;
+        const response = await ai.models.generateContent({
+            model: defaultModel,
+            contents: prompt,
+        });
+        return response.text;
+    } catch (error) {
+        console.error(`Error browsing webpage ${url}:`, error);
+        return `Sorry, I was unable to access the content from ${url}.`;
+    }
+};
+
+export const summarizeDocument = async (documentContent: string): Promise<string> => {
+    try {
+        const ai = getAiInstance();
+        const systemPrompt = "You are an expert at summarizing documents. Provide a concise but comprehensive summary of the following text."
+        const response = await ai.models.generateContent({
+            model: defaultModel,
+            contents: documentContent,
+            config: { systemInstruction: systemPrompt },
+        });
+        return response.text;
+    } catch (error) {
+        console.error('Error summarizing document:', error);
+        return "Sorry, I was unable to summarize the document.";
+    }
+};
+
+export const analyzeBrowsedContent = async (content: string, question: string): Promise<string> => {
+    try {
+        const ai = getAiInstance();
+        const systemPrompt = "You are an expert analyst. Based on the provided text content, answer the user's question."
+        const userQuery = `Content:\n---\n${content}\n---\n\nQuestion: ${question}`;
+        const response = await ai.models.generateContent({
+            model: defaultModel,
+            contents: userQuery,
+            config: { systemInstruction: systemPrompt },
+        });
+        return response.text;
+    } catch (error) {
+        console.error('Error analyzing content:', error);
+        return "Sorry, I was unable to analyze the provided content.";
+    }
+};
+
+export const executePythonCode = async (code: string, files: VirtualFile[]): Promise<string> => {
+    // This is a MOCK execution environment.
+    // In a real application, this would call a secure backend sandbox.
+    console.log("Executing Python code (mock):", code);
+    console.log("With files:", files);
+
+    try {
+        // Check for plotting
+        if (code.includes('matplotlib') || code.includes('plt.show()') || code.includes('plt.savefig(')) {
+            // Return a placeholder plot image
+            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37P7d/e//+T+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f0ff27/9v79n9u/vX/+Z/dv79//uf3b+/d/bv/2/v2f27+9//7f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
+            return `[PLOT_GENERATED]\n${placeholderPlot}`;
+        }
+
+        // Simple print statement mock
+        const printMatches = code.matchAll(/print\((['"])(.*?)\1\)/g);
+        let output = [];
+        for (const match of printMatches) {
+            output.push(match[2]);
+        }
+
+        if (output.length > 0) {
+            return output.join('\n');
+        }
+
+        return "Code executed (mock). No output was produced.";
+
+    } catch (error) {
+        console.error("Mock code execution error:", error);
+        return "Error: Failed to execute code (mock).";
     }
 };
 
@@ -138,21 +248,28 @@ For any of the tools below, you MUST ONLY respond with the corresponding JSON ob
    - **PowerPoint:** \`{"tool_call": "create_powerpoint", "topic": "A clear topic for the presentation.", "num_slides": 5}\` (Number of slides is optional, defaults to 5).
    - **Word Document:** \`{"tool_call": "create_word_document", "topic": "Topic of the document.", "sections": ["Introduction", "Main Body", "Conclusion"]}\` (Provide a list of section titles).
    - **Excel Spreadsheet:** \`{"tool_call": "create_excel_spreadsheet", "filename": "report", "data_description": "Description of data to generate, e.g., 'Monthly sales data for a small business'", "columns": ["Month", "Revenue", "Expenses", "Profit"]}\`
+   - **PDF Document:** \`{"tool_call": "create_pdf_document", "topic": "Topic of the document.", "sections": ["Introduction", "Main Body", "Conclusion"]}\`
 
 **10. QR Code Generation:**
    - \`{"tool_call": "generate_qr_code", "text": "The text or URL to encode in the QR code."}\`
+
+**11. Developer Sandbox / Code Interpreter:**
+   - **List Files:** \`{"tool_call": "list_files"}\`
+   - **Read File:** \`{"tool_call": "read_file", "filename": "file_to_read.txt"}\`
+   - **Write File:** \`{"tool_call": "write_file", "filename": "file_to_write.txt", "content": "The text content of the file."}\`
+   - **Execute Code:** \`{"tool_call": "execute_python_code", "code": "print('Hello, World!')"}\`
 `;
 
 export const streamMessageToChat = async (
     currentHistory: Content[],
     message: string,
-    file: FileAttachment | null,
+    files: FileAttachment[],
     location: { latitude: number; longitude: number } | null,
     userProfile: UserProfile | null,
     chatToContinue?: Chat,
     customInstructions?: string, // This will contain the persona's systemInstruction
     isAgentModeEnabled?: boolean,
-): Promise<{ stream: AsyncGenerator<GenerateContentResponse>; historyWithUserMessage: Content[], fileContent: string | null }> => {
+): Promise<{ stream: AsyncGenerator<GenerateContentResponse>; historyWithUserMessage: Content[] }> => {
     
     const ai = getAiInstance();
     
@@ -180,27 +297,39 @@ export const streamMessageToChat = async (
         }
     };
     
-    let fileContent: string | null = null;
-    if (file) {
-        if (file.mimeType.startsWith('text/')) {
+    // Pre-process text-based files to include their content in the prompt
+    let fileContentsText = '';
+    const textFiles = files.filter(f => 
+        !f.mimeType.startsWith('image/') && 
+        !f.mimeType.startsWith('audio/') && 
+        !f.mimeType.startsWith('video/')
+    );
+
+    if (textFiles.length > 0) {
+        for (const textFile of textFiles) {
             try {
-                fileContent = atob(file.base64);
+                // atob is a built-in function to decode base64
+                const decodedContent = atob(textFile.base64);
+                fileContentsText += `\n\n--- START OF FILE: ${textFile.name} ---\n${decodedContent}\n--- END OF FILE: ${textFile.name} ---\n\n`;
             } catch (e) {
-                console.error("Error decoding base64 file content:", e);
-                // Handle error or proceed without file content
+                console.error(`Error decoding base64 for file ${textFile.name}:`, e);
+                fileContentsText += `\n\n--- FILE: ${textFile.name} [Error: Unable to read content] ---\n\n`;
             }
         }
     }
 
-    const parts: Part[] = [{ text: message }];
+    const parts: Part[] = [{ text: fileContentsText + message }];
 
-    if (file && file.mimeType.startsWith('image/')) {
-        parts.push({
-            inlineData: {
-                mimeType: file.mimeType,
-                data: file.base64,
-            },
-        });
+    const imageFiles = files.filter(f => f.mimeType.startsWith('image/'));
+    if (imageFiles.length > 0) {
+        for (const imageFile of imageFiles) {
+            parts.push({
+                inlineData: {
+                    mimeType: imageFile.mimeType,
+                    data: imageFile.base64,
+                },
+            });
+        }
         modelConfig.model = proModel; // Switch to Pro model for multimodal input
     }
     
@@ -223,7 +352,7 @@ export const streamMessageToChat = async (
     modelConfig.contents = historyWithUserMessage;
 
     const stream = await ai.models.generateContentStream(modelConfig);
-    return { stream, historyWithUserMessage, fileContent };
+    return { stream, historyWithUserMessage };
 };
 
 
@@ -278,14 +407,19 @@ export const editImage = async (imageFile: FileAttachment, prompt: string): Prom
     }
 }
 
-export const generateVideo = async (): Promise<GenerateVideosOperation | null> => {
+export const generateVideo = async (prompt: string): Promise<GenerateVideosOperation | null> => {
     try {
         const ai = getAiInstance();
-        // This is a placeholder. You'll need to implement the actual video generation logic.
-        // The Gemini API does not yet support video generation in this manner.
-        // This is a conceptual implementation.
-        console.warn("Video generation is not yet supported by the Gemini API in this library version.");
-        return null;
+        const operation = await ai.models.generateVideos({
+            model: veoModel,
+            prompt,
+            config: {
+                numberOfVideos: 1,
+                resolution: '720p',
+                aspectRatio: '16:9',
+            },
+        });
+        return operation;
     } catch (error) {
         console.error("Video generation error:", error);
         return null;
@@ -294,7 +428,7 @@ export const generateVideo = async (): Promise<GenerateVideosOperation | null> =
 
 
 export const fetchVideoFromUri = async (uri: string): Promise<Blob> => {
-    const response = await fetch(`${uri}&key=AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs`);
+    const response = await fetch(`${uri}&key=${process.env.API_KEY}`);
     return await response.blob();
 };
 
@@ -547,76 +681,9 @@ Based on the context, decide the single next action to take and respond with the
             return JSON.parse(jsonMatch[0]);
         }
         console.error("Agent did not return a valid JSON object:", text);
-        return { error: "The AI agent returned an invalid (non-JSON) response. It may be confused by the current step." };
+        return { error: "The AI agent failed to decide on the next action. It returned an invalid response." };
     } catch (error) {
         console.error("Error running workflow step:", error);
-        throw error;
-    }
-};
-
-// --- PRE-BUILT TOOL FUNCTIONS (for simplified, direct tool calls) ---
-
-export const summarizeDocument = async (content: string): Promise<string> => {
-    try {
-        const ai = getAiInstance();
-        const response = await ai.models.generateContent({
-            model: defaultModel,
-            contents: `Please summarize the following document:\n\n${content}`,
-        });
-        return response.text;
-    } catch (error) {
-        console.error("Error summarizing document:", error);
-        throw error;
-    }
-};
-
-export const performGoogleSearch = async (query: string): Promise<{ text: string | null; sources: Source[] }> => {
-    return getCompetitorInsights(`The user is asking: "${query}". Please provide a comprehensive answer based on Google Search results.`);
-};
-
-export const browseWebpage = async (url: string, question: string): Promise<string> => {
-     try {
-        const response = await fetch(`https://web-proxy.labs.google.com/v1/web/page?url=${encodeURIComponent(url)}&key=${"AIzaSyC1C0lq5AKNIU3LzeD1m53udApAaQQshHs"}`);
-        if (!response.ok) {
-            return `Error: Could not fetch content from ${url}. Status: ${response.status}`;
-        }
-        const textContent = await response.text();
-        return await analyzeBrowsedContent(textContent, question);
-    } catch (error: any) {
-        console.error("Error browsing webpage:", error);
-        return `Error: An exception occurred while trying to browse the webpage: ${error.message}`;
-    }
-};
-
-export const analyzeBrowsedContent = async (content: string, userQuery: string): Promise<string> => {
-    try {
-        const ai = getAiInstance();
-        const response = await ai.models.generateContent({
-            model: defaultModel,
-            contents: `
-You are AikonAI. You have just browsed a website to help the user.
-
-**User's Goal/Question:** "${userQuery}"
-
-**Website Content:**
-${content}
-
-**Instructions:**
-1.  **Analyze** the website content deepy to answer the user's request.
-2.  **Synthesize** the information. Do not just copy-paste chunks.
-3.  **Format** the response beautifully using Markdown:
-    - Use **Bold** for key concepts.
-    - Use headers (###) for logical sections.
-    - Use bullet points for lists.
-    - Use > blockquotes for important insights.
-    - Create tables if comparing data.
-4.  If the content is not relevant, say so clearly.
-5.  Your tone should be professional, engaging, and highly informative.
-`,
-        });
-        return response.text;
-    } catch (error) {
-        console.error("Error analyzing browsed content:", error);
-        return "I browsed the website, but I encountered an error while analyzing its content.";
+        return { error: "An unexpected error occurred while trying to determine the next step." };
     }
 };
