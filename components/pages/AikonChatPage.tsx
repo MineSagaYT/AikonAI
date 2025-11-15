@@ -871,10 +871,18 @@ const ChatComposer: React.FC<{
         }
     };
 
+    const handleSendOrCancel = () => {
+        if (isLoading) {
+            onCancel();
+        } else {
+            handleSendMessage();
+        }
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSendMessage();
+            handleSendOrCancel();
         }
     };
 
@@ -1008,20 +1016,32 @@ const ChatComposer: React.FC<{
                     layout
                 />
                  <motion.button
-                    onClick={handleSendMessage}
-                    disabled={isLoading || (!input.trim() && attachments.length === 0)}
+                    onClick={handleSendOrCancel}
+                    disabled={!isLoading && (!input.trim() && attachments.length === 0)}
                     className="composer-icon-button composer-send-button"
-                    title="Send"
+                    title={isLoading ? "Cancel Generation" : "Send"}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                 >
-                     {isLoading ? (
-                       <div className="w-5 h-5 border-2 border-zinc-600 border-t-black rounded-full animate-spin"></div>
-                     ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-                        </svg>
-                     )}
+                     <AnimatePresence mode="popLayout" initial={false}>
+                         <motion.div
+                             key={isLoading ? 'cancel' : 'send'}
+                             initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+                             animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                             exit={{ opacity: 0, scale: 0.5, rotate: 45 }}
+                             transition={{ duration: 0.2, type: 'spring', stiffness: 400, damping: 20 }}
+                         >
+                             {isLoading ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <rect width="12" height="12" x="4" y="4" rx="2" />
+                                </svg>
+                             ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                                </svg>
+                             )}
+                         </motion.div>
+                     </AnimatePresence>
                 </motion.button>
             </div>
         </div>
@@ -1937,7 +1957,9 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         } finally {
             setIsLoading(false);
             setCurrentActivity(null);
-            playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/message_received.mp3', 0.2);
+            if (!isCancelledRef.current) {
+                playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/message_received.mp3', 0.2);
+            }
         }
     }, [isLoading, history, userSettings, currentPersona, isAgentModeEnabled, handleToolCall]);
 
