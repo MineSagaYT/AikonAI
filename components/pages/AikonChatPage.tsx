@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData } from '../../types';
-import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode } from '../../services/geminiService';
+import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction } from '../../services/geminiService';
 import { fetchWeather } from '../../services/weatherService';
 import { GenerateVideosOperation, Content, GenerateContentResponse, GoogleGenAI, Modality, GroundingChunk, Blob as GenAI_Blob, LiveServerMessage } from '@google/genai';
 import { parseMarkdown, renderParagraph, createPptxFile, createDocxFile, createXlsxFile, createPdfFile } from '../../utils/markdown';
@@ -2086,6 +2086,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
             const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
             const outputNode = outputAudioContext.createGain();
+            outputNode.connect(outputAudioContext.destination);
             audioContextRefs.current = {
                 input: inputAudioContext,
                 output: outputAudioContext,
@@ -2093,6 +2094,13 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 sources: new Set()
             };
             nextStartTimeRef.current = 0;
+
+            let systemInstruction = currentPersona?.systemInstruction || aikonPersonaInstruction;
+            if (authUserProfile?.aboutYou) {
+                systemInstruction += `\n\n---
+**USER PREFERENCES:**
+- The user wants you to address them as "${authUserProfile.aboutYou}". Use this name when appropriate in conversation.`;
+            }
 
             const sessionPromise = ai.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -2150,8 +2158,8 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 },
                 config: {
                     responseModalities: [Modality.AUDIO],
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' }}},
-                    systemInstruction: currentPersona?.systemInstruction || 'You are AikonAI, a friendly and helpful assistant.'
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' }}},
+                    systemInstruction: systemInstruction
                 },
             });
 
@@ -2163,7 +2171,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             disconnectLiveConversation();
         }
 
-    }, [currentPersona, disconnectLiveConversation]);
+    }, [currentPersona, disconnectLiveConversation, authUserProfile]);
 
     const handleEditPersona = (persona: Persona) => {
         setEditingPersona(persona);
