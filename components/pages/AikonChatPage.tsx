@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData, CodeExecutionHistoryItem, InteractiveChartData } from '../../types';
 import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction } from '../../services/geminiService';
@@ -2204,7 +2205,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     </div>
                 </div>
             ) : (
-                <div className="chat-log" ref={chatWindowRef}>
+                <div className="message-log-container" ref={chatWindowRef}>
                     {messages.map((msg) => (
                         <MessageLogItem 
                             key={msg.id} 
