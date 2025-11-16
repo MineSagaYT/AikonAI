@@ -1,6 +1,9 @@
 
 
 
+
+
+
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData, CodeExecutionHistoryItem, InteractiveChartData } from '../../types';
 import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction } from '../../services/geminiService';
@@ -2086,6 +2089,12 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         });
     }
 
+    const handleEditPersona = (persona: Persona) => {
+        setEditingPersona(persona);
+        setIsCustomPersonaModalOpen(true);
+        setIsPersonaMenuOpen(false);
+    };
+
     const handleDownloadGeneratedFile = (data: PresentationData | WordData | ExcelData, type: string, filename: string) => {
         if (!data) return;
         switch(type) {
@@ -2135,6 +2144,86 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         handleToolCall(aiMessageId, fakeToolCall);
     };
     
+     const handleStartLive = async () => {
+        try {
+            setLiveConnectionState('connecting');
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaStreamRef.current = stream;
+
+            audioContextRefs.current.input = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            audioContextRefs.current.output = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            nextStartTimeRef.current = 0;
+
+            sessionPromiseRef.current = ai.live.connect({
+                model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+                callbacks: {
+                    onopen: () => {
+                        setLiveConnectionState('connected');
+                        const source = audioContextRefs.current.input!.createMediaStreamSource(stream);
+                        const scriptProcessor = audioContextRefs.current.input!.createScriptProcessor(4096, 1, 1);
+                        audioContextRefs.current.scriptProcessor = scriptProcessor;
+
+                        scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
+                            const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
+                            const pcmBlob = createBlob(inputData);
+                            sessionPromiseRef.current?.then((session) => {
+                                session.sendRealtimeInput({ media: pcmBlob });
+                            });
+                        };
+                        source.connect(scriptProcessor);
+                        scriptProcessor.connect(audioContextRefs.current.input!.destination);
+                    },
+                    onmessage: async (message: LiveServerMessage) => {
+                        const base64EncodedAudioString = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+                        if (base64EncodedAudioString && audioContextRefs.current.output) {
+                            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, audioContextRefs.current.output.currentTime);
+                            const audioBuffer = await decodeAudioData(decode(base64EncodedAudioString), audioContextRefs.current.output, 24000, 1);
+                            const source = audioContextRefs.current.output.createBufferSource();
+                            source.buffer = audioBuffer;
+                            source.connect(audioContextRefs.current.output.destination);
+                            source.addEventListener('ended', () => { audioContextRefs.current.sources.delete(source); });
+                            source.start(nextStartTimeRef.current);
+                            nextStartTimeRef.current += audioBuffer.duration;
+                            audioContextRefs.current.sources.add(source);
+                        }
+                    },
+                    onerror: (e: ErrorEvent) => {
+                        console.error('Live session error:', e);
+                        setLiveConnectionState('error');
+                    },
+                    onclose: (e: CloseEvent) => {
+                        handleDisconnectLive();
+                    },
+                },
+                config: {
+                    responseModalities: [Modality.AUDIO],
+                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' }}},
+                    systemInstruction: aikonPersonaInstruction,
+                },
+            });
+
+        } catch (error) {
+            console.error('Failed to start live conversation:', error);
+            setLiveConnectionState('error');
+        }
+    };
+    
+    const handleDisconnectLive = () => {
+        sessionPromiseRef.current?.then(session => session.close());
+        mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+        audioContextRefs.current.scriptProcessor?.disconnect();
+        audioContextRefs.current.input?.close();
+        audioContextRefs.current.output?.close();
+
+        sessionPromiseRef.current = null;
+        mediaStreamRef.current = null;
+        audioContextRefs.current = { input: null, output: null, scriptProcessor: null, sources: new Set() };
+        
+        setLiveConnectionState('disconnected');
+    };
+
 
     const quickActionPills = [
         { text: 'Write a poem about the monsoon', icon: '🌧️', disabled: isLoading },
@@ -2142,15 +2231,9 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         { text: 'Plan a 3-day trip to Goa', icon: '✈️', disabled: isLoading },
         { text: 'Help me debug my Python code', icon: '🐛', disabled: isLoading || !isAgentModeEnabled },
         { text: 'Summarize a news article', icon: '📰', disabled: isLoading },
-        { text: 'Start live conversation', icon: '🎙️', disabled: isLoading, onClick: () => handleStartLive() },
+        { text: 'Start live conversation', icon: '🎙️', disabled: isLoading, onClick: handleStartLive },
     ];
     
-    // ... all other functions and state...
-    
-    // Placeholder functions to satisfy the component props for now
-    const handleStartLive = () => { console.log("Live conversation started"); };
-    const handleDisconnectLive = () => { console.log("Live conversation ended"); };
-
     return (
         <div className="chat-page-container">
             <header className="chat-header">
@@ -2195,7 +2278,6 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                 onClick={pill.onClick ? pill.onClick : () => handleQuickAction(pill.text)} 
                                 disabled={pill.disabled}
                                 whileHover={{ scale: !pill.disabled ? 1.05 : 1 }}
-// FIX: Corrected the `whileTap` scale property which was receiving a boolean. It now correctly uses a ternary operator to return a number.
                                 whileTap={{ scale: !pill.disabled ? 0.95 : 1 }}
                             >
                                 <span className="text-xl mr-2">{pill.icon}</span>
@@ -2225,6 +2307,81 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 </div>
             )}
             
+            {messages.length > 0 && (
+                 <div className="chat-actions-bar">
+                    <div className="chat-actions-inner">
+                        <div className="action-pill agent-toggle">
+                            <span>Agent Mode</span>
+                            <button
+                                className={`toggle-switch ${isAgentModeEnabled ? 'on' : ''}`}
+                                onClick={() => setIsAgentModeEnabled(!isAgentModeEnabled)}
+                                aria-label="Toggle Agent Mode"
+                            >
+                                <motion.div className="toggle-thumb" layout transition={{ type: "spring", stiffness: 700, damping: 30 }} />
+                            </button>
+                        </div>
+                        <div className="persona-menu-container" ref={personaMenuRef}>
+                            {currentPersona ? (
+                                 <motion.div layoutId="persona-pill" className="active-persona-indicator">
+                                    <span className="text-xl">{currentPersona.icon}</span>
+                                    <span>{currentPersona.name}</span>
+                                    <button onClick={() => setCurrentPersona(null)} title="Clear persona">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </motion.div>
+                            ) : (
+                                <motion.button layoutId="persona-pill" className="action-pill" onClick={() => setIsPersonaMenuOpen(prev => !prev)}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                    Select Persona
+                                </motion.button>
+                            )}
+                            <AnimatePresence>
+                                {isPersonaMenuOpen && (
+                                    <motion.div
+                                        className="persona-menu"
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                                    >
+                                        {[...availablePersonas].sort((a,b) => (a.isCustom ? 1 : -1) - (b.isCustom ? 1 : -1) || a.name.localeCompare(b.name)).map(p => (
+                                            <div key={p.name} className="persona-tooltip-wrapper">
+                                                <div
+                                                    className={`persona-menu-item ${currentPersona?.name === p.name ? 'selected' : ''}`}
+                                                    onClick={() => { setCurrentPersona(p); setIsPersonaMenuOpen(false); }}
+                                                >
+                                                    <span className="icon">{p.icon}</span>
+                                                    <span>{p.name}</span>
+                                                    {p.isCustom && (
+                                                        <div className="persona-item-actions">
+                                                            <button className="edit-btn" onClick={(e) => { e.stopPropagation(); handleEditPersona(p); }} title="Edit Persona">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
+                                                            </button>
+                                                            <button className="delete-btn" onClick={(e) => { e.stopPropagation(); handleDeletePersona(p.name); }} title="Delete Persona">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="persona-tooltip">
+                                                    <p>{p.description}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className="create-persona-button">
+                                            <div className="persona-menu-item" onClick={() => { setIsCustomPersonaModalOpen(true); setIsPersonaMenuOpen(false); }}>
+                                                 <span className="icon">＋</span>
+                                                <span>Create New Persona</span>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+                 </div>
+            )}
+
             <div className="chat-composer-section">
                 <ChatComposer
                     onSendMessage={handleSendMessage}
