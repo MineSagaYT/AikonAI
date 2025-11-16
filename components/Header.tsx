@@ -60,6 +60,7 @@ const Header: React.FC<HeaderProps> = ({ navigateTo, activePage }) => {
     const navItems = [
         { page: 'home', label: 'HOME' },
         { page: 'projects', label: 'PROJECTS' },
+        { page: 'faq', label: 'FAQ' },
         { page: 'chat', label: 'AIKONAI', isButton: true },
     ];
     
@@ -100,6 +101,7 @@ const Header: React.FC<HeaderProps> = ({ navigateTo, activePage }) => {
                  <nav className="hidden md:flex items-center space-x-6 font-medium">
                      <motion.a href="#" onClick={(e) => handleNavigation(e, 'home')} className={`text-gray-400 transition-colors duration-300 tracking-wider ${activePage === 'home' ? 'text-amber-400' : ''}`} whileHover={{ scale: 1.1, color: '#FFC107' }} whileTap={{ scale: 0.9 }}>HOME</motion.a>
                      <motion.a href="#" onClick={(e) => handleNavigation(e, 'projects')} className={`text-gray-400 transition-colors duration-300 tracking-wider ${activePage === 'projects' ? 'text-amber-400' : ''}`} whileHover={{ scale: 1.1, color: '#FFC107' }} whileTap={{ scale: 0.9 }}>PROJECTS</motion.a>
+                     <motion.a href="#" onClick={(e) => handleNavigation(e, 'faq')} className={`text-gray-400 transition-colors duration-300 tracking-wider ${activePage === 'faq' ? 'text-amber-400' : ''}`} whileHover={{ scale: 1.1, color: '#FFC107' }} whileTap={{ scale: 0.9 }}>FAQ</motion.a>
                      <motion.a href="#" onClick={(e) => handleNavigation(e, 'chat')} className={`px-4 py-2 text-sm bg-gray-800 text-amber-400 rounded-xl hover:bg-gray-700 transition-colors duration-200 shadow-md ${activePage === 'chat' ? 'ring-2 ring-amber-500' : ''}`} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                         AIKONAI
                     </motion.a>

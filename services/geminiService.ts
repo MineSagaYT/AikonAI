@@ -262,6 +262,10 @@ For any of the tools below, you MUST ONLY respond with the corresponding JSON ob
    - **Read File:** \`{"tool_call": "read_file", "filename": "file_to_read.txt"}\`
    - **Write File:** \`{"tool_call": "write_file", "filename": "file_to_write.txt", "content": "The text content of the file."}\`
    - **Execute Code:** \`{"tool_call": "execute_python_code", "code": "print('Hello, World!')"}\`
+
+**12. Interactive Data Visualization:**
+   - **Create Chart:** \`{"tool_call": "create_interactive_chart", "chart_config": { "type": "bar", "data": {"labels": [...], "datasets": [{ "label": "...", "data": [...] }]}, "options": {...} }}\`
+   - Use this tool when a user asks to plot or visualize data (e.g., from an uploaded file or described data). The \`chart_config\` object MUST be a valid JSON configuration for the Chart.js library v4. Ensure the chart is visually appealing with appropriate colors and labels.
 `;
 
 export const streamMessageToChat = async (
@@ -269,7 +273,8 @@ export const streamMessageToChat = async (
     message: string,
     files: FileAttachment[],
     location: { latitude: number; longitude: number } | null,
-    userProfile: UserProfile | null,
+    // FIX: Changed userProfile type to Partial<UserProfile> to match the state in AikonChatPage.tsx.
+    userProfile: Partial<UserProfile> | null,
     chatToContinue?: Chat,
     customInstructions?: string, // This will contain the persona's systemInstruction
     isAgentModeEnabled?: boolean,
@@ -490,12 +495,30 @@ Do not include any introductory text or markdown formatting in your response. Ju
                 }
             }
         });
-        const result = JSON.parse(response.text.trim());
-        return result;
+        
+        const text = response.text;
+        if (!text) {
+            console.error("AI response is empty or invalid for presentation generation. Full response:", JSON.stringify(response, null, 2));
+            throw new Error("The AI model returned an empty or invalid response. This could be due to a content safety block.");
+        }
+        
+        const trimmedText = text.trim();
+        const jsonMatch = trimmedText.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+             try {
+                const result = JSON.parse(jsonMatch[0]);
+                return result;
+            } catch (parseError) {
+                 console.error("Failed to parse extracted JSON:", parseError, "Extracted text:", jsonMatch[0]);
+                 throw new Error("The AI model returned malformed JSON.");
+            }
+        }
+        throw new Error("The AI model did not return a valid JSON object for the presentation.");
     } catch (error) {
         console.error("Error generating presentation content:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
-        return { error: `Failed to generate presentation content. The AI model may be busy or the request timed out. Details: ${errorMessage}` };
+        return { error: `Failed to generate presentation content. Details: ${errorMessage}` };
     }
 };
 
@@ -529,11 +552,28 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
                 }
             }
         });
-        const result = JSON.parse(response.text.trim());
-        return result;
+        const text = response.text;
+        if (!text) {
+            console.error("AI response is empty or invalid for document generation. Full response:", JSON.stringify(response, null, 2));
+            throw new Error("The AI model returned an empty or invalid response. This could be due to a content safety block.");
+        }
+
+        const trimmedText = text.trim();
+        const jsonMatch = trimmedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            try {
+                const result = JSON.parse(jsonMatch[0]);
+                return result;
+            } catch (parseError) {
+                 console.error("Failed to parse extracted JSON:", parseError, "Extracted text:", jsonMatch[0]);
+                 throw new Error("The AI model returned malformed JSON.");
+            }
+        }
+        throw new Error("The AI model did not return a valid JSON object for the document.");
     } catch (error) {
         console.error("Error generating Word content:", error);
-        return { error: "Failed to generate document content." };
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return { error: `Failed to generate document content. Details: ${errorMessage}` };
     }
 };
 
@@ -542,6 +582,7 @@ export const generateExcelContent = async (dataDescription: string, columns: str
     const systemPrompt = `You are a data generation assistant for spreadsheets. Create a JSON object with a "sheets" array.
 Each sheet object needs a "sheetName", "headers" array, and a "rows" array (array of arrays).
 The data should match the user's description. Generate a realistic number of rows (e.g., 10-20).
+IMPORTANT: All values in the 'rows' array, including numbers, MUST be formatted as strings.
 Do not include any introductory text or markdown formatting. Just the raw JSON.`;
     try {
         const ai = getAiInstance();
@@ -569,11 +610,28 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
                 }
             }
         });
-        const result = JSON.parse(response.text.trim());
-        return result;
+        const text = response.text;
+        if (!text) {
+            console.error("AI response is empty or invalid for spreadsheet generation. Full response:", JSON.stringify(response, null, 2));
+            throw new Error("The AI model returned an empty or invalid response. This could be due to a content safety block.");
+        }
+        
+        const trimmedText = text.trim();
+        const jsonMatch = trimmedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            try {
+                const result = JSON.parse(jsonMatch[0]);
+                return result;
+            } catch (parseError) {
+                 console.error("Failed to parse extracted JSON:", parseError, "Extracted text:", jsonMatch[0]);
+                 throw new Error("The AI model returned malformed JSON.");
+            }
+        }
+        throw new Error("The AI model did not return a valid JSON object for the spreadsheet.");
     } catch (error) {
         console.error("Error generating Excel content:", error);
-        return { error: "Failed to generate spreadsheet data." };
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return { error: `Failed to generate spreadsheet data. Details: ${errorMessage}` };
     }
 };
 

@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     
 
     <style>
@@ -305,17 +306,24 @@
 
         .message-log-item {
             display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-            max-width: 48rem; /* 768px */
-            /* animation removed here in favor of Framer Motion */
+            flex-direction: column;
+            gap: 0.25rem;
+            margin-bottom: 1.5rem;
+            max-width: 48rem;
         }
         .message-log-item.user {
-            justify-content: flex-end;
+            align-items: flex-end;
             margin-left: auto;
         }
         .message-log-item.ai {
+            align-items: flex-start;
             margin-right: auto;
+        }
+        .message-bubble-wrapper {
+            display: flex;
+            gap: 1rem;
+            width: 100%;
+            align-items: flex-start;
         }
         .message-avatar {
             width: 32px; height: 32px;
@@ -343,6 +351,7 @@
             background: #1e293b;
             border: 1px solid #334155;
             border-bottom-right-radius: 0.25rem;
+            order: -1; /* Puts bubble before avatar */
         }
         body.dark-theme-chat .message-log-item.ai .message-content-wrapper {
             background: #111;
@@ -1765,6 +1774,92 @@
             background-color: white;
             padding: 0.5rem;
             border-radius: 0.5rem;
+        }
+
+        /* --- NEW: Code History Panel Styles --- */
+        .code-history-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 90vw;
+            max-width: 450px;
+            background-color: #111;
+            border-left: 1px solid #333;
+            z-index: 150;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.3);
+        }
+        .code-history-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .code-history-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        .code-history-list::-webkit-scrollbar { width: 4px; }
+        .code-history-list::-webkit-scrollbar-track { background: transparent; }
+        .code-history-list::-webkit-scrollbar-thumb { background-color: #555; border-radius: 10px; }
+        .code-history-item {
+            background-color: #18181b;
+            border: 1px solid #27272a;
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .code-history-item-code {
+            padding: 0.75rem;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        .code-history-item-code pre {
+            margin: 0;
+            padding: 0 !important;
+            background: none !important;
+        }
+        .code-history-item-footer {
+            padding: 0.5rem 0.75rem;
+            background-color: #27272a;
+            border-top: 1px solid #3f3f46;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .code-history-timestamp {
+            font-size: 0.7rem;
+            color: #a1a1aa;
+        }
+        .code-history-actions button {
+            background: #3f3f46;
+            border: none;
+            color: #e0e0e0;
+            padding: 0.25rem 0.6rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .code-history-actions button:hover {
+            background: #52525b;
+        }
+        
+        /* --- NEW: Interactive Chart Styles --- */
+        .interactive-chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            height: 400px;
+            padding: 1rem;
         }
 
 

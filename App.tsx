@@ -1,10 +1,13 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './components/pages/HomePage';
 import ProjectsPage from './components/pages/ProjectsPage';
+// FIX: AikonChatPage has a default export, so it should be imported without curly braces.
 import AikonChatPage from './components/pages/AikonChatPage';
 import LoginPage from './components/pages/LoginPage';
+import FAQPage from './components/pages/FAQPage';
 import { Page } from './types';
 import { useAuth } from './context/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -42,6 +45,8 @@ const App: React.FC = () => {
                 return <HomePage navigateTo={navigateTo} />;
             case 'projects':
                 return <ProjectsPage navigateTo={navigateTo} />;
+            case 'faq':
+                return <FAQPage navigateTo={navigateTo} />;
             default:
                 return <HomePage navigateTo={navigateTo} />;
         }

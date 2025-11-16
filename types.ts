@@ -8,10 +8,12 @@ declare global {
     var ExcelJS: any;
     var QRCode: any;
     var jspdf: any;
+    // Add Chart.js global
+    var Chart: any;
 }
 
 
-export type Page = 'home' | 'projects' | 'chat';
+export type Page = 'home' | 'projects' | 'chat' | 'faq';
 
 export interface FileAttachment {
     name: string;
@@ -69,13 +71,14 @@ export interface Workflow {
     finalContent: string | null;
 }
 
+// This can be a generic object since it's a Chart.js config
+export type InteractiveChartData = any;
 
 export interface Message {
     id:string;
     text: string;
     sender: MessageSender;
     timestamp: Date;
-    // FIX: Add 'streaming' to the possible status values to support streaming messages.
     status?: 'sent' | 'read' | 'streaming';
     imageUrls?: string[];
     attachments?: FileAttachment[];
@@ -123,6 +126,7 @@ export interface Message {
         text: string;
         dataUrl: string;
     };
+    interactiveChartData?: InteractiveChartData;
 }
 
 
@@ -190,4 +194,10 @@ export interface ExcelData {
         headers: string[];
         rows: (string | number)[][];
     }[];
+}
+
+export interface CodeExecutionHistoryItem {
+    id: string;
+    code: string;
+    timestamp: Date;
 }

@@ -72,7 +72,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
         visible: {
             opacity: 1,
             transition: {
-                staggerChildren: 0.2,
+                staggerChildren: 0.3,
                 delayChildren: 0.1,
             }
         }
@@ -80,12 +80,11 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
 
     // FIX: Explicitly typed itemVariants with Variants to fix type inference issue with the 'transition.type' property.
     const itemVariants: Variants = {
-        hidden: { y: 20, opacity: 0, scale: 0.95 },
+        hidden: { y: 30, opacity: 0 },
         visible: {
             y: 0,
             opacity: 1,
-            scale: 1,
-            transition: { type: "spring", stiffness: 100, damping: 12 }
+            transition: { type: "spring", stiffness: 120, damping: 15 }
         }
     };
 
@@ -164,7 +163,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
             >
                 <motion.h3 variants={itemVariants} className="text-4xl font-bold text-center mb-16 hero-gradient tracking-wide">THE FOUNDER'S VISION</motion.h3>
                 <motion.div variants={itemVariants}>
-                    <ParallaxCard depth={10} className="max-w-5xl mx-auto p-8 md:p-16 flex flex-col lg:flex-row items-center space-y-8 lg:space-y-0 lg:space-x-12 ai-glow-border shadow-2xl shadow-gray-900">
+                    <ParallaxCard depth={3} className="max-w-5xl mx-auto p-8 md:p-16 flex flex-col lg:flex-row items-center space-y-8 lg:space-y-0 lg:space-x-12 ai-glow-border shadow-2xl shadow-gray-900">
                         <div className="flex-shrink-0 w-40 h-40 rounded-full bg-gradient-to-br from-gray-700 to-amber-500 flex items-center justify-center text-7xl font-extrabold text-white shadow-xl ring-4 ring-amber-400/30">AJ</div>
                         <div className="text-center lg:text-left flex-grow">
                             <h4 className="text-4xl font-extrabold text-white mb-2">Aditya Jain</h4>
@@ -204,7 +203,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
             >
                 <motion.h3 variants={itemVariants} className="text-4xl font-bold text-center mb-16 hero-gradient tracking-wide">GET IN TOUCH</motion.h3>
                 <motion.div variants={itemVariants}>
-                    <ParallaxCard depth={10} className="max-w-3xl mx-auto p-8 md:p-12 ai-glow-border shadow-2xl shadow-gray-900">
+                    <ParallaxCard depth={3} className="max-w-3xl mx-auto p-8 md:p-12 ai-glow-border shadow-2xl shadow-gray-900">
                         <h4 className="text-3xl font-bold text-white mb-2 text-center">Have a project in mind?</h4>
                         <p className="text-gray-400 mb-8 text-center">Let's build the future together. Drop us a line.</p>
                         <form onSubmit={handleContactSubmit} className="space-y-6">

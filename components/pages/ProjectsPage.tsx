@@ -100,7 +100,7 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 >
                     {/* --- Project 1: AikonAI --- */}
                     <motion.div variants={itemVariants}>
-                        <ParallaxCard depth={8} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full flex flex-col">
+                        <ParallaxCard depth={3} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full flex flex-col">
                             <AikonAIIcon />
                             <h3 className="text-3xl font-extrabold text-white mb-2">AikonAI</h3>
                             <p className="text-xl font-medium text-amber-400 mb-6">The Core Conversational & Reasoning Engine</p>
@@ -163,7 +163,7 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
 
                     {/* --- Project 4: Video Generation --- */}
                     <motion.div variants={itemVariants}>
-                        <ParallaxCard depth={8} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full">
+                        <ParallaxCard depth={3} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full">
                             <VideoIcon />
                             <h3 className="text-3xl font-extrabold text-white mb-2">AI-Powered Video Generation</h3>
                             <p className="text-xl font-medium text-amber-400 mb-6">Bringing Ideas to Life with Google's 'Veo'</p>
