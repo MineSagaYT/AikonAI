@@ -1,4 +1,5 @@
 
+
 import { Content } from '@google/genai';
 import { Task, ChatListItem, UserProfile } from '../types';
 
@@ -145,5 +146,4 @@ export const completeTaskByDescription = async (userId: string, description: str
 
 // We keep these exports for compatibility, but they are not used in a local storage context.
 export const auth = {};
-// FIX: Removed incorrect export for 'User' type which is not defined.
 export type { Task }; // Re-export the Task type for use in other components

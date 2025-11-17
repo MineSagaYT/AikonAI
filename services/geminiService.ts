@@ -4,7 +4,6 @@ import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, Presentatio
 const defaultModel = 'gemini-2.5-flash';
 const proModel = 'gemini-2.5-pro';
 // User-specified model for video generation
-// FIX: Updated deprecated veo model to a supported one.
 const veoModel = 'veo-3.1-fast-generate-preview';
 const flashImageModel = 'gemini-2.5-flash-image';
 // Switched to flashImageModel to reduce cost
@@ -68,7 +67,6 @@ export const getCompetitorInsights = async (prompt: string): Promise<{ text: str
     }
 };
 
-// FIX: Added missing exported functions to resolve import errors in AikonChatPage.tsx
 export const performGoogleSearch = async (query: string): Promise<{ text: string | null; sources: Source[] }> => {
     try {
         const ai = getAiInstance();
@@ -273,7 +271,6 @@ export const streamMessageToChat = async (
     message: string,
     files: FileAttachment[],
     location: { latitude: number; longitude: number } | null,
-    // FIX: Changed userProfile type to Partial<UserProfile> to match the state in AikonChatPage.tsx.
     userProfile: Partial<UserProfile> | null,
     chatToContinue?: Chat,
     customInstructions?: string, // This will contain the persona's systemInstruction
@@ -502,19 +499,13 @@ Do not include any introductory text or markdown formatting in your response. Ju
             throw new Error("The AI model returned an empty or invalid response. This could be due to a content safety block.");
         }
         
-        const trimmedText = text.trim();
-        const jsonMatch = trimmedText.match(/\{[\s\S]*\}/);
-
-        if (jsonMatch) {
-             try {
-                const result = JSON.parse(jsonMatch[0]);
-                return result;
-            } catch (parseError) {
-                 console.error("Failed to parse extracted JSON:", parseError, "Extracted text:", jsonMatch[0]);
-                 throw new Error("The AI model returned malformed JSON.");
-            }
+        try {
+            const result = JSON.parse(text);
+            return result;
+        } catch (parseError) {
+             console.error("Failed to parse AI response JSON:", parseError, "Raw text:", text);
+             throw new Error("The AI model returned malformed JSON.");
         }
-        throw new Error("The AI model did not return a valid JSON object for the presentation.");
     } catch (error) {
         console.error("Error generating presentation content:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -558,18 +549,13 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
             throw new Error("The AI model returned an empty or invalid response. This could be due to a content safety block.");
         }
 
-        const trimmedText = text.trim();
-        const jsonMatch = trimmedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            try {
-                const result = JSON.parse(jsonMatch[0]);
-                return result;
-            } catch (parseError) {
-                 console.error("Failed to parse extracted JSON:", parseError, "Extracted text:", jsonMatch[0]);
-                 throw new Error("The AI model returned malformed JSON.");
-            }
+        try {
+            const result = JSON.parse(text);
+            return result;
+        } catch (parseError) {
+             console.error("Failed to parse AI response JSON:", parseError, "Raw text:", text);
+             throw new Error("The AI model returned malformed JSON.");
         }
-        throw new Error("The AI model did not return a valid JSON object for the document.");
     } catch (error) {
         console.error("Error generating Word content:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -616,18 +602,13 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
             throw new Error("The AI model returned an empty or invalid response. This could be due to a content safety block.");
         }
         
-        const trimmedText = text.trim();
-        const jsonMatch = trimmedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            try {
-                const result = JSON.parse(jsonMatch[0]);
-                return result;
-            } catch (parseError) {
-                 console.error("Failed to parse extracted JSON:", parseError, "Extracted text:", jsonMatch[0]);
-                 throw new Error("The AI model returned malformed JSON.");
-            }
+        try {
+            const result = JSON.parse(text);
+            return result;
+        } catch (parseError) {
+             console.error("Failed to parse AI response JSON:", parseError, "Raw text:", text);
+             throw new Error("The AI model returned malformed JSON.");
         }
-        throw new Error("The AI model did not return a valid JSON object for the spreadsheet.");
     } catch (error) {
         console.error("Error generating Excel content:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -639,15 +620,12 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
 // --- AUTONOMOUS AGENT / WORKFLOW FUNCTIONS ---
 
 export const generatePlan = async (goal: string): Promise<{ plan: string[] } | { error: string }> => {
-    // FIX: Replaced the brittle 'write -> read -> finish' instruction with a more robust prompt
-    // that encourages the planner to use high-level document creation tools directly.
     const systemPrompt = `You are a world-class autonomous agent planner. Your job is to create a step-by-step plan to achieve a user's goal.
 The plan should be a simple array of strings. Each string is a clear, high-level step.
 
 **Available Tools for Planning:**
 Your plan should be a sequence of actions that can be executed by tools like:
-- \`googleSearch\`: To find information.
-- \`browse_webpage\`: To read a specific website.
+- \`search_and_summarize\`: To find information.
 - \`write_file\`: To save intermediate text or data.
 - \`create_powerpoint\`: To generate a complete .pptx file.
 - \`create_word_document\`: To generate a complete .docx file.
@@ -661,9 +639,9 @@ Your plan should be a sequence of actions that can be executed by tools like:
 **Example:**
 - **Goal:** "Research Tesla's Q1 earnings and create a presentation summary."
 - **Good Plan:**
-  ["Search for Tesla's Q1 2024 earnings report.", "Browse the most relevant search result to extract key information.", "Create a PowerPoint presentation summarizing the key findings."]
+  ["Search for Tesla's Q1 2024 earnings report.", "Create a PowerPoint presentation summarizing the key findings."]
 
-Now, generate a plan for the following goal.`;
+Now, generate a plan for the following goal. Your response must be only the JSON object.`;
     
     try {
         const ai = getAiInstance();
@@ -690,7 +668,6 @@ Now, generate a plan for the following goal.`;
 };
 
 export const runWorkflowStep = async (goal: string, plan: string[], completed_steps: WorkflowStep[]): Promise<{ step_summary: string, tool_call: { name: string, args: any } } | { error: string }> => {
-    // FIX: Replaced separate `googleSearch` and `browse_webpage` tools with a single, more reliable `search_and_summarize` tool.
     const availableTools = [
         { name: 'search_and_summarize', description: 'Searches the web for a query and returns a comprehensive summary of the findings. Use this for any research task that requires up-to-date information.', args: { query: 'string' } },
         { name: 'list_files', description: 'List files available in the current session.', args: {} },
@@ -703,7 +680,6 @@ export const runWorkflowStep = async (goal: string, plan: string[], completed_st
         { name: 'finish', description: 'Call this tool ONLY when the goal is fully achieved or is impossible to complete. The final, complete answer must be provided in the \'final_content\' argument.', args: { final_content: 'string' } },
     ];
 
-    // FIX: Updated core directives to reflect the new `search_and_summarize` tool.
     const systemPrompt = `You are a world-class autonomous agent executor. Your job is to decide the very next step to achieve a user's goal.
 You are given the goal, plan, and completed steps. You must decide which single tool to call next.
 
@@ -714,9 +690,8 @@ You are given the goal, plan, and completed steps. You must decide which single 
     - **Research Strategy:** Use the \`search_and_summarize\` tool to perform research. This tool directly returns a summary, so you do not need to browse individual web pages.
     - **Finishing:** When the goal is fully achieved and the final content has been written to a file or is ready to be delivered, use the \`finish\` tool.
 3.  **ERROR HANDLING & RESILIENCE:**
-    - If a tool fails (e.g., \`browse_webpage\` returns an error), DO NOT GIVE UP. Analyze the error and the previous steps.
-    - If \`browse_webpage\` fails, look at your last \`googleSearch\` results and try a DIFFERENT, promising URL from the list.
-    - If you are truly stuck after multiple retries or the goal is impossible (e.g., the user is asking for something that doesn't exist), use the \`finish\` tool and clearly explain the problem in the 'final_content' argument.
+    - If a tool fails, DO NOT GIVE UP. Analyze the error and the previous steps and try a different approach.
+    - If you are truly stuck after multiple retries or the goal is impossible, use the \`finish\` tool and clearly explain the problem in the 'final_content' argument.
 
 **AVAILABLE TOOLS:**
 ${JSON.stringify(availableTools.map(({ name, description }) => ({ name, description })))}
@@ -735,15 +710,11 @@ Based on the context, decide the single next action to take and respond with the
             contents: `Based on the context, select the next tool to call.`,
             config: {
                 systemInstruction: systemPrompt,
+                responseMimeType: "application/json",
             }
         });
         const text = response.text.trim();
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
-        }
-        console.error("Agent did not return a valid JSON object:", text);
-        return { error: "The AI agent failed to decide on the next action. It returned an invalid response." };
+        return JSON.parse(text);
     } catch (error) {
         console.error("Error running workflow step:", error);
         return { error: "An unexpected error occurred while trying to determine the next step." };

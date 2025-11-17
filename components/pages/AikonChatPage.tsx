@@ -4,6 +4,8 @@
 
 
 
+
+
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData, CodeExecutionHistoryItem, InteractiveChartData } from '../../types';
 import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction } from '../../services/geminiService';
@@ -1346,6 +1348,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     });
     const [isCustomPersonaModalOpen, setIsCustomPersonaModalOpen] = useState(false);
     const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
+    const [personaSearch, setPersonaSearch] = useState('');
     const personaMenuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -2234,6 +2237,11 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         { text: 'Start live conversation', icon: '🎙️', disabled: isLoading, onClick: handleStartLive },
     ];
     
+    const filteredPersonas = availablePersonas.filter(p => 
+        p.name.toLowerCase().includes(personaSearch.toLowerCase()) || 
+        p.description.toLowerCase().includes(personaSearch.toLowerCase())
+    );
+
     return (
         <div className="chat-page-container">
             <header className="chat-header">
@@ -2339,36 +2347,53 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                 {isPersonaMenuOpen && (
                                     <motion.div
                                         className="persona-menu"
+                                        style={{ padding: 0, display: 'flex', flexDirection: 'column' }}
                                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
                                         transition={{ duration: 0.2, ease: 'easeOut' }}
                                     >
-                                        {[...availablePersonas].sort((a,b) => (a.isCustom ? 1 : -1) - (b.isCustom ? 1 : -1) || a.name.localeCompare(b.name)).map(p => (
-                                            <div key={p.name} className="persona-tooltip-wrapper">
-                                                <div
-                                                    className={`persona-menu-item ${currentPersona?.name === p.name ? 'selected' : ''}`}
-                                                    onClick={() => { setCurrentPersona(p); setIsPersonaMenuOpen(false); }}
-                                                >
-                                                    <span className="icon">{p.icon}</span>
-                                                    <span>{p.name}</span>
-                                                    {p.isCustom && (
-                                                        <div className="persona-item-actions">
-                                                            <button className="edit-btn" onClick={(e) => { e.stopPropagation(); handleEditPersona(p); }} title="Edit Persona">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
-                                                            </button>
-                                                            <button className="delete-btn" onClick={(e) => { e.stopPropagation(); handleDeletePersona(p.name); }} title="Delete Persona">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
-                                                            </button>
+                                        <div className="p-2 border-b border-zinc-700/50 flex-shrink-0">
+                                            <input
+                                                type="text"
+                                                placeholder="Search personas..."
+                                                value={personaSearch}
+                                                onChange={(e) => setPersonaSearch(e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-full bg-zinc-800 text-white placeholder-zinc-500 text-sm rounded-md px-3 py-1.5 border border-zinc-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                        <div className="overflow-y-auto p-1">
+                                            {filteredPersonas.length > 0 ? (
+                                                [...filteredPersonas].sort((a,b) => (a.isCustom ? 1 : -1) - (b.isCustom ? 1 : -1) || a.name.localeCompare(b.name)).map(p => (
+                                                    <div key={p.name} className="persona-tooltip-wrapper">
+                                                        <div
+                                                            className={`persona-menu-item ${currentPersona?.name === p.name ? 'selected' : ''}`}
+                                                            onClick={() => { setCurrentPersona(p); setIsPersonaMenuOpen(false); setPersonaSearch(''); }}
+                                                        >
+                                                            <span className="icon">{p.icon}</span>
+                                                            <span>{p.name}</span>
+                                                            {p.isCustom && (
+                                                                <div className="persona-item-actions">
+                                                                    <button className="edit-btn" onClick={(e) => { e.stopPropagation(); handleEditPersona(p); }} title="Edit Persona">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
+                                                                    </button>
+                                                                    <button className="delete-btn" onClick={(e) => { e.stopPropagation(); handleDeletePersona(p.name); }} title="Delete Persona">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
-                                                </div>
-                                                <div className="persona-tooltip">
-                                                    <p>{p.description}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        <div className="create-persona-button">
+                                                        <div className="persona-tooltip">
+                                                            <p>{p.description}</p>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="p-4 text-center text-sm text-zinc-500">No personas found.</div>
+                                            )}
+                                        </div>
+                                        <div className="create-persona-button p-1 flex-shrink-0" style={{marginTop: 0, paddingTop: 0, borderTop: '1px solid #333' }}>
                                             <div className="persona-menu-item" onClick={() => { setIsCustomPersonaModalOpen(true); setIsPersonaMenuOpen(false); }}>
                                                  <span className="icon">＋</span>
                                                 <span>Create New Persona</span>

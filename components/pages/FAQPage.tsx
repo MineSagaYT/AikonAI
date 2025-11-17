@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { NavigationProps } from '../../types';
-// FIX: Imported Variants type to resolve type inference issue with framer-motion transitions.
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 const faqData = [
@@ -98,7 +97,6 @@ const FAQPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     };
 
-    // FIX: Explicitly typed itemVariants with Variants to fix type inference issue with the 'transition.type' property.
     const itemVariants: Variants = {
         hidden: { y: 20, opacity: 0 },
         visible: {
@@ -147,7 +145,7 @@ const FAQPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 </motion.button>
             </motion.div>
 
-        </motion.main>
+        </main>
     );
 };
 

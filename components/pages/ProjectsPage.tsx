@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { NavigationProps } from '../../types';
 import ParallaxCard from '../ParallaxCard';
-// FIX: Imported Variants type from framer-motion to resolve typing errors.
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 // --- SVG Icons for Project Cards ---
@@ -45,7 +44,6 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     };
 
-    // FIX: Explicitly typed itemVariants with Variants to fix type inference issue with the 'transition.type' property.
     const itemVariants: Variants = {
         hidden: { y: 20, opacity: 0 },
         visible: {

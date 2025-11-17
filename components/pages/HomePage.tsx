@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { NavigationProps } from '../../types';
 import { generateSimpleText, sendContactMessage } from '../../services/geminiService';
 import ParallaxCard from '../ParallaxCard';
-// FIX: Imported Variants type from framer-motion to resolve typing errors.
 import { motion, Variants } from 'framer-motion';
 
 const LoadingIcon: React.FC = () => (
@@ -78,7 +77,6 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     };
 
-    // FIX: Explicitly typed itemVariants with Variants to fix type inference issue with the 'transition.type' property.
     const itemVariants: Variants = {
         hidden: { y: 30, opacity: 0 },
         visible: {

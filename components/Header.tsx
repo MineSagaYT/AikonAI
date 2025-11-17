@@ -1,4 +1,3 @@
-// FIX: Corrected import syntax for React hooks.
 import React, { useState } from 'react';
 import { Page, NavigationProps } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';

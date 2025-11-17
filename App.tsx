@@ -1,10 +1,10 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import HomePage from './components/pages/HomePage';
 import ProjectsPage from './components/pages/ProjectsPage';
-// FIX: AikonChatPage has a default export, so it should be imported without curly braces.
 import AikonChatPage from './components/pages/AikonChatPage';
 import LoginPage from './components/pages/LoginPage';
 import FAQPage from './components/pages/FAQPage';
