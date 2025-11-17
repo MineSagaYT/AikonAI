@@ -145,7 +145,7 @@ const FAQPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 </motion.button>
             </motion.div>
 
-        </main>
+        </motion.main>
     );
 };
 
