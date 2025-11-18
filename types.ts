@@ -9,6 +9,8 @@ declare global {
     var jspdf: any;
     // Add Chart.js global
     var Chart: any;
+    // Fix: Declare hljs (Highlight.js) to resolve "Cannot find name 'hljs'" error.
+    var hljs: any;
 }
 
 

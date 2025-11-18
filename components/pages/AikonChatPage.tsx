@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData, CodeExecutionHistoryItem, InteractiveChartData } from '../../types';
 import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction } from '../../services/geminiService';
@@ -21,9 +13,6 @@ import LoadingSpinner from '../LoadingSpinner';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import WeatherCard from '../WeatherCard';
 import InteractiveChart from '../InteractiveChart';
-// REMOVED: import shortLogo from '../../short_logo.jpeg';
-
-
 
 // Add a global type definition for the aistudio window object to avoid TypeScript errors.
 // The `aistudio` property on Window requires a named type `AIStudio` to prevent conflicts with other global declarations.
@@ -209,6 +198,9 @@ const DownloadIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 const WebIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9V3m0 18a9 9 0 009-9m-9 9a9 9 0 00-9-9" /></svg>);
 const MapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>);
 const ChevronIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>);
+const SunIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>);
+const MoonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>);
+
 
 const SourceDisplay: React.FC<{ sources: Source[] }> = ({ sources }) => {
     const [isExpanded, setIsExpanded] = useState(true);
@@ -233,10 +225,10 @@ const SourceDisplay: React.FC<{ sources: Source[] }> = ({ sources }) => {
                             href={source.uri}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-xs text-blue-400 hover:underline truncate"
+                            className="source-link flex items-center gap-2 text-xs text-sky-400 hover:text-sky-300 hover:underline"
                         >
                             {source.type === 'web' ? <WebIcon /> : <MapIcon />}
-                            <span className="truncate" title={source.title}>{source.title}</span>
+                            <span className="truncate">{source.title}</span>
                         </a>
                     ))}
                 </div>
@@ -245,117 +237,509 @@ const SourceDisplay: React.FC<{ sources: Source[] }> = ({ sources }) => {
     );
 };
 
-const WorkflowBubble = memo(({ workflow, onApprove, onDeny }: { workflow: Workflow; onApprove: (stepIndex: number) => void; onDeny: (stepIndex: number) => void; }) => {
-    const StatusPill: React.FC<{ status: Workflow['status'] }> = ({ status }) => {
-        const baseClasses = "workflow-status";
-        if (status === 'running') return <div className={`${baseClasses} running`}>Running</div>;
-        if (status === 'completed') return <div className={`${baseClasses} completed`}>Completed</div>;
-        if (status === 'paused_for_approval') return <div className={`${baseClasses} paused`}>Paused</div>;
-        if (status === 'error') return <div className={`${baseClasses} error`}>Error</div>;
-        if (status === 'denied') return <div className={`${baseClasses} error`}>Denied</div>;
-        return null;
-    };
-    
-    const StepIcon: React.FC<{ status: WorkflowStep['status'], toolName?: string }> = ({ status, toolName }) => {
-         switch (status) {
-            case 'completed':
-                return <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>;
-            case 'running':
-                 if (toolName) return <ToolIcon toolName={toolName} className="animate-pulse" />;
-                return <div className="spinner"></div>;
-            case 'paused_for_approval':
-                return <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.546-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-            case 'error':
-            case 'denied':
-                 return <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>;
-            case 'pending':
-            default:
-                 if (toolName) return <ToolIcon toolName={toolName} />;
-                return <div className="w-2 h-2 rounded-full bg-gray-500"></div>;
-        }
-    }
+// --- Refactored Components from WorkflowBubble ---
 
-    const ToolIcon: React.FC<{toolName: string, className?: string}> = ({ toolName, className }) => {
-        const iconClass = `h-4 w-4 ${className || ''}`;
-        switch(toolName) {
-            case 'googleSearch': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>;
-            case 'browse_webpage': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9V3m0 18a9 9 0 009-9m-9 9a9 9 0 00-9-9" /></svg>;
-            case 'execute_python_code': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>;
-            case 'write_file': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
-            case 'read_file': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>;
-            case 'finish': return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
-            default: return <svg xmlns="http://www.w3.org/2000/svg" className={iconClass} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0 3.35a1.724 1.724 0 001.066 2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
-        }
-    }
-
-    const renderToolOutput = (output: StructuredToolOutput) => {
-        if (!output) return null;
-        switch (output.type) {
-            case 'search_results':
-                return (
-                    <div className="space-y-1">
-                        {output.results.map((result, i) => (
-                            <a href={result.link} key={i} target="_blank" rel="noopener noreferrer" className="search-result-item" title={result.title}>
-                                {result.title}
-                            </a>
-                        ))}
-                    </div>
-                );
-            case 'browsed_content':
-                return (
-                    <div>
-                        <p className="browsed-content-url">Content from: {output.url}</p>
-                        <div className="browsed-content-text" dangerouslySetInnerHTML={{ __html: renderParagraph(output.content) }} />
-                    </div>
-                )
-            case 'plot':
-                return (
-                    <div className="plot-output">
-                        <img src={output.dataUrl} alt="Generated plot" />
-                    </div>
-                );
-            case 'file_generated':
-                return (
-                    <div className="file-generated-output">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        <p>{output.message}</p>
-                        <span>{output.filename}</span>
-                    </div>
-                );
-            case 'text':
-            default:
-                return <div className="message-content" dangerouslySetInnerHTML={{ __html: renderParagraph(output.content) }} />;
-        }
-    }
+const StatusPill: React.FC<{ status: WorkflowStep['status'] }> = ({ status }) => {
+    const statusInfo = {
+        pending: { text: 'Pending', color: 'bg-gray-500', icon: '🕒' },
+        running: { text: 'Running', color: 'bg-blue-500 animate-pulse', icon: '⏳' },
+        completed: { text: 'Completed', color: 'bg-green-600', icon: '✅' },
+        paused_for_approval: { text: 'Paused', color: 'bg-yellow-500', icon: '⏸️' },
+        error: { text: 'Error', color: 'bg-red-600', icon: '❌' },
+        denied: { text: 'Denied', color: 'bg-red-700', icon: '🚫' },
+    }[status];
 
     return (
-        <div className="workflow-container">
-            <div className="workflow-header">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M12 6a2 2 0 100-4 2 2 0 000 4zm0 14a2 2 0 100-4 2 2 0 000 4zm6-8a2 2 0 100-4 2 2 0 000 4zm-12 0a2 2 0 100-4 2 2 0 000 4z" /></svg>
-                <h4>Autonomous Workflow</h4>
-                <StatusPill status={workflow.status} />
+        <div className={`status-pill inline-flex items-center gap-1.5 text-xs font-medium text-white px-2 py-1 rounded-full ${statusInfo.color}`}>
+            {statusInfo.icon}
+            <span>{statusInfo.text}</span>
+        </div>
+    );
+};
+
+const ToolIcon: React.FC<{ toolName: string }> = ({ toolName }) => {
+    const icon = {
+        'search_and_summarize': '🌐', 'browse_webpage': '🌐', 'perform_google_search': '🌐',
+        'list_files': '📁', 'read_file': '📄', 'write_file': '✍️',
+        'execute_python_code': '🐍',
+        'create_powerpoint': '📊', 'create_word_document': '📝', 'create_excel_spreadsheet': '📈',
+        'finish': '🏁', 'request_user_approval': '🤔',
+    }[toolName] || '⚙️';
+    return <span className="text-xl" title={toolName}>{icon}</span>;
+};
+
+const StepIcon: React.FC<{ status: WorkflowStep['status']; isLastStep: boolean }> = ({ status, isLastStep }) => {
+    let iconContent, iconClass;
+
+    if (status === 'running') {
+        iconContent = <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></div>;
+        iconClass = "bg-blue-900/50 border-blue-500";
+    } else if (status === 'completed') {
+        iconContent = <svg className="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path></svg>;
+        iconClass = "bg-green-900/50 border-green-600";
+    } else if (status === 'error' || status === 'denied') {
+        iconContent = <svg className="w-3.5 h-3.5 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"></path></svg>;
+        iconClass = "bg-red-900/50 border-red-600";
+    } else { // pending or paused
+        iconContent = <div className="w-2.5 h-2.5 bg-gray-500 rounded-full"></div>;
+        iconClass = "bg-gray-800 border-gray-600";
+    }
+    
+    return (
+        <div className="step-icon-wrapper flex flex-col items-center mr-4">
+            <div className={`step-icon flex items-center justify-center w-8 h-8 rounded-full border-2 ${iconClass}`}>
+                {iconContent}
             </div>
-            <p className="workflow-goal"><strong>Goal:</strong> {workflow.goal}</p>
-            
-            <div className="workflow-steps-container">
-                {workflow.steps.map((step, index) => (
-                    <div key={index} className={`workflow-step ${step.status}`}>
-                        <div className="workflow-step-icon"><StepIcon status={step.status} toolName={step.tool_call?.name} /></div>
-                        <div className="workflow-step-content">
-                            <p className="workflow-step-summary">{step.summary}</p>
-                            {step.status === 'paused_for_approval' && (
-                                <div className="workflow-approval-box">
-                                    <p>{step.tool_call?.args.question}</p>
-                                    <div className="workflow-approval-buttons">
-                                        <button className="approve-btn" onClick={() => onApprove(index)}>Approve</button>
-                                        <button className="deny-btn" onClick={() => onDeny(index)}>Deny</button>
+            {!isLastStep && <div className="step-connector w-0.5 h-full bg-gray-600"></div>}
+        </div>
+    );
+};
+
+
+// --- Refactored Component from PptPreviewCard ---
+const PptIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M10 2a2 2 0 00-2 2v1H6a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2V4a2 2 0 00-2-2zM8 4h4v1H8V4z" />
+        <path d="M7 9a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1zm1 3a1 1 0 100 2h2a1 1 0 100-2H8z" />
+    </svg>
+);
+
+
+// --- Main Page and Sub-components ---
+
+const MessageLogItem: React.FC<{
+    message: Message;
+    isLast: boolean;
+    userProfile: Partial<UserProfile> | null;
+    onApproveWorkflow: (messageId: string) => void;
+    onDenyWorkflow: (messageId: string) => void;
+    theme: 'light' | 'dark';
+}> = memo(({ message, isLast, userProfile, onApproveWorkflow, onDenyWorkflow, theme }) => {
+
+    const messageContentRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (messageContentRef.current) {
+            const codeElements = messageContentRef.current.querySelectorAll('pre code');
+            codeElements.forEach((el) => {
+                // Fix: Check if hljs is available on the window object before using it.
+                if (typeof hljs !== 'undefined') {
+                    hljs.highlightElement(el as HTMLElement);
+                }
+            });
+        }
+    }, [message.text]);
+    
+    const renderMessageContent = () => {
+        if (message.sender === 'user') {
+            return (
+                <div className="message-content">
+                    {message.attachments && message.attachments.length > 0 && (
+                        <div className="user-attachments-container mb-2">
+                            {message.attachments.map((file, index) => (
+                                <div key={index}>
+                                    {file.mimeType.startsWith('image/') ? (
+                                        <img src={`data:${file.mimeType};base64,${file.base64}`} alt={file.name} />
+                                    ) : (
+                                        <div className="file-attachment-chip">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                                            <span>{file.name}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                     <p>{message.text}</p>
+                </div>
+            );
+        }
+
+        // AI Message Rendering
+        const segments = message.segments || parseMarkdown(message.text);
+        const streaming = isLast && message.status === 'streaming';
+        
+        return (
+            <div ref={messageContentRef} className={`message-content ${streaming ? 'streaming' : ''}`}
+                // Use dangerouslySetInnerHTML for markdown-to-HTML rendering
+                // The output is sanitized by only allowing specific tags/attributes via the rendering functions
+                dangerouslySetInnerHTML={{
+                    __html: segments.map(seg => 
+                        seg.type === 'paragraph' ? renderParagraph(seg.content) : '' // Code blocks rendered separately
+                    ).join('')
+                }}
+            />
+        );
+    };
+
+    const bubbleVariants: Variants = {
+        hidden: { opacity: 0, y: 20, scale: 0.95 },
+        visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 300, damping: 25 } }
+    };
+
+    return (
+        <motion.div
+            className={`message-log-item ${message.sender}`}
+            variants={bubbleVariants}
+            initial="hidden"
+            animate="visible"
+            layout="position"
+        >
+            <div className="message-bubble-wrapper">
+                {message.sender === 'ai' && (
+                    <div className="message-avatar ai-avatar">
+                        <img src="/short_logo.jpeg" alt="AikonAI Avatar" />
+                    </div>
+                )}
+                <div className={`message-content-wrapper ${message.workflow || message.generatedFile ? 'has-special-content' : ''}`}>
+                    {renderMessageContent()}
+                    {message.segments?.filter(seg => seg.type === 'code').map((seg, i) =>
+                        seg.type === 'code' && <CodeBlock key={i} language={seg.language} code={seg.content} filename={seg.filename}/>
+                    )}
+                    {message.weatherData && <WeatherCard data={message.weatherData} />}
+                    {message.tasks && <TaskList tasks={message.tasks} onTaskUpdate={()=>{}} />}
+                    {message.workflow && (
+                        <WorkflowBubble 
+                            workflow={message.workflow} 
+                            messageId={message.id}
+                            onApprove={onApproveWorkflow}
+                            onDeny={onDenyWorkflow}
+                        />
+                    )}
+                     {message.generatedImage && (
+                        <div className="generated-image-container mt-2">
+                             {message.generatedImage.isLoading ? (
+                                <div className={`skeleton-loader aspect-${message.generatedImage.aspectRatio?.replace(':', '-') || '1-1'}`}>
+                                    <span>Generating image of "{message.generatedImage.prompt}"...</span>
+                                </div>
+                            ) : (
+                                <img src={message.generatedImage.url} alt={message.generatedImage.prompt} className="rounded-lg max-w-full" />
+                            )}
+                        </div>
+                    )}
+                     {message.editedImage && (
+                        <div className="edited-image-container mt-2 flex gap-2">
+                            <div className="w-1/2">
+                                <span className="text-xs text-gray-400">Before</span>
+                                <img src={message.editedImage.beforeUrl} className="rounded-lg w-full" alt="Original" />
+                            </div>
+                            <div className="w-1/2">
+                                 <span className="text-xs text-gray-400">After</span>
+                                {message.editedImage.isLoading ? (
+                                    <div className="skeleton-loader aspect-1-1">
+                                        <span>Editing...</span>
                                     </div>
+                                ) : (
+                                    <img src={message.editedImage.afterUrl} className="rounded-lg w-full" alt={message.editedImage.prompt} />
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    {message.generatedVideo && (
+                        <div className="generated-video-container mt-2">
+                            {message.generatedVideo.status === 'generating' ? (
+                                <div className="skeleton-loader aspect-16-9">
+                                    <span>Generating video of "{message.generatedVideo.prompt}"... This may take a few minutes.</span>
+                                </div>
+                            ) : message.generatedVideo.status === 'completed' && message.generatedVideo.url ? (
+                                <video src={message.generatedVideo.url} controls className="rounded-lg w-full"></video>
+                            ) : (
+                                <p className="text-red-400">Video generation failed.</p>
+                            )}
+                        </div>
+                    )}
+                     {message.storyboardImages && (
+                        <div className="storyboard-grid">
+                            {message.storyboardImages.map((img, index) => (
+                                <div key={index} className="storyboard-panel">
+                                    <img src={img.url} alt={img.prompt} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                     {message.audioUrl && (
+                        <audio controls src={message.audioUrl} className="w-full mt-2"></audio>
+                    )}
+                    {message.codeExecutionResult && (
+                        <div className="code-execution-result">
+                            <div className="code-execution-header">Executed Code</div>
+                            <div className="code-execution-code"><CodeBlock language="python" code={message.codeExecutionResult.code} /></div>
+                            <div className="code-execution-header">Output</div>
+                            <pre className="code-execution-output">
+                                {message.codeExecutionResult.output.startsWith('data:image/png;base64,') 
+                                    ? <img src={message.codeExecutionResult.output} alt="Generated plot" /> 
+                                    : <code>{message.codeExecutionResult.output}</code>
+                                }
+                            </pre>
+                        </div>
+                    )}
+                    {message.generatedFile && (
+                        <>
+                         {message.generatedFile.type === 'pptx' ? (
+                            <PptPreviewCard 
+                                filename={message.generatedFile.filename}
+                                data={message.generatedFile.data as PresentationData}
+                                imageUrl={message.generatedFile.previewImageUrl}
+                                isLoading={message.generatedFile.isPreviewLoading}
+                            />
+                         ) : (
+                             <div className="file-generated-output">
+                                 <p>Generated file: <span>{message.generatedFile.filename}</span></p>
+                                <button className="composer-icon-button" onClick={() => {
+                                    if (message.generatedFile?.type === 'docx' && message.generatedFile.data) {
+                                        createDocxFile(message.generatedFile.data as WordData);
+                                    } else if (message.generatedFile?.type === 'xlsx' && message.generatedFile.data) {
+                                        createXlsxFile(message.generatedFile.data as ExcelData);
+                                    } else if (message.generatedFile?.type === 'pdf' && message.generatedFile.data) {
+                                        createPdfFile(message.generatedFile.data as WordData); // Reuses WordData structure
+                                    }
+                                }}>
+                                    <DownloadIcon />
+                                </button>
+                             </div>
+                         )}
+                         </>
+                    )}
+                    {message.generatedQRCode && (
+                         <div className="qr-code-output">
+                            <img src={message.generatedQRCode.dataUrl} alt="Generated QR Code" />
+                             <p>{message.generatedQRCode.text}</p>
+                         </div>
+                    )}
+                    {message.interactiveChartData && (
+                        <InteractiveChart chartData={message.interactiveChartData} theme={theme} />
+                    )}
+                    
+                    {message.sources && <SourceDisplay sources={message.sources} />}
+                </div>
+                 {message.sender === 'user' && (
+                    <div className="message-avatar user-avatar">
+                        {userProfile?.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+});
+
+const ChatComposer: React.FC<{
+    onSendMessage: (message: string, attachments: FileAttachment[]) => void;
+    onStartLiveConversation: () => void;
+    isSending: boolean;
+    isAgentModeEnabled: boolean;
+}> = memo(({ onSendMessage, onStartLiveConversation, isSending, isAgentModeEnabled }) => {
+    const [message, setMessage] = useState('');
+    const [attachments, setAttachments] = useState<FileAttachment[]>([]);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleSendMessage = () => {
+        const trimmedMessage = message.trim();
+        if (trimmedMessage || attachments.length > 0) {
+            onSendMessage(trimmedMessage, attachments);
+            playSound('/send_message.mp3', 0.2);
+            setMessage('');
+            setAttachments([]);
+        }
+    };
+    
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const files = Array.from(e.target.files);
+            const newAttachments: FileAttachment[] = [];
+            
+            files.forEach(file => {
+                 if (attachments.length + newAttachments.length >= 5) {
+                    alert("You can attach a maximum of 5 files.");
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const base64 = (event.target?.result as string).split(',')[1];
+                    newAttachments.push({ name: file.name, base64, mimeType: file.type });
+                    if(newAttachments.length === files.length) {
+                        setAttachments(prev => [...prev, ...newAttachments]);
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+    };
+
+    const removeAttachment = (index: number) => {
+        setAttachments(prev => prev.filter((_, i) => i !== index));
+    };
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    }, [message]);
+
+    return (
+        <div className="chat-composer-container">
+             {attachments.length > 0 && (
+                <div className="composer-file-preview">
+                    <div className="composer-file-preview-inner">
+                         <div className="composer-multi-file-container">
+                             {attachments.map((file, index) => (
+                                 <div key={index} className="composer-file-thumb">
+                                     {file.mimeType.startsWith('image/') ? (
+                                        <img src={`data:${file.mimeType};base64,${file.base64}`} alt={file.name} />
+                                     ) : (
+                                         <div className="flex items-center justify-center h-full text-xs p-1 text-center">{file.name}</div>
+                                     )}
+                                     <button onClick={() => removeAttachment(index)} className="remove-attachment-btn">&times;</button>
+                                 </div>
+                             ))}
+                         </div>
+                         <button onClick={() => setAttachments([])} className="composer-icon-button">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+            <div className="chat-composer">
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    multiple
+                    accept="image/*,text/*,.pdf,.doc,.docx,.csv"
+                    style={{ display: 'none' }}
+                />
+                <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="composer-icon-button"
+                    disabled={isSending || isAgentModeEnabled}
+                    aria-label="Attach file"
+                    title={isAgentModeEnabled ? "File attachments disabled in Agent Mode" : "Attach file"}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                </button>
+                 <button
+                    onClick={onStartLiveConversation}
+                    className="composer-icon-button"
+                    disabled={isSending}
+                    aria-label="Start Live Conversation"
+                    title="Start Live Conversation"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                </button>
+                <textarea
+                    ref={textareaRef}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Message AikonAI..."
+                    className="composer-textarea"
+                    rows={1}
+                    disabled={isSending}
+                    aria-label="Chat input"
+                ></textarea>
+                <button
+                    onClick={handleSendMessage}
+                    disabled={isSending || (!message.trim() && attachments.length === 0)}
+                    className="composer-icon-button composer-send-button"
+                    aria-label="Send message"
+                >
+                    {isSending ? (
+                        <div className="w-5 h-5 border-2 border-t-transparent border-black rounded-full animate-spin"></div>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                        </svg>
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+});
+
+
+const WorkflowBubble: React.FC<{ 
+    workflow: Workflow; 
+    messageId: string;
+    onApprove: (messageId: string) => void;
+    onDeny: (messageId:string) => void;
+}> = memo(({ workflow, messageId, onApprove, onDeny }) => {
+
+    const renderToolOutput = (output: StructuredToolOutput) => {
+        if (!output) return <p className="text-gray-400 text-sm italic">No output was produced.</p>;
+
+        switch(output.type) {
+            case 'search_results':
+                return (
+                    <ul className="list-disc pl-5 space-y-1">
+                        {output.results.slice(0, 3).map((res, i) => (
+                            <li key={i}><a href={res.link} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline text-sm">{res.title}</a></li>
+                        ))}
+                    </ul>
+                );
+            case 'browsed_content':
+                return <p className="text-sm text-gray-300 truncate">{output.content}</p>
+            case 'file_generated':
+                return <p className="text-sm text-green-400 font-mono">{output.message}</p>;
+            case 'plot':
+                return <img src={output.dataUrl} alt="Generated Plot" className="max-w-full rounded-md" />;
+            case 'text':
+            default:
+                return <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">{output.content}</pre>;
+        }
+    };
+    
+    return (
+        <div className="workflow-container">
+            <div className="workflow-header flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-xl">🤖</div>
+                <div>
+                    <h3 className="font-bold text-white text-lg">Agent Mode: Running Workflow</h3>
+                    <p className="text-gray-400 text-sm">Goal: "{workflow.goal}"</p>
+                </div>
+            </div>
+            
+             {workflow.status === 'paused_for_approval' && (
+                <div className="workflow-confirmation-container">
+                    <h4 className="workflow-confirmation-header">Approval Required</h4>
+                    <p className="workflow-confirmation-goal mb-4">{workflow.steps.find(s => s.status === 'paused_for_approval')?.tool_call?.args.question}</p>
+                    <div className="workflow-confirmation-buttons">
+                        <button onClick={() => onDeny(messageId)} className="deny-btn">Deny</button>
+                        <button onClick={() => onApprove(messageId)} className="approve-btn">Approve</button>
+                    </div>
+                </div>
+            )}
+            
+            <div className="workflow-steps-container relative">
+                {workflow.steps.map((step, index) => (
+                    <div key={index} className="workflow-step flex">
+                        <StepIcon status={step.status} isLastStep={index === workflow.steps.length - 1} />
+                        <div className="workflow-step-content pb-6 w-full">
+                            <div className="flex justify-between items-start">
+                                <p className="font-semibold text-gray-200">{step.summary}</p>
+                                <StatusPill status={step.status} />
+                            </div>
+                            {step.tool_call && (
+                                <div className="tool-call-info flex items-center gap-2 mt-1 text-sm text-gray-400">
+                                    <ToolIcon toolName={step.tool_call.name} />
+                                    <span className="font-mono">{step.tool_call.name}</span>
                                 </div>
                             )}
                             {step.tool_output && (
                                 <div className="workflow-step-tool-output">
-                                    <details open>
-                                        <summary>View Output</summary>
+                                    <details>
+                                        <summary>View Tool Output</summary>
                                         <div className="output-content">
                                             {renderToolOutput(step.tool_output)}
                                         </div>
@@ -366,105 +750,44 @@ const WorkflowBubble = memo(({ workflow, onApprove, onDeny }: { workflow: Workfl
                     </div>
                 ))}
             </div>
-
-            {workflow.status === 'completed' && workflow.finalContent && (
-                <div className="workflow-final-answer">
-                    <h5>Final Result</h5>
-                    <div dangerouslySetInnerHTML={{ __html: renderParagraph(workflow.finalContent) }} />
-                </div>
-            )}
-            {(workflow.status === 'error' || workflow.status === 'denied') && workflow.finalContent && (
-                 <div className="workflow-final-answer">
-                    <h5 className="text-red-400">Workflow Stopped</h5>
-                    <div dangerouslySetInnerHTML={{ __html: renderParagraph(workflow.finalContent) }} />
+            
+             {workflow.finalContent && workflow.status === 'completed' && (
+                <div className="workflow-final-output mt-4 border-t border-green-700 pt-4">
+                     <h4 className="text-green-400 font-bold mb-2">Final Result</h4>
+                     <p className="text-gray-200 whitespace-pre-wrap">{workflow.finalContent}</p>
                 </div>
             )}
         </div>
     );
 });
 
-const SessionFileManager: React.FC<{ files: VirtualFile[], onOpenFile: (filename: string) => void, onDownloadFile: (file: VirtualFile) => void }> = ({ files, onOpenFile, onDownloadFile }) => {
-    if (files.length === 0) return null;
-    return (
-        <div className="session-file-manager">
-            <h5>Session Files</h5>
-            <div className="session-file-list">
-                {files.map(file => (
-                     <div key={file.name} className="file-item">
-                        <div onClick={() => onOpenFile(file.name)} className="file-item-info" title={file.name}>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            <span className="truncate">{file.name}</span>
-                        </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onDownloadFile(file); }}
-                            className="file-item-download-btn"
-                            title={`Download ${file.name}`}
-                        >
-                            <DownloadIcon />
-                        </button>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
+const PptPreviewCard: React.FC<{
+    filename: string;
+    data: PresentationData;
+    imageUrl?: string;
+    isLoading?: boolean;
+}> = memo(({ filename, data, imageUrl, isLoading }) => {
+    const [isDownloading, setIsDownloading] = useState(false);
 
-const CodeExecutionResult: React.FC<{ result: { code: string; output: string } }> = ({ result }) => (
-    <div className="code-execution-result">
-        <div className="code-execution-header">Code Execution Result</div>
-        <details>
-            <summary className="cursor-pointer p-2 text-xs text-gray-400">View Executed Code</summary>
-            <div className="code-execution-code">{result.code}</div>
-        </details>
-        <div className="code-execution-output">
-             {result.output.startsWith('[PLOT_GENERATED]') ? (
-                <img src={result.output.split('\n')[1]} alt="Generated plot" />
-             ) : (
-                result.output
-             )}
-        </div>
-    </div>
-);
-
-const SkeletonLoader: React.FC<{ text: string; aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' }> = ({ text, aspectRatio }) => {
-    const aspectRatioClass = {
-        '1:1': 'aspect-1-1',
-        '16:9': 'aspect-16-9',
-        '9:16': 'aspect-9-16',
-        '4:3': 'aspect-4-3',
-        '3:4': 'aspect-3-4',
-    }[aspectRatio];
-
-    return (
-        <div className={`skeleton-loader ${aspectRatioClass}`}>
-            <span>{text}</span>
-        </div>
-    );
-};
-
-const PptPreviewCard: React.FC<{ 
-    file: NonNullable<Message['generatedFile']>; 
-    onDownload: () => void;
-}> = ({ file, onDownload }) => {
-
-    const canDownload = !!file.data;
-
-    const PptIcon = () => (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v1H2V6z" />
-            <path fillRule="evenodd" d="M2 8v8a2 2 0 002 2h12a2 2 0 002-2V8H2zm12 4a1 1 0 100-2h-2a1 1 0 100 2h2zM7 12a1 1 0 100-2H5a1 1 0 100 2h2z" clipRule="evenodd" />
-        </svg>
-    );
+    const handleDownload = async () => {
+        setIsDownloading(true);
+        try {
+            await createPptxFile(data, filename.replace('.pptx', ''));
+        } catch (error) {
+            console.error("Failed to generate PPTX:", error);
+            alert("Sorry, there was an error creating the presentation file.");
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     return (
         <div className="ppt-preview-card">
             <div className="ppt-preview-image-container">
-                {file.isPreviewLoading ? (
-                    <SkeletonLoader text="Generating preview..." aspectRatio="16:9" />
-                ) : file.previewImageUrl ? (
-                    <img src={file.previewImageUrl} alt="Presentation Preview" className="ppt-preview-image" />
+                {isLoading ? (
+                    <div className="skeleton-loader aspect-16-9"><span>Generating preview...</span></div>
+                ) : imageUrl ? (
+                    <img src={imageUrl} alt="Presentation Preview" className="ppt-preview-image" />
                 ) : (
                     <div className="ppt-preview-no-image">
                         <PptIcon />
@@ -474,1700 +797,681 @@ const PptPreviewCard: React.FC<{
             <div className="ppt-preview-content">
                 <div className="ppt-preview-header">
                     <PptIcon />
-                    <span>PRESENTATION</span>
+                    <span>Presentation</span>
                 </div>
-                <h4 className="ppt-preview-title">{file.filename}</h4>
+                <h4 className="ppt-preview-title">{filename}</h4>
             </div>
             <div className="ppt-preview-footer">
-                <motion.button 
-                    className="ppt-preview-download-btn" 
-                    onClick={onDownload}
-                    disabled={!canDownload}
-                    whileHover={{ scale: canDownload ? 1.05 : 1 }}
-                    whileTap={{ scale: canDownload ? 0.95 : 1 }}
+                <button 
+                    className="ppt-preview-download-btn"
+                    onClick={handleDownload}
+                    disabled={isDownloading}
                 >
-                    <DownloadIcon />
-                    {canDownload ? 'Download .pptx' : 'Generation Failed'}
-                </motion.button>
+                    {isDownloading ? (
+                         <div className="w-5 h-5 border-2 border-t-transparent border-black rounded-full animate-spin"></div>
+                    ) : (
+                        <DownloadIcon />
+                    )}
+                    <span>{isDownloading ? 'Generating...' : 'Download .pptx'}</span>
+                </button>
             </div>
         </div>
-    );
-};
-
-
-const MessageLogItem = memo(({ message, onApprove, onDeny, onViewImage, userProfile, onDownloadGeneratedFile, onConfirmWorkflow, onCancelWorkflow, theme }: { message: Message; onApprove: (stepIndex: number) => void; onDeny: (stepIndex: number) => void; onViewImage: (url: string) => void; userProfile: UserProfile | null; onDownloadGeneratedFile: (data: any, type: string, filename: string) => void; onConfirmWorkflow: (messageId: string) => void; onCancelWorkflow: (messageId: string) => void; theme: 'light' | 'dark' }) => {
-    
-    const isAi = message.sender === 'ai';
-    
-    const statusText = message.text || (message.segments && message.segments[0]?.content);
-    const isStatusUpdate = statusText?.startsWith('STATUS:') || statusText?.startsWith('Browsing') || statusText?.startsWith('Analyzing');
-
-    const itemVariants: Variants = {
-        hidden: { opacity: 0, y: 10, scale: 0.98 },
-        visible: {
-            opacity: 1,
-            y: 0,
-            scale: 1,
-            transition: { type: "spring", stiffness: 400, damping: 25 }
-        }
-    };
-
-    if (isStatusUpdate) {
-        return (
-             <motion.div 
-                className="message-bubble-wrapper ai" 
-                variants={itemVariants}
-                initial="hidden"
-                animate="visible"
-                layout
-             >
-                 <div className="message-avatar ai-avatar">
-                     <img src="/short_logo.jpeg" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
-                 </div>
-                 <div className="message-content-wrapper" style={{ padding: '0.8rem 1.25rem' }}>
-                    <div className="message-content status-update">
-                         <svg className="animate-spin h-4 w-4 text-zinc-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>{statusText.replace('STATUS: ', '')}</span>
-                    </div>
-                </div>
-            </motion.div>
-        )
-    }
-
-    const messageContent = () => {
-        if (message.weatherData) {
-            return <WeatherCard data={message.weatherData} />;
-        }
-        if (message.interactiveChartData) {
-            return <InteractiveChart chartData={message.interactiveChartData} theme={theme} />;
-        }
-        if (message.requiresAction === 'workflow_confirmation' && !message.actionTaken) {
-            const { goal, plan } = message.actionData;
-            return (
-                <div className="workflow-confirmation-container">
-                    <p className="message-content" dangerouslySetInnerHTML={{ __html: renderParagraph(message.text) }} />
-                    <h4 className="workflow-confirmation-header">Confirm Autonomous Workflow</h4>
-                    <p className="workflow-confirmation-goal"><strong>Goal:</strong> {goal}</p>
-                    <div className="workflow-confirmation-plan">
-                        <h5>Proposed Plan:</h5>
-                        <ol>
-                            {plan.map((step: string, index: number) => <li key={index}>{step}</li>)}
-                        </ol>
-                    </div>
-                    <div className="workflow-confirmation-buttons">
-                        <motion.button className="deny-btn" onClick={() => onCancelWorkflow(message.id)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Cancel</motion.button>
-                        <motion.button className="approve-btn" onClick={() => onConfirmWorkflow(message.id)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Confirm & Proceed</motion.button>
-                    </div>
-                </div>
-            )
-        }
-        if (message.requiresAction === 'open_mailto' && !message.actionTaken) {
-            return (
-                <div className="message-content">
-                    <div dangerouslySetInnerHTML={{ __html: renderParagraph(message.text) }} />
-                    <a
-                        href={message.actionData.mailtoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg items-center gap-2 transition-transform transform hover:scale-1.05"
-                    >
-                        Open in Email App
-                    </a>
-                </div>
-            );
-        }
-        if (message.workflow) {
-            return <WorkflowBubble workflow={message.workflow} onApprove={onApprove} onDeny={onDeny} />;
-        }
-        if (message.codeExecutionResult) {
-            return <CodeExecutionResult result={message.codeExecutionResult} />;
-        }
-        if (message.tasks) {
-            return <div className="message-content"><TaskList tasks={message.tasks} onTaskUpdate={() => {}} /></div>;
-        }
-        if (message.storyboardImages) {
-            return (
-                <div className="message-content">
-                    <h4 className="font-bold text-amber-400 mb-2">Here's your study board!</h4>
-                    <div className="storyboard-grid">
-                        {message.storyboardImages.map((panel, index) => (
-                            <div key={index} className="storyboard-panel">
-                                {panel.url ? (
-                                    <img 
-                                        src={panel.url} 
-                                        alt={panel.prompt} 
-                                        className="cursor-pointer"
-                                        onClick={() => onViewImage(panel.url)} 
-                                    />
-                                ) : (
-                                    <SkeletonLoader text={`Panel ${index + 1}...`} aspectRatio="1:1" />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )
-        }
-        if (message.generatedFile) {
-            if (message.generatedFile.type === 'pptx') {
-                return <PptPreviewCard file={message.generatedFile} onDownload={() => onDownloadGeneratedFile(message.generatedFile!.data, 'pptx', message.generatedFile!.filename)} />;
-            }
-            
-            // This handles DOCX, XLSX, and cases from workflow agent that don't have data attached for download
-            const canDownload = message.generatedFile.data && message.generatedFile.type;
-            return (
-                 <div className="file-generated-output">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <p>{message.generatedFile.message}</p>
-                     {canDownload ? (
-                         <motion.button 
-                            className="copy-button" 
-                            onClick={() => onDownloadGeneratedFile(message.generatedFile!.data, message.generatedFile!.type!, message.generatedFile!.filename)}
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                         >
-                            <DownloadIcon />
-                            Download
-                        </motion.button>
-                    ) : (
-                        <span>{message.generatedFile.filename}</span>
-                    )}
-                </div>
-            );
-        }
-        if (message.generatedImage) {
-            if (message.generatedImage.isLoading) {
-                return (
-                    <SkeletonLoader
-                        text="Generating your imagination....🖼"
-                        aspectRatio={message.generatedImage.aspectRatio || '1:1'}
-                    />
-                );
-            }
-            if (message.generatedImage.url) {
-                return (
-                    <div className="relative group">
-                        <img src={message.generatedImage.url} alt={message.generatedImage.prompt} className="rounded-lg max-w-full" />
-                        <a href={message.generatedImage.url} download={`aikonai-generated-${Date.now()}.png`} className="absolute bottom-2 right-2 p-2 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                            <DownloadIcon />
-                        </a>
-                    </div>
-                );
-            }
-        }
-        if (message.editedImage) {
-            if (message.editedImage.isLoading) {
-                return (
-                     <SkeletonLoader
-                        text="🖌 Applying your edits..."
-                        aspectRatio={'1:1'}
-                    />
-                );
-            }
-            if (message.editedImage.afterUrl) {
-                return (
-                    <div>
-                        <div className="flex gap-2">
-                            <div className="flex-1 text-center">
-                                <p className="text-xs text-gray-400 font-semibold mb-1">BEFORE</p>
-                                <img 
-                                    src={message.editedImage.beforeUrl} 
-                                    alt="Original image" 
-                                    className="rounded-lg cursor-pointer transition-transform hover:scale-105"
-                                    onClick={() => onViewImage(message.editedImage.beforeUrl)}
-                                />
-                            </div>
-                            <div className="flex-1 text-center">
-                                <p className="text-xs text-amber-400 font-semibold mb-1">AFTER</p>
-                                <img 
-                                    src={message.editedImage.afterUrl} 
-                                    alt={message.editedImage.prompt} 
-                                    className="rounded-lg cursor-pointer transition-transform hover:scale-105 border-2 border-amber-500/50"
-                                    onClick={() => onViewImage(message.editedImage.afterUrl!)}
-                                />
-                            </div>
-                        </div>
-                        <div className="relative group text-right mt-2">
-                            <a href={message.editedImage.afterUrl} download={`aikonai-edited-${Date.now()}.png`} className="p-2 bg-black/50 text-white rounded-full inline-block">
-                                <DownloadIcon />
-                            </a>
-                        </div>
-                    </div>
-                );
-            }
-        }
-        if (message.generatedVideo) {
-            if (message.generatedVideo.status === 'generating') {
-                return <div className="message-content"><div className="flex items-center gap-2"><div className="spinner"></div> Generating video...</div></div>;
-            }
-            if (message.generatedVideo.status === 'completed' && message.generatedVideo.url) {
-                return <video src={message.generatedVideo.url} controls className="rounded-lg w-full" />;
-            }
-             if (message.generatedVideo.status === 'error') {
-                return <div className="message-content"><div className="text-red-400">Video generation failed.</div></div>;
-            }
-        }
-        if (message.audioUrl) {
-            return (
-                <div className="message-content">
-                    <div className="flex items-center gap-2 w-full max-w-sm p-2 bg-zinc-800/50 rounded-lg">
-                        <audio controls src={message.audioUrl} className="flex-grow w-full" />
-                        <a href={message.audioUrl} download={`aikonai-speech-${Date.now()}.wav`} className="p-2 bg-zinc-700 text-white rounded-full hover:bg-zinc-600 transition-colors" title="Download audio">
-                            <DownloadIcon />
-                        </a>
-                    </div>
-                </div>
-            );
-        }
-
-        if (message.generatedQRCode) {
-            return (
-                <div className="qr-code-output">
-                    <img src={message.generatedQRCode.dataUrl} alt={`QR Code for ${message.generatedQRCode.text}`} />
-                    <p>{message.generatedQRCode.text}</p>
-                </div>
-            )
-        }
-
-        const streamingClass = message.status === 'streaming' ? 'streaming' : '';
-
-        return (
-            <div className={`message-content ${streamingClass}`}>
-                 {message.sender === 'user' && message.attachments && message.attachments.length > 0 && (
-                    <div className="user-attachments-container mb-2">
-                        {message.attachments.map((att, index) => {
-                            if (att.mimeType.startsWith('image/')) {
-                                const url = `data:${att.mimeType};base64,${att.base64}`;
-                                return (
-                                    <img
-                                        key={index}
-                                        src={url}
-                                        alt={att.name}
-                                        className="rounded-lg max-w-[120px] max-h-[120px] object-cover cursor-pointer transition-transform hover:scale-105"
-                                        onClick={() => onViewImage(url)}
-                                    />
-                                );
-                            }
-                            return (
-                                <div key={index} className="file-attachment-chip" title={att.name}>
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 119.52 9.52l3.45-3.451a.75.75 0 111.061 1.06l-3.45 3.452a1.125 1.125 0 001.59 1.591l3.456-3.554a3 3 0 000-4.242z" clipRule="evenodd" /></svg>
-                                    <span className="truncate">{att.name}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-                {message.segments && message.segments.length > 0 ? (
-                    message.segments.map((segment, segIndex) => {
-                        if (segment.type === 'paragraph') {
-                            return <div key={segIndex} dangerouslySetInnerHTML={{ __html: renderParagraph(segment.content) }} />;
-                        }
-                        if (segment.type === 'code') {
-                            return (
-                                <CodeBlock
-                                    key={segIndex}
-                                    code={segment.content}
-                                    language={segment.language}
-                                    filename={segment.filename}
-                                />
-                            );
-                        }
-                        return null;
-                    })
-                ) : (
-                    message.text && <div dangerouslySetInnerHTML={{ __html: renderParagraph(message.text) }} />
-                )}
-                 <SourceDisplay sources={message.sources || []} />
-            </div>
-        );
-    };
-
-    const getInitials = (name?: string | null) => {
-        if (!name) return 'U';
-        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-    };
-
-    return (
-        <motion.div
-            className={`message-log-item ${isAi ? 'ai' : 'user'}`}
-            variants={itemVariants}
-            initial="hidden"
-            animate="visible"
-            layout
-        >
-            <div className="message-bubble-wrapper">
-                {isAi && (
-                    <div className="message-avatar ai-avatar">
-                        <img src="/short_logo.jpeg" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
-                    </div>
-                )}
-                <div className="message-content-wrapper">
-                    {messageContent()}
-                </div>
-                {!isAi && (
-                    <div className="message-avatar user-avatar">
-                        {userProfile?.photoURL ? (
-                            <img src={userProfile.photoURL} alt={userProfile.displayName || 'User'} />
-                        ) : (
-                            <span>{getInitials(userProfile?.displayName)}</span>
-                        )}
-                    </div>
-                )}
-            </div>
-        </motion.div>
     );
 });
 
-type ActivityType = 'chat' | 'browsing' | 'workflow' | 'image_gen' | 'speech' | null;
-
-interface TypingIndicatorProps {
-    activity: ActivityType;
-    persona: Persona | null;
-}
-
-const TypingIndicator: React.FC<TypingIndicatorProps> = ({ activity, persona }) => {
-    const getPersonaClass = (p: Persona | null): string => {
-        if (!p) return 'persona-default';
-        // Creates a kebab-case class name from the persona name
-        const className = `persona-${p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}`;
-        return className;
-    };
-
-    const activityClass = activity ? `task-${activity.replace(/_/g, '-')}` : '';
-    const personaClass = getPersonaClass(persona);
+const TypingIndicator: React.FC<{ persona: string, task: string | null }> = memo(({ persona, task }) => {
     
-    const indicatorClasses = ['typing-indicator', activityClass, personaClass].filter(Boolean).join(' ');
-
+    const getTaskSpecificClass = () => {
+        switch (task) {
+            case 'generate_image':
+            case 'edit_image':
+            case 'create_storyboard':
+                return 'task-image-gen';
+            case 'browse_webpage':
+            case 'perform_google_search':
+                return 'task-browsing';
+            case 'workflow':
+                return 'task-workflow';
+            default:
+                return '';
+        }
+    }
+    
     return (
-        <motion.div 
-            className="message-bubble-wrapper ai"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-        >
-            <div className="message-avatar ai-avatar">
-                <img src="/short_logo.jpeg" alt="AikonAI Logo" className="w-full h-full object-cover rounded-full" />
-            </div>
-            <div className={indicatorClasses}>
-                <span></span><span></span><span></span>
-            </div>
-        </motion.div>
+        <div className={`typing-indicator persona-${persona.toLowerCase().replace(/\s+/g, '-')} ${getTaskSpecificClass()}`}>
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
     );
-};
+});
 
-
-const ChatComposer: React.FC<{
-    onSendMessage: (message: string, files: FileAttachment[]) => void;
-    isLoading: boolean;
-    input: string;
-    setInput: (value: string) => void;
-    attachments: FileAttachment[];
-    setAttachments: React.Dispatch<React.SetStateAction<FileAttachment[]>>;
-    onCancel: () => void;
-    textareaRef: React.RefObject<HTMLTextAreaElement>;
-}> = ({ onSendMessage, isLoading, input, setInput, attachments, setAttachments, onCancel, textareaRef }) => {
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleSendMessage = () => {
-        const trimmedInput = input.trim();
-        if (trimmedInput || attachments.length > 0) {
-            onSendMessage(trimmedInput, attachments);
-            setInput('');
-            setAttachments([]);
-            if (textareaRef.current) {
-                textareaRef.current.style.height = 'auto';
-            }
-        }
-    };
-
-    const handleSendOrCancel = () => {
-        if (isLoading) {
-            onCancel();
-        } else {
-            handleSendMessage();
-        }
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSendOrCancel();
-        }
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFiles = e.target.files;
-        if (selectedFiles) {
-            const filesArray = Array.from(selectedFiles);
-            const filesToProcess = filesArray;
-
-            for (const file of filesToProcess) {
-                const currentFile = file as File;
-                const reader = new FileReader();
-                reader.onload = (loadEvent) => {
-                    const base64 = (loadEvent.target?.result as string)?.split(',')[1];
-                    if (base64) {
-                        const newAttachment: FileAttachment = {
-                            name: currentFile.name,
-                            mimeType: currentFile.type,
-                            base64,
-                        };
-                        setAttachments(prev => [...prev, newAttachment]);
-                    }
-                };
-                reader.readAsDataURL(currentFile);
-            }
-        }
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
-
-    const handlePaste = (e: React.ClipboardEvent) => {
-        const items = e.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf("image") !== -1) {
-                const blob: File | null = items[i].getAsFile();
-                if (blob) {
-                    const fileBlob = blob;
-                     const reader = new FileReader();
-                    reader.onload = (loadEvent) => {
-                         const base64 = (loadEvent.target?.result as string)?.split(',')[1];
-                        if (base64) {
-                             setAttachments(prev => [...prev, {
-                                name: 'pasted-image.png',
-                                mimeType: fileBlob.type,
-                                base64,
-                            }]);
-                        }
-                    };
-                    reader.readAsDataURL(fileBlob);
-                }
-                break;
-            }
-        }
-    };
+const WelcomeScreen: React.FC<{ onActionClick: (prompt: string, files?: FileAttachment[]) => void; isAgentMode: boolean; }> = memo(({ onActionClick, isAgentMode }) => {
     
-    const removeAttachment = (indexToRemove: number) => {
-        setAttachments(prev => prev.filter((_, index) => index !== indexToRemove));
-    };
-
-    useEffect(() => {
-        const ta = textareaRef.current;
-        if (ta) {
-            ta.style.height = 'auto'; // Reset height
-            const scrollHeight = ta.scrollHeight;
-            ta.style.height = `${scrollHeight}px`;
-        }
-    }, [input, textareaRef]);
+    const actions = [
+        { text: "Explain quantum computing", icon: "🔬" },
+        { text: "Draft a startup pitch deck", icon: "💡", agentOnly: true },
+        { text: "Create a travel itinerary for Japan", icon: "✈️" },
+        { text: "Write a Python script for web scraping", icon: "💻", agentOnly: true },
+    ];
 
     return (
-        <div className="chat-composer-container">
-             <AnimatePresence>
-                {attachments.length > 0 && (
-                    <motion.div
-                        className="composer-file-preview"
-                        initial={{ opacity: 0, y: 10, height: 0 }}
-                        animate={{ opacity: 1, y: 0, height: 'auto' }}
-                        exit={{ opacity: 0, y: 10, height: 0 }}
+        <div className="chat-welcome-screen">
+            <img src="/short_logo.jpeg" alt="AikonAI Logo" className="welcome-logo" />
+            <h1 className="welcome-title">AikonAI</h1>
+            <div className="welcome-actions">
+                {actions.map((action) => (
+                    <button 
+                        key={action.text} 
+                        className="action-pill"
+                        onClick={() => onActionClick(action.text)}
+                        disabled={isAgentMode && !action.agentOnly}
                     >
-                        <div className="composer-multi-file-container">
-                            {attachments.map((att, index) => (
-                                <motion.div key={index} className="composer-file-thumb" layout>
-                                    {att.mimeType.startsWith('image/') ? (
-                                        <img src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name} />
-                                    ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center p-1 text-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                                            <span className="text-xs truncate w-full mt-1">{att.name}</span>
-                                        </div>
-                                    )}
-                                    <button 
-                                        onClick={() => removeAttachment(index)} 
-                                        className="remove-attachment-btn"
-                                        title="Remove file"
-                                    >
-                                        &times;
-                                    </button>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            <div className="chat-composer">
-                <motion.button
-                    className="composer-icon-button"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Attach file"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                </motion.button>
-                 <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*,text/*,.pdf,.csv,.json,.xml,.html,.css,.js,.ts,.tsx,.py,.md"
-                    multiple
-                />
-                <motion.textarea
-                    ref={textareaRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onPaste={handlePaste}
-                    placeholder="Ask AikonAI..."
-                    rows={1}
-                    className="composer-textarea"
-                    layout
-                />
-                 <motion.button
-                    onClick={handleSendOrCancel}
-                    disabled={!isLoading && (!input.trim() && attachments.length === 0)}
-                    className="composer-icon-button composer-send-button"
-                    title={isLoading ? "Cancel Generation" : "Send"}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                >
-                     <AnimatePresence mode="popLayout" initial={false}>
-                         <motion.div
-                             key={isLoading ? 'cancel' : 'send'}
-                             initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
-                             animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                             exit={{ opacity: 0, scale: 0.5, rotate: 45 }}
-                             transition={{ duration: 0.2, type: 'spring', stiffness: 400, damping: 20 }}
-                         >
-                             {isLoading ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <rect width="12" height="12" x="4" y="4" rx="2" />
-                                </svg>
-                             ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-                                </svg>
-                             )}
-                         </motion.div>
-                     </AnimatePresence>
-                </motion.button>
+                        {action.icon}
+                        <span>{action.text}</span>
+                    </button>
+                ))}
             </div>
         </div>
     );
-};
-
-const ImageViewer: React.FC<{ imageUrl: string; onClose: () => void }> = ({ imageUrl, onClose }) => (
-    <motion.div 
-        className="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-[200]" 
-        onClick={onClose}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-    >
-        <motion.img 
-            src={imageUrl} 
-            alt="Full screen view" 
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0.8 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            layoutId={`image-${imageUrl}`}
-        />
-    </motion.div>
-);
-
-type LiveConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
-
-const LiveConversationOverlay: React.FC<{
-    connectionState: LiveConnectionState;
-    onDisconnect: () => void;
-}> = ({ connectionState, onDisconnect }) => {
-
-    const getStatusText = () => {
-        switch (connectionState) {
-            case 'connecting': return 'Connecting to Live AI...';
-            case 'connected': return 'Live conversation active';
-            case 'error': return 'Connection failed. Please try again.';
-            default: return '';
-        }
-    };
-    
-    return (
-        <motion.div 
-            className="live-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-        >
-            <motion.div 
-                className="live-content"
-                initial={{ y: 20, scale: 0.95 }}
-                animate={{ y: 0, scale: 1 }}
-                exit={{ y: 20, scale: 0.95 }}
-            >
-                <p className="live-status">{getStatusText()}</p>
-                <div className={`live-orb ${connectionState === 'connected' ? 'connected' : ''}`}>
-                    {connectionState === 'connecting' && <div className="w-8 h-8 border-4 border-white/50 border-t-white rounded-full animate-spin"></div>}
-                    {connectionState === 'connected' && <div className="live-orb-inner"></div>}
-                     {connectionState === 'error' && <span className="text-red-500 text-4xl">!</span>}
-                </div>
-                <motion.button 
-                    className="live-disconnect-button" 
-                    onClick={onDisconnect}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 8l2-2m0 0l2 2m-2-2v2.5M20 14v.5a2.5 2.5 0 01-2.5 2.5h-10A2.5 2.5 0 015 16.5V7.954a2.5 2.5 0 011.56-2.318l4.5-1.5a2.5 2.5 0 013.12 1.064M16 8a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    End Conversation
-                </motion.button>
-            </motion.div>
-        </motion.div>
-    );
-};
-
-
-const CustomPersonaModal: React.FC<{
-    onClose: () => void;
-    onSave: (persona: Persona, originalName?: string) => void;
-    personaToEdit?: Persona | null;
-}> = ({ onClose, onSave, personaToEdit }) => {
-    const [name, setName] = useState('');
-    const [icon, setIcon] = useState('');
-    const [description, setDescription] = useState('');
-    const [systemInstruction, setSystemInstruction] = useState('');
-    
-    useEffect(() => {
-        if (personaToEdit) {
-            setName(personaToEdit.name);
-            setIcon(personaToEdit.icon);
-            setDescription(personaToEdit.description);
-            setSystemInstruction(personaToEdit.systemInstruction);
-        } else {
-            setName('');
-            setIcon('');
-            setDescription('');
-            setSystemInstruction('');
-        }
-    }, [personaToEdit]);
-
-    const handleSave = () => {
-        if (name.trim() && systemInstruction.trim()) {
-            onSave({
-                name: name.trim(),
-                icon: icon.trim() || '👤',
-                description: description.trim(),
-                systemInstruction: systemInstruction.trim(),
-                isCustom: true,
-            }, personaToEdit?.name);
-        }
-    };
-
-    return (
-        <motion.div 
-            className="modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-        >
-            <motion.div 
-                className="modal-content" style={{ maxWidth: '600px' }}
-                initial={{ y: 20, scale: 0.95 }}
-                animate={{ y: 0, scale: 1 }}
-                exit={{ y: 20, scale: 0.95 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            >
-                <h2>{personaToEdit ? 'Edit Custom Persona' : 'Create Custom Persona'}</h2>
-                <div className="form-group">
-                    <label htmlFor="persona-name">Persona Name</label>
-                    <input id="persona-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g., Sarcastic Python Developer" />
-                </div>
-                <div className="form-group">
-                    <label htmlFor="persona-icon">Icon (Emoji)</label>
-                    <input id="persona-icon" type="text" value={icon} onChange={e => setIcon(e.target.value)} placeholder="e.g., 🐍" />
-                </div>
-                 <div className="form-group">
-                    <label htmlFor="persona-desc">Description (for tooltip)</label>
-                    <textarea id="persona-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="e.g., A developer persona that provides Python code with a witty, sarcastic tone." />
-                </div>
-                <div className="form-group">
-                    <label htmlFor="persona-instruction">System Instruction (The AI's rules)</label>
-                    <textarea id="persona-instruction" value={systemInstruction} onChange={e => setSystemInstruction(e.target.value)} placeholder="You are a senior Python developer who is brilliant but also very sarcastic..." rows={6} />
-                </div>
-                <div className="modal-footer">
-                    <motion.button onClick={onClose} className="secondary" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Cancel</motion.button>
-                    <motion.button onClick={handleSave} className="primary" disabled={!name.trim() || !systemInstruction.trim()} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Save Persona</motion.button>
-                </div>
-            </motion.div>
-        </motion.div>
-    );
-};
-
-const CodeHistoryPanel: React.FC<{
-    history: CodeExecutionHistoryItem[],
-    onRerun: (code: string) => void,
-    onClose: () => void,
-}> = ({ history, onRerun, onClose }) => {
-    
-    const handleCopy = (code: string) => {
-        navigator.clipboard.writeText(code);
-    };
-
-    return (
-        <motion.div
-            className="code-history-panel"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        >
-            <div className="code-history-header">
-                <h3 className="text-lg font-bold text-amber-400">Code History</h3>
-                <motion.button whileTap={{scale: 0.9}} onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</motion.button>
-            </div>
-            <div className="code-history-list">
-                {history.length === 0 ? (
-                    <p className="text-center text-gray-500 italic mt-4">No code has been run yet.</p>
-                ) : (
-                    history.map(item => (
-                        <div key={item.id} className="code-history-item">
-                            <div className="code-history-item-code">
-                               <CodeBlock code={item.code} language="python" />
-                            </div>
-                            <div className="code-history-item-footer">
-                                <span className="code-history-timestamp">
-                                    {item.timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                                </span>
-                                <div className="flex gap-2 code-history-actions">
-                                    <button onClick={() => handleCopy(item.code)}>Copy</button>
-                                    <button onClick={() => onRerun(item.code)}>Rerun</button>
-                                </div>
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-        </motion.div>
-    );
-};
-
+});
 
 const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     const [messages, setMessages] = useState<Message[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [history, setHistory] = useState<Content[]>([]);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const { currentUser: authUserProfile, updateCurrentUser } = useAuth();
-    
-    const [userSettings, setUserSettings] = useState<Partial<UserProfile>>({});
-    
-    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-        const savedTheme = localStorage.getItem('aikon-chat-theme');
-        return (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : 'dark';
-    });
-
-    const [isAgentModeEnabled, setIsAgentModeEnabled] = useState<boolean>(false);
-    const [currentActivity, setCurrentActivity] = useState<ActivityType>(null);
-    const [welcomeMessage, setWelcomeMessage] = useState<string>('');
+    const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+    const [isSending, setIsSending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const messageLogRef = useRef<HTMLDivElement>(null);
+    const [chatHistory, setChatHistory] = useState<Content[]>([]);
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [isCodeCanvasVisible, setIsCodeCanvasVisible] = useState(false);
+    const [codeHistoryPanelVisible, setCodeHistoryPanelVisible] = useState(false);
     const [codeHistory, setCodeHistory] = useState<CodeExecutionHistoryItem[]>([]);
-    const [isCodeHistoryOpen, setIsCodeHistoryOpen] = useState(false);
+    
+    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
-
-    const welcomeMessages = [
-        "Ready to build something amazing?",
-        "What's on your mind today?",
-        "Let's bring your ideas to life.",
-        "How can I assist you?",
-        "Ask me anything, from code to creativity.",
-        "Your digital companion, at your service.",
-        "Let's get started."
-    ];
-
-    useEffect(() => {
-        setWelcomeMessage(welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)]);
-    }, []);
-
-
-    useEffect(() => {
-        const body = document.body;
-        body.classList.remove('dark-theme-body');
-        
-        if (theme === 'light') {
-            body.classList.add('light-theme-chat');
-            body.classList.remove('dark-theme-chat');
-        } else {
-            body.classList.add('dark-theme-chat');
-            body.classList.remove('light-theme-chat');
-        }
-        
-        localStorage.setItem('aikon-chat-theme', theme);
-
-        return () => {
-            body.classList.remove('light-theme-chat', 'dark-theme-chat');
-            body.classList.add('dark-theme-body');
-        };
-    }, [theme]);
-
-    const toggleTheme = () => {
-        setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-    };
-
-    const SunIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>);
-    const MoonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>);
-
-    useEffect(() => {
-        if (authUserProfile) {
-            setUserSettings(authUserProfile);
-        }
-    }, [authUserProfile]);
-
-    const [input, setInput] = useState('');
-    const [attachments, setAttachments] = useState<FileAttachment[]>([]);
-    const [viewingImage, setViewingImage] = useState<string | null>(null);
-    const [lastActiveImage, setLastActiveImage] = useState<FileAttachment | null>(null);
-
-    // Persona State
+    const [activePersona, setActivePersona] = useState<Persona>({ name: 'AikonAI', icon: '🤖', description: 'Default Assistant', systemInstruction: aikonPersonaInstruction });
+    const [customPersonas, setCustomPersonas] = useState<Persona[]>([]);
     const [isPersonaMenuOpen, setIsPersonaMenuOpen] = useState(false);
-    const [currentPersona, setCurrentPersona] = useState<Persona | null>(null);
-    const [availablePersonas, setAvailablePersonas] = useState<Persona[]>(() => {
-        try {
-            const saved = localStorage.getItem(CUSTOM_PERSONAS_STORAGE_KEY);
-            const custom = saved ? JSON.parse(saved) : [];
-            return [...PERSONAS, ...custom];
-        } catch (e) {
-            console.error("Failed to parse custom personas from localStorage", e);
-            return [...PERSONAS];
-        }
-    });
-    const [isCustomPersonaModalOpen, setIsCustomPersonaModalOpen] = useState(false);
-    const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
-    const [personaSearch, setPersonaSearch] = useState('');
-    const personaMenuRef = useRef<HTMLDivElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // Code Interpreter State
+    
+    const [isAgentMode, setIsAgentMode] = useState(false);
     const [sessionFiles, setSessionFiles] = useState<VirtualFile[]>([]);
-    const [isCanvasVisible, setIsCanvasVisible] = useState(false);
-    const [canvasFiles, setCanvasFiles] = useState<CanvasFiles>({});
-    const isCancelledRef = useRef(false);
-    // FIX: Add a ref for the textarea to allow focusing from a parent component action.
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-     const chatWindowRef = useRef<HTMLDivElement>(null);
-     const bottomOfChatRef = useRef<HTMLDivElement>(null);
-
+    
     // Live Conversation State
-    const [liveConnectionState, setLiveConnectionState] = useState<LiveConnectionState>('disconnected');
+    const [isLive, setIsLive] = useState(false);
+    const [liveStatus, setLiveStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
     const sessionPromiseRef = useRef<Promise<any> | null>(null);
-    const mediaStreamRef = useRef<MediaStream | null>(null);
-    const audioContextRefs = useRef<{ input: AudioContext | null, output: AudioContext | null, scriptProcessor: ScriptProcessorNode | null, sources: Set<AudioBufferSourceNode> }>({ input: null, output: null, scriptProcessor: null, sources: new Set() });
-    const nextStartTimeRef = useRef(0);
-    const currentInputTranscriptionRef = useRef('');
-    const currentOutputTranscriptionRef = useRef('');
+    const inputAudioContextRef = useRef<AudioContext | null>(null);
+    const outputAudioContextRef = useRef<AudioContext | null>(null);
+    const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+    let nextStartTime = 0;
+    
+    const { currentUser, logout, updateCurrentUser } = useAuth();
+    const userProfile = currentUser; // Assuming currentUser is the UserProfile object
+    const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
-
-    const scrollToBottom = useCallback(() => {
-        bottomOfChatRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, []);
-
+    // Initial setup
     useEffect(() => {
-       scrollToBottom();
-    }, [messages, isLoading, scrollToBottom]);
-
-    // Close persona menu on outside click
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (personaMenuRef.current && !personaMenuRef.current.contains(event.target as Node)) {
-                setIsPersonaMenuOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => { document.removeEventListener("mousedown", handleClickOutside); };
-    }, [personaMenuRef]);
-
-    const handleWorkflowToolCall = useCallback(async (
-        tool_call: { name: string; args: any },
-        currentFiles: VirtualFile[]
-    ): Promise<{ output: StructuredToolOutput; updatedFiles: VirtualFile[] }> => {
-        let output: StructuredToolOutput = null;
-        let updatedFiles = [...currentFiles];
-
-        switch (tool_call.name) {
-            case 'search_and_summarize': {
-                const searchResult = await performGoogleSearch(tool_call.args.query);
-                output = { type: 'text', content: searchResult.text || "I searched online but couldn't find a clear answer." };
-                break;
-            }
-            case 'list_files': {
-                const fileList = currentFiles.map(f => f.name).join('\n') || "No files in the current session.";
-                output = { type: 'text', content: fileList };
-                break;
-            }
-            case 'read_file': {
-                const fileToRead = currentFiles.find(f => f.name === tool_call.args.filename);
-                output = { type: 'text', content: fileToRead ? fileToRead.content : `Error: File '${tool_call.args.filename}' not found.` };
-                break;
-            }
-            case 'write_file': {
-                const existingFileIndex = updatedFiles.findIndex(f => f.name === tool_call.args.filename);
-                if (existingFileIndex > -1) {
-                    updatedFiles[existingFileIndex] = { name: tool_call.args.filename, content: tool_call.args.content };
-                } else {
-                    updatedFiles.push({ name: tool_call.args.filename, content: tool_call.args.content });
-                }
-                output = { type: 'text', content: `Successfully wrote to ${tool_call.args.filename}.` };
-                break;
-            }
-            case 'create_powerpoint': {
-                const { topic, num_slides } = tool_call.args;
-                const content = await generatePresentationContent(topic, num_slides);
-                if ('error' in content) {
-                    output = { type: 'text', content: content.error };
-                } else {
-                    await createPptxFile(content, topic);
-                    output = { type: 'file_generated', filename: `${topic.replace(/ /g, '_')}.pptx`, message: "Your presentation has been created and downloaded." };
-                }
-                break;
-            }
-            case 'create_word_document': {
-                const { topic, sections } = tool_call.args;
-                const content = await generateWordContent(topic, sections);
-                if ('error' in content) {
-                    output = { type: 'text', content: content.error };
-                } else {
-                    await createDocxFile(content);
-                    output = { type: 'file_generated', filename: `${topic.replace(/ /g, '_')}.docx`, message: "Your document has been created and downloaded." };
-                }
-                break;
-            }
-            case 'create_excel_spreadsheet': {
-                const { filename, data_description, columns } = tool_call.args;
-                const content = await generateExcelContent(data_description, columns);
-                 if ('error' in content) {
-                    output = { type: 'text', content: content.error };
-                } else {
-                    await createXlsxFile({ ...content, filename });
-                    output = { type: 'file_generated', filename: `${filename}.xlsx`, message: "Your spreadsheet has been created and downloaded." };
-                }
-                break;
-            }
-            default:
-                output = { type: 'text', content: `Error: Tool "${tool_call.name}" is not recognized.` };
-        }
-        return { output, updatedFiles };
-    }, []);
-
-    const executeConfirmedWorkflow = useCallback(async (goal: string, plan: string[], files: FileAttachment[]) => {
-        setIsLoading(true);
-        setCurrentActivity('workflow');
-        playSound('https://storage.googleapis.com/gemini-web-codelab-assets/codelab-magic-edit/workflow_start.mp3', 0.5);
+        // Apply theme to body
+        document.body.className = `${theme}-theme-chat`;
         
-        let localSessionFiles = [...sessionFiles];
-        if (files && files.length > 0) {
-            for (const file of files) {
-                try {
-                    const content = atob(file.base64);
-                    const newFile = { name: file.name, content };
-                    const existingIndex = localSessionFiles.findIndex(f => f.name === newFile.name);
-                    if (existingIndex > -1) {
-                        localSessionFiles[existingIndex] = newFile;
-                    } else {
-                        localSessionFiles.push(newFile);
+        // Fetch location
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLocation({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                });
+            },
+            (err) => {
+                console.warn(`Could not get location: ${err.message}`);
+            }
+        );
+        
+        // Load custom personas from local storage
+        try {
+            const storedPersonas = localStorage.getItem(CUSTOM_PERSONAS_STORAGE_KEY);
+            if (storedPersonas) {
+                setCustomPersonas(JSON.parse(storedPersonas));
+            }
+        } catch (e) {
+            console.error("Failed to load custom personas:", e);
+        }
+
+    }, [theme]);
+    
+    // Scroll to bottom of message log
+    useEffect(() => {
+        if (messageLogRef.current) {
+            messageLogRef.current.scrollTop = messageLogRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    const handleSendMessage = async (message: string, attachments: FileAttachment[]) => {
+        if (isSending) return;
+
+        setIsSending(true);
+        setError(null);
+        
+        const userMessage: Message = {
+            id: `user-${Date.now()}`,
+            text: message,
+            sender: 'user',
+            timestamp: new Date(),
+            attachments: attachments,
+        };
+        
+        setMessages(prev => [...prev, userMessage]);
+        
+        const aiResponsePlaceholder: Message = {
+            id: `ai-${Date.now()}`,
+            text: '',
+            sender: 'ai',
+            timestamp: new Date(),
+            status: 'streaming',
+        };
+        setMessages(prev => [...prev, aiResponsePlaceholder]);
+
+        try {
+            const { stream, historyWithUserMessage } = await streamMessageToChat(
+                chatHistory,
+                message,
+                attachments,
+                location,
+                userProfile,
+                undefined, // No chat continuation for now
+                activePersona.systemInstruction,
+                isAgentMode
+            );
+            
+            setChatHistory(historyWithUserMessage);
+            
+            let fullResponseText = '';
+            let toolCallObject: any = null;
+            
+            for await (const chunk of stream) {
+                 const chunkText = chunk.text;
+
+                if (chunkText) {
+                    // Check for JSON tool calls at the start of the stream
+                    const trimmedChunk = chunkText.trim();
+                    if (trimmedChunk.startsWith('{') && trimmedChunk.endsWith('}')) {
+                        try {
+                            const parsed = JSON.parse(trimmedChunk);
+                            if (parsed.tool_call) {
+                                toolCallObject = parsed;
+                                // We have a tool call, break the loop to process it.
+                                break;
+                            }
+                        } catch (e) {
+                            // Not a valid JSON, treat as regular text
+                        }
                     }
-                } catch(e) { console.error(`Error decoding file ${file.name} for workflow:`, e); }
-            }
-            setSessionFiles(localSessionFiles);
-        }
 
-        let workflow: Workflow = { goal, plan, steps: [], status: 'running', finalContent: null };
-        const workflowMessageId = (Date.now() + 1).toString();
-        const initialWorkflowMessage: Message = { id: workflowMessageId, text: '', sender: 'ai', timestamp: new Date(), workflow: { ...workflow } };
-        setMessages(prev => [...prev, initialWorkflowMessage]);
-
-        let completedSteps: WorkflowStep[] = [];
-        let shouldContinue = true;
-        
-        while (shouldContinue && completedSteps.length < 20) { // Safety break
-            setMessages(prev => prev.map(m => m.id === workflowMessageId ? { ...m, workflow: { ...workflow, steps: [...completedSteps, { summary: 'Thinking...', status: 'running' }] } } : m));
-
-            const stepResult = await runWorkflowStep(goal, workflow.plan, completedSteps);
-            
-            if ('error' in stepResult) {
-                workflow.status = 'error';
-                workflow.finalContent = stepResult.error;
-                shouldContinue = false;
-            } else if (!stepResult.tool_call || !stepResult.tool_call.name) {
-                workflow.status = 'error';
-                workflow.finalContent = "The AI agent failed to decide on the next action. Please try rephrasing your goal.";
-                shouldContinue = false;
-                const errorStep: WorkflowStep = {
-                    summary: stepResult.step_summary || "AI failed to produce a valid next step.",
-                    status: 'error',
-                    tool_output: { type: 'text', content: 'The model returned an invalid response without a tool call.'}
-                };
-                completedSteps.push(errorStep);
-            } else {
-                const currentStep: WorkflowStep = {
-                    summary: stepResult.step_summary,
-                    tool_call: stepResult.tool_call,
-                    status: 'running',
-                    tool_output: null
-                };
-
-                if (stepResult.tool_call.name === 'finish') {
-                    currentStep.status = 'completed';
-                    workflow.status = 'completed';
-                    workflow.finalContent = stepResult.tool_call.args.final_content;
-                    shouldContinue = false;
-
-                } else if (stepResult.tool_call.name === 'request_user_approval') {
-                    currentStep.status = 'paused_for_approval';
-                    workflow.status = 'paused_for_approval';
-                    shouldContinue = false;
-
-                } else {
-                    const toolResult = await handleWorkflowToolCall(stepResult.tool_call, localSessionFiles);
-                    currentStep.tool_output = toolResult.output;
-                    localSessionFiles = toolResult.updatedFiles;
-                    currentStep.status = 'completed';
+                    fullResponseText += chunkText;
+                    setMessages(prev =>
+                        prev.map(m =>
+                            m.id === aiResponsePlaceholder.id
+                                ? { ...m, text: fullResponseText, segments: parseMarkdown(fullResponseText) }
+                                : m
+                        )
+                    );
                 }
-                completedSteps.push(currentStep);
             }
             
-            workflow.steps = [...completedSteps];
-             setMessages(prev => prev.map(m => m.id === workflowMessageId ? { ...m, workflow: { ...workflow } } : m));
-             if (workflow.status !== 'running') break;
+            // After stream is complete, process potential tool call
+            if (toolCallObject) {
+                 await handleToolCall(toolCallObject, aiResponsePlaceholder.id, attachments);
+            } else {
+                 // Finalize the AI message if it wasn't a tool call
+                 const finalHistory = [...historyWithUserMessage, { role: 'model', parts: [{ text: fullResponseText }] }];
+                 setChatHistory(finalHistory);
+                 setMessages(prev =>
+                    prev.map(m =>
+                        m.id === aiResponsePlaceholder.id
+                            ? { ...m, text: fullResponseText, segments: parseMarkdown(fullResponseText), status: 'sent' }
+                            : m
+                    )
+                );
+            }
+            
+        } catch (error) {
+             console.error("Error during chat:", error);
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+            setError(errorMessage);
+            setMessages(prev =>
+                prev.map(m =>
+                    m.id === aiResponsePlaceholder.id
+                        ? { ...m, text: `Sorry, I encountered an error: ${errorMessage}`, status: 'sent' }
+                        : m
+                )
+            );
+        } finally {
+            setIsSending(false);
         }
-
-        if (workflow.status === 'running' && shouldContinue) {
-             workflow.status = 'error';
-             workflow.finalContent = "The workflow finished without reaching a conclusion. Please check the plan and try again.";
-             setMessages(prev => prev.map(m => m.id === workflowMessageId ? { ...m, workflow: { ...workflow } } : m));
-        }
-
-        setSessionFiles(localSessionFiles);
-        
-        setIsLoading(false);
-        setCurrentActivity(null);
-    }, [sessionFiles, handleWorkflowToolCall]);
-
-    const initiateWorkflow = async (goal: string, files: FileAttachment[]) => {
-        setIsLoading(true);
-        setCurrentActivity('workflow');
-        
-        const statusMessageId = Date.now().toString();
-        const statusMessage: Message = {
-            id: statusMessageId,
-            text: 'STATUS: Generating a plan for your request...',
-            sender: 'ai',
-            timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, statusMessage]);
-    
-        const planResult = await generatePlan(goal);
-        
-        setMessages(prev => prev.filter(m => m.id !== statusMessageId));
-    
-        if ('error' in planResult) {
-            const errorMessage: Message = {
-                id: Date.now().toString(),
-                text: `I couldn't create a plan for that goal. ${planResult.error}`,
-                sender: 'ai',
-                timestamp: new Date(),
-                segments: parseMarkdown(`I couldn't create a plan for that goal. ${planResult.error}`)
-            };
-            setMessages(prev => [...prev, errorMessage]);
-            setIsLoading(false);
-            setCurrentActivity(null);
-            return;
-        }
-    
-        const confirmationMessageId = Date.now().toString();
-        const confirmationMessage: Message = {
-            id: confirmationMessageId,
-            text: "Here is the plan to achieve your goal. Please review and confirm to proceed.",
-            sender: 'ai',
-            timestamp: new Date(),
-            requiresAction: 'workflow_confirmation',
-            actionData: { goal, plan: planResult.plan, files },
-            actionTaken: false,
-        };
-        setMessages(prev => [...prev, confirmationMessage]);
-        setIsLoading(false);
     };
-
-    const handleConfirmWorkflow = useCallback(async (messageId: string) => {
-        const message = messages.find(m => m.id === messageId);
-        if (!message || !message.actionData) return;
     
-        setMessages(prev => prev.map(m => 
-            m.id === messageId 
-            ? { ...m, actionTaken: true, text: 'Plan confirmed. Starting workflow...' } 
-            : m
-        ));
-    
-        const { goal, plan, files } = message.actionData;
-        await executeConfirmedWorkflow(goal, plan, files);
-    
-    }, [messages, executeConfirmedWorkflow]);
-    
-    const handleCancelWorkflow = (messageId: string) => {
-        setMessages(prev => prev.map(m => 
-            m.id === messageId 
-            ? { ...m, actionTaken: true, text: 'Workflow cancelled.' } 
-            : m
-        ));
-        setCurrentActivity(null);
-    };
-
-
-    const handleToolCall = useCallback(async (aiMessageId: string, toolCall: { tool_call: string; [key: string]: any }) => {
+    // Simplified tool call handling
+    const handleToolCall = async (toolCall: any, messageId: string, attachments: FileAttachment[]) => {
         const { tool_call, ...args } = toolCall;
+        
+        let toolResult = 'Tool call received.';
+        let updatedMessage: Partial<Message> = { text: `Using tool: \`${tool_call}\`...`};
 
-        // A helper to update a specific message
-        const updateMessage = (id: string, updates: Partial<Message>) => {
-            setMessages(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
-        };
+        setMessages(prev => prev.map(m => m.id === messageId ? {...m, ...updatedMessage, status: 'sent'} : m));
 
         try {
             switch (tool_call) {
                 case 'get_weather':
-                    setCurrentActivity('browsing');
-                    updateMessage(aiMessageId, { text: `STATUS: Fetching weather for ${args.city}...` });
-                    const weatherResult = await fetchWeather(args.city);
-                    if ('error' in weatherResult) {
-                        updateMessage(aiMessageId, { text: weatherResult.error, status: 'sent', segments: parseMarkdown(weatherResult.error) });
+                    const weatherData = await fetchWeather(args.city);
+                     if ('error' in weatherData) {
+                        updatedMessage = { text: weatherData.error };
                     } else {
-                        updateMessage(aiMessageId, { weatherData: weatherResult, text: '', status: 'sent' });
+                        updatedMessage = { text: `Here is the weather for ${weatherData.city}.`, weatherData: weatherData };
                     }
                     break;
-
                 case 'generate_image':
-                    setCurrentActivity('image_gen');
-                    updateMessage(aiMessageId, {
-                        generatedImage: { prompt: args.prompt, isLoading: true, aspectRatio: '1:1' }
-                    });
+                    updatedMessage.generatedImage = { prompt: args.prompt, isLoading: true, aspectRatio: '1:1' };
+                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
                     const imageUrl = await generateImage(args.prompt);
-                    updateMessage(aiMessageId, {
-                        generatedImage: { prompt: args.prompt, isLoading: false, url: imageUrl || undefined }
-                    });
+                    updatedMessage.generatedImage.url = imageUrl || undefined;
+                    updatedMessage.generatedImage.isLoading = false;
+                    updatedMessage.text = imageUrl ? `Here is the image you requested for "${args.prompt}"` : "Sorry, I couldn't generate the image.";
                     break;
-                
                 case 'edit_image':
-                    if (!lastActiveImage) {
-                         updateMessage(aiMessageId, { text: "Please upload an image first to use the edit tool.", status: 'sent', segments: parseMarkdown("Please upload an image first to use the edit tool.") });
-                        return;
-                    }
-                    setCurrentActivity('image_gen');
-                    updateMessage(aiMessageId, {
-                        editedImage: { beforeUrl: `data:${lastActiveImage.mimeType};base64,${lastActiveImage.base64}`, prompt: args.prompt, isLoading: true }
-                    });
-                    const editedUrl = await editImage(lastActiveImage, args.prompt);
-                    updateMessage(aiMessageId, {
-                        editedImage: { beforeUrl: `data:${lastActiveImage.mimeType};base64,${lastActiveImage.base64}`, prompt: args.prompt, isLoading: false, afterUrl: editedUrl || undefined }
-                    });
-                    break;
-
-                case 'generate_video':
-                    let operation = await generateVideo(args.prompt);
-                    if (operation) {
-                        updateMessage(aiMessageId, { generatedVideo: { status: 'generating', prompt: args.prompt } });
-                        const getAi = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
-                        while (operation && !operation.done) {
-                            await new Promise(resolve => setTimeout(resolve, 5000));
-                             const ai = getAi();
-                            operation = await ai.operations.getVideosOperation({ operation: operation });
-                        }
-                        if (operation?.response?.generatedVideos?.[0]?.video?.uri) {
-                            const videoBlob = await fetchVideoFromUri(operation.response.generatedVideos[0].video.uri);
-                            const videoUrl = URL.createObjectURL(videoBlob);
-                            updateMessage(aiMessageId, { generatedVideo: { status: 'completed', prompt: args.prompt, url: videoUrl } });
-                        } else {
-                             updateMessage(aiMessageId, { generatedVideo: { status: 'error', prompt: args.prompt } });
-                        }
-                    } else {
-                         updateMessage(aiMessageId, { text: "Video generation is not available at the moment.", status: 'sent' });
-                    }
-                    break;
-
-                case 'text_to_speech':
-                     setCurrentActivity('speech');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating audio for: "${args.text}"` });
-                    const base64Audio = await generateSpeech(args.text);
-                    if (base64Audio) {
-                        const pcmData = decode(base64Audio);
-                        const wavBlob = pcmToWav(pcmData, 24000, 1, 16);
-                        const audioUrl = URL.createObjectURL(wavBlob);
-                        updateMessage(aiMessageId, { text: '', audioUrl: audioUrl, status: 'sent' });
-                    } else {
-                        updateMessage(aiMessageId, { text: "Sorry, I couldn't generate the audio.", status: 'sent' });
-                    }
-                    break;
-                
-                 case 'create_storyboard':
-                    setCurrentActivity('image_gen');
-                    const prompts = args.prompts as string[];
-                    if (!prompts || prompts.length === 0) {
-                        updateMessage(aiMessageId, { text: "The storyboard needs at least one scene description.", status: 'sent', segments: parseMarkdown("The storyboard needs at least one scene description.") });
+                    const imageToEdit = attachments.find(f => f.mimeType.startsWith('image/'));
+                    if (!imageToEdit) {
+                        updatedMessage.text = "You need to upload an image to edit it.";
                         break;
                     }
-                    updateMessage(aiMessageId, {
-                        storyboardImages: prompts.map(p => ({ prompt: p, url: '' })),
-                        text: '',
-                        status: 'sent'
-                    });
-                    const imagePromises = prompts.map(prompt => generateImage(prompt, '1:1'));
-                    imagePromises.forEach((promise, index) => {
-                        promise.then(imageUrl => {
-                            setMessages(prev => prev.map(m => {
-                                if (m.id === aiMessageId && m.storyboardImages) {
-                                    const updatedStoryboard = [...m.storyboardImages];
-                                    updatedStoryboard[index] = { ...updatedStoryboard[index], url: imageUrl || 'error' };
-                                    return { ...m, storyboardImages: updatedStoryboard };
-                                }
-                                return m;
-                            }));
-                        });
-                    });
+                    updatedMessage.editedImage = { beforeUrl: `data:${imageToEdit.mimeType};base64,${imageToEdit.base64}`, prompt: args.prompt, isLoading: true };
+                     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
+                    const editedUrl = await editImage(imageToEdit, args.prompt);
+                    updatedMessage.editedImage.afterUrl = editedUrl || undefined;
+                    updatedMessage.editedImage.isLoading = false;
+                     updatedMessage.text = editedUrl ? `Here's the edited image based on your request: "${args.prompt}"` : "Sorry, I couldn't edit the image.";
                     break;
+                 case 'generate_video':
+                    updatedMessage.generatedVideo = { prompt: args.prompt, status: 'generating' };
+                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
+                    
+                    if (window.aistudio) {
+                        const hasKey = await window.aistudio.hasSelectedApiKey();
+                        if (!hasKey) {
+                            await window.aistudio.openSelectKey();
+                        }
+                    }
 
-                case 'create_powerpoint':
-                    setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating content for presentation on "${args.topic}"...` });
+                    const operation = await generateVideo(args.prompt);
+                    if (operation) {
+                        let opResult = operation;
+                        while (!opResult.done) {
+                            await new Promise(resolve => setTimeout(resolve, 5000));
+                            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                            opResult = await ai.operations.getVideosOperation({ operation: opResult });
+                        }
+                        const videoUri = opResult.response?.generatedVideos?.[0]?.video?.uri;
+                        if (videoUri) {
+                            const videoBlob = await fetchVideoFromUri(videoUri);
+                            const videoUrl = URL.createObjectURL(videoBlob);
+                            updatedMessage.generatedVideo = { prompt: args.prompt, status: 'completed', url: videoUrl };
+                        } else {
+                             updatedMessage.generatedVideo = { prompt: args.prompt, status: 'error' };
+                        }
+                    } else {
+                         updatedMessage.generatedVideo = { prompt: args.prompt, status: 'error' };
+                    }
+                    updatedMessage.text = updatedMessage.generatedVideo.status === 'completed' ? `Here is the video for "${args.prompt}"` : "Sorry, video generation failed.";
+                    break;
+                case 'summarize_document':
+                    const docToSummarize = attachments.find(f => f.mimeType.startsWith('text/'));
+                    if (!docToSummarize) {
+                        updatedMessage.text = "Please upload a text document to summarize.";
+                        break;
+                    }
+                    const content = atob(docToSummarize.base64);
+                    const summary = await summarizeDocument(content);
+                    updatedMessage.text = summary;
+                    break;
+                case 'text_to_speech':
+                    const audioBase64 = await generateSpeech(args.text);
+                    if (audioBase64) {
+                        const audioBytes = decode(audioBase64);
+                        const audioBlob = pcmToWav(audioBytes, 24000, 1, 16);
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        updatedMessage.audioUrl = audioUrl;
+                        updatedMessage.text = `Here is the audio for: "${args.text}"`;
+                    } else {
+                        updatedMessage.text = "Sorry, I couldn't generate the speech.";
+                    }
+                    break;
+                 case 'create_powerpoint':
                     const pptData = await generatePresentationContent(args.topic, args.num_slides || 5);
                     if ('error' in pptData) {
-                        updateMessage(aiMessageId, { text: pptData.error, status: 'sent', segments: parseMarkdown(pptData.error) });
+                        updatedMessage.text = `Error: ${pptData.error}`;
                     } else {
-                        updateMessage(aiMessageId, {
-                            generatedFile: { type: 'pptx', filename: `${args.topic.replace(/ /g, '_')}.pptx`, message: `I've prepared a presentation on "${args.topic}".`, data: pptData, isPreviewLoading: true },
-                            text: '',
-                            status: 'sent'
-                        });
-
+                        updatedMessage.text = `I have generated a PowerPoint presentation on "${args.topic}". You can download it now.`;
+                        updatedMessage.generatedFile = {
+                            filename: `${args.topic}.pptx`,
+                            message: `Generated presentation on ${args.topic}`,
+                            data: pptData,
+                            type: 'pptx',
+                            isPreviewLoading: true
+                        };
+                        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
                         // Generate a preview image for the first slide
-                        const previewPrompt = `Create a visually appealing, abstract, professional title slide background image for a presentation titled "${args.topic}". Use a modern, corporate style with colors like deep blue, gold, and white. Minimalist design.`;
+                        const previewPrompt = `Create a single, visually appealing title slide image for a presentation titled "${args.topic}". Style: professional, modern, minimalist.`;
                         const previewUrl = await generateImage(previewPrompt, '16:9');
-                        updateMessage(aiMessageId, {
-                             generatedFile: { type: 'pptx', filename: `${args.topic.replace(/ /g, '_')}.pptx`, message: `I've prepared a presentation on "${args.topic}".`, data: pptData, isPreviewLoading: false, previewImageUrl: previewUrl || undefined },
-                        });
+                        updatedMessage.generatedFile.previewImageUrl = previewUrl || undefined;
+                        updatedMessage.generatedFile.isPreviewLoading = false;
                     }
                     break;
-
                 case 'create_word_document':
-                     setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating content for document on "${args.topic}"...` });
-                    const docData = await generateWordContent(args.topic, args.sections);
-                    if ('error' in docData) {
-                        updateMessage(aiMessageId, { text: docData.error, status: 'sent', segments: parseMarkdown(docData.error) });
+                    const wordData = await generateWordContent(args.topic, args.sections);
+                     if ('error' in wordData) {
+                        updatedMessage.text = `Error: ${wordData.error}`;
                     } else {
-                         updateMessage(aiMessageId, {
-                            generatedFile: { type: 'docx', filename: `${args.topic.replace(/ /g, '_')}.docx`, message: `Here is the Word document on "${args.topic}".`, data: docData },
-                            text: '',
-                            status: 'sent'
-                        });
+                         updatedMessage.text = `I have generated a Word document titled "${wordData.title}".`;
+                         updatedMessage.generatedFile = { filename: `${wordData.title}.docx`, message: `Generated document`, data: wordData, type: 'docx' };
                     }
                     break;
-
-                 case 'create_excel_spreadsheet':
-                    setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating spreadsheet data for "${args.data_description}"...` });
+                case 'create_excel_spreadsheet':
                     const excelData = await generateExcelContent(args.data_description, args.columns);
-                    if ('error' in excelData) {
-                        updateMessage(aiMessageId, { text: excelData.error, status: 'sent', segments: parseMarkdown(excelData.error) });
+                     if ('error' in excelData) {
+                        updatedMessage.text = `Error: ${excelData.error}`;
                     } else {
-                         updateMessage(aiMessageId, {
-                            generatedFile: { type: 'xlsx', filename: `${args.filename}.xlsx`, message: `Here is the spreadsheet for "${args.data_description}".`, data: { ...excelData, filename: args.filename } },
-                            text: '',
-                            status: 'sent'
-                        });
+                         updatedMessage.text = `I have generated an Excel file named "${args.filename}.xlsx".`;
+                         updatedMessage.generatedFile = { filename: `${args.filename}.xlsx`, message: 'Generated spreadsheet', data: { ...excelData, filename: args.filename }, type: 'xlsx' };
                     }
                     break;
-                
                 case 'create_pdf_document':
-                    setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating content for PDF document on "${args.topic}"...` });
-                    const pdfDocData = await generateWordContent(args.topic, args.sections);
-                    if ('error' in pdfDocData) {
-                        updateMessage(aiMessageId, { text: pdfDocData.error, status: 'sent', segments: parseMarkdown(pdfDocData.error) });
+                    const pdfContentData = await generateWordContent(args.topic, args.sections); // Use Word structure for content
+                    if ('error' in pdfContentData) {
+                        updatedMessage.text = `Error: ${pdfContentData.error}`;
                     } else {
-                         await createPdfFile(pdfDocData);
-                         updateMessage(aiMessageId, {
-                            generatedFile: { type: 'pdf', filename: `${args.topic.replace(/ /g, '_')}.pdf`, message: `Your PDF document on "${args.topic}" has been downloaded.` },
-                            text: '',
-                            status: 'sent'
-                        });
+                        updatedMessage.text = `I have generated a PDF document titled "${pdfContentData.title}".`;
+                        updatedMessage.generatedFile = { filename: `${pdfContentData.title}.pdf`, message: 'Generated PDF', data: pdfContentData, type: 'pdf' };
                     }
                     break;
-                
                 case 'generate_qr_code':
-                    setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Generating QR code for "${args.text}"...` });
-                    if (typeof QRCode !== 'undefined') {
-                        try {
-                            const dataUrl = await QRCode.toDataURL(args.text, { width: 256, margin: 2 });
-                            updateMessage(aiMessageId, {
-                                generatedQRCode: { text: args.text, dataUrl: dataUrl },
-                                text: '',
-                                status: 'sent'
-                            });
-                        } catch (e) {
-                            console.error("QR Code generation failed:", e);
-                            updateMessage(aiMessageId, { text: "Sorry, I couldn't generate the QR code.", status: 'sent' });
-                        }
-                    } else {
-                         updateMessage(aiMessageId, { text: "QR Code generation is not available right now.", status: 'sent' });
-                    }
+                    const qrDataUrl = await new Promise<string>((resolve) => {
+                        QRCode.toDataURL(args.text, { width: 256 }, (err: any, url: string) => resolve(url));
+                    });
+                    updatedMessage.generatedQRCode = { text: args.text, dataUrl: qrDataUrl };
+                    updatedMessage.text = `Here is the QR code for "${args.text}"`;
                     break;
-                
-                case 'create_interactive_chart':
-                    setCurrentActivity('workflow');
-                    updateMessage(aiMessageId, { text: `STATUS: Creating chart...` });
-                    const chartConfig: InteractiveChartData = args.chart_config;
-                    if (chartConfig) {
-                        updateMessage(aiMessageId, {
-                            interactiveChartData: chartConfig,
-                            text: '',
-                            status: 'sent',
-                        });
-                    } else {
-                        updateMessage(aiMessageId, { text: "Sorry, I couldn't create the chart.", status: 'sent' });
-                    }
-                    break;
-
                 case 'initiate_workflow':
-                    initiateWorkflow(args.goal, attachments);
-                    setMessages(prev => prev.filter(m => m.id !== aiMessageId));
-                    break;
-                
-                case 'summarize_document':
-                    if (attachments.length === 0 || !attachments[0].mimeType.startsWith('text/')) {
-                         updateMessage(aiMessageId, { text: "Please upload a text document to summarize.", status: 'sent', segments: parseMarkdown("Please upload a text document to summarize.") });
-                        break;
-                    }
-                    setCurrentActivity('browsing');
-                    updateMessage(aiMessageId, { text: `STATUS: Summarizing ${attachments[0].name}...` });
-                    try {
-                        const content = atob(attachments[0].base64);
-                        const summary = await summarizeDocument(content);
-                        updateMessage(aiMessageId, { text: summary, status: 'sent', segments: parseMarkdown(summary) });
-                    } catch (e) {
-                        updateMessage(aiMessageId, { text: "Sorry, I couldn't read or summarize that document.", status: 'sent' });
-                    }
-                    break;
-                
-                case 'send_email':
-                    updateMessage(aiMessageId, { text: `I've prepared an email to ${args.recipient} with the subject "${args.subject}". Would you like to open it in your email client?`, requiresAction: 'open_mailto', actionData: { mailtoUrl: `mailto:${args.recipient}?subject=${encodeURIComponent(args.subject)}&body=${encodeURIComponent(args.body)}` }, status: 'sent' });
-                    break;
-
-                // Developer Sandbox tools
+                    updatedMessage.text = "Starting autonomous workflow...";
+                    updatedMessage.workflow = { goal: args.goal, plan: [], steps: [], status: 'running', finalContent: null };
+                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
+                    await runWorkflow(args.goal, messageId);
+                    return; // Return early as runWorkflow handles its own message updates
+                // --- Developer Sandbox Tools ---
                 case 'list_files':
-                    updateMessage(aiMessageId, { text: 'STATUS: Listing files...' });
-                    const fileList = sessionFiles.map(f => f.name).join('\n') || "No files in session.";
-                    updateMessage(aiMessageId, { text: fileList, segments: parseMarkdown(fileList), status: 'sent' });
+                    const fileList = sessionFiles.length > 0 ? sessionFiles.map(f => f.name).join('\n') : "No files in session.";
+                    updatedMessage.text = `Current files:\n${fileList}`;
                     break;
                 case 'read_file':
-                    updateMessage(aiMessageId, { text: `STATUS: Reading file ${args.filename}...` });
                     const fileToRead = sessionFiles.find(f => f.name === args.filename);
-                    const fileContent = fileToRead ? `Content of ${args.filename}:\n\n${fileToRead.content}` : `Error: File '${args.filename}' not found.`;
-                    updateMessage(aiMessageId, { text: fileContent, segments: parseMarkdown(fileContent), status: 'sent' });
+                    updatedMessage.text = fileToRead ? `Content of ${args.filename}:\n\n${fileToRead.content}` : `Error: File not found: ${args.filename}`;
                     break;
                 case 'write_file':
-                    updateMessage(aiMessageId, { text: `STATUS: Writing to file ${args.filename}...` });
-                    const newFile: VirtualFile = { name: args.filename, content: args.content };
-                    const existingIndex = sessionFiles.findIndex(f => f.name === args.filename);
-                    let newFiles = [...sessionFiles];
-                    if (existingIndex > -1) {
-                        newFiles[existingIndex] = newFile;
-                    } else {
-                        newFiles.push(newFile);
-                    }
-                    setSessionFiles(newFiles);
-                    const writeSuccessMsg = `Successfully wrote content to ${args.filename}.`;
-                    updateMessage(aiMessageId, { text: writeSuccessMsg, segments: parseMarkdown(writeSuccessMsg), status: 'sent' });
+                    setSessionFiles(prev => {
+                        const existingIndex = prev.findIndex(f => f.name === args.filename);
+                        const newFile = { name: args.filename, content: args.content };
+                        if (existingIndex > -1) {
+                            const updatedFiles = [...prev];
+                            updatedFiles[existingIndex] = newFile;
+                            return updatedFiles;
+                        }
+                        return [...prev, newFile];
+                    });
+                    updatedMessage.text = `Successfully wrote to ${args.filename}.`;
                     break;
                 case 'execute_python_code':
-                    updateMessage(aiMessageId, { text: 'STATUS: Executing Python code...' });
                     const output = await executePythonCode(args.code, sessionFiles);
-                    setCodeHistory(prev => [{ id: Date.now().toString(), code: args.code, timestamp: new Date() }, ...prev]);
-                    updateMessage(aiMessageId, { codeExecutionResult: { code: args.code, output }, text: '', status: 'sent' });
+                    updatedMessage.codeExecutionResult = { code: args.code, output };
+                    updatedMessage.text = 'Python code executed.';
+                    // Add to history
+                    setCodeHistory(prev => [{ id: `code-${Date.now()}`, code: args.code, timestamp: new Date() }, ...prev]);
                     break;
+                 case 'create_interactive_chart':
+                    updatedMessage.interactiveChartData = args.chart_config;
+                    updatedMessage.text = 'Here is the interactive chart you requested.';
+                    break;
+                default:
+                    updatedMessage = { text: `Unknown tool: ${tool_call}` };
             }
-        } catch (error) {
-            console.error("Tool call execution error:", error);
-            updateMessage(aiMessageId, { text: "Sorry, I encountered an error while trying to use my tools.", status: 'sent', segments: parseMarkdown("Sorry, I encountered an error while trying to use my tools.") });
-        } finally {
-            setIsLoading(false);
-            setCurrentActivity(null);
+        } catch (e) {
+            console.error(`Error handling tool ${tool_call}:`, e);
+            updatedMessage = { text: `Sorry, there was an error using the tool: ${tool_call}.` };
         }
-    }, [lastActiveImage, sessionFiles, handleWorkflowToolCall, executeConfirmedWorkflow, attachments]);
 
-    const handleSendMessage = useCallback(async (message: string, files: FileAttachment[]) => {
-        if (isLoading) return;
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
+    };
 
-        isCancelledRef.current = false;
-        setIsLoading(true);
-        setCurrentActivity('chat');
-
-        const newUserMessage: Message = {
-            id: Date.now().toString(),
-            text: message,
-            sender: 'user',
-            timestamp: new Date(),
-            status: 'sent',
-            attachments: files,
+    const runWorkflow = async (goal: string, messageId: string) => {
+        let currentWorkflow: Workflow;
+        
+        // Helper to update the message state
+        const updateWorkflowState = (updater: (wf: Workflow) => Workflow) => {
+            setMessages(prev => {
+                return prev.map(m => {
+                    if (m.id === messageId && m.workflow) {
+                        const newWorkflow = updater(m.workflow);
+                        currentWorkflow = newWorkflow; // Keep local copy in sync
+                        return { ...m, workflow: newWorkflow };
+                    }
+                    return m;
+                });
+            });
         };
-        setMessages(prev => [...prev, newUserMessage]);
         
-        const imageAttachments = files.filter(f => f.mimeType.startsWith('image/'));
-        if (imageAttachments.length > 0) {
-            setLastActiveImage(imageAttachments[imageAttachments.length - 1]);
+        // 1. Generate Plan
+        updateWorkflowState(wf => ({...wf, status: 'running'}));
+        const planResult = await generatePlan(goal);
+        
+        if ('error' in planResult) {
+            updateWorkflowState(wf => ({ ...wf, status: 'error', finalContent: planResult.error }));
+            return;
         }
+
+        updateWorkflowState(wf => ({
+            ...wf,
+            plan: planResult.plan,
+            steps: planResult.plan.map(summary => ({ summary, status: 'pending' })),
+        }));
         
-        // This is a placeholder for a more robust location service
-        const location = null; 
-
-        try {
-            const { stream, historyWithUserMessage } = await streamMessageToChat(
-                history,
-                message,
-                files,
-                location,
-                userSettings,
-                undefined,
-                currentPersona?.systemInstruction || userSettings.customInstructions,
-                isAgentModeEnabled
-            );
-
-            setHistory(historyWithUserMessage);
-            let combinedText = '';
-            const aiMessageId = (Date.now() + 1).toString();
+        // 2. Execute Steps
+        for (let i = 0; i < 10; i++) { // Max 10 steps to prevent infinite loops
+            const completedSteps = messages.find(m => m.id === messageId)?.workflow?.steps.filter(s => s.status === 'completed') || [];
             
-            setMessages(prev => [...prev, {
-                id: aiMessageId,
-                text: '',
-                sender: 'ai',
-                timestamp: new Date(),
-                status: 'streaming',
-                segments: [],
-            }]);
-
-            let lastChunk: GenerateContentResponse | null = null;
-            for await (const chunk of stream) {
-                if (isCancelledRef.current) break;
-                lastChunk = chunk;
-
-                const chunkText = chunk.text;
-                if (chunkText) {
-                    combinedText += chunkText;
-                    setMessages(prev => prev.map(m => m.id === aiMessageId
-                        ? { ...m, text: combinedText, segments: parseMarkdown(combinedText) }
-                        : m
-                    ));
-                }
+            // Set current step to 'running'
+             updateWorkflowState(wf => ({
+                ...wf,
+                steps: wf.steps.map((s, idx) => completedSteps.length === idx ? { ...s, status: 'running' } : s)
+            }));
+            
+            const nextStepResult = await runWorkflowStep(goal, currentWorkflow.plan, completedSteps);
+            
+            if ('error' in nextStepResult) {
+                 updateWorkflowState(wf => ({ ...wf, status: 'error', finalContent: nextStepResult.error }));
+                break;
             }
             
-            if (isCancelledRef.current) {
-                setMessages(prev => prev.map(m => m.id === aiMessageId
-                    ? { ...m, status: 'sent', text: combinedText + "\n\nGeneration cancelled." }
-                    : m
-                ));
-                setIsLoading(false);
-                setCurrentActivity(null);
+            const { step_summary, tool_call } = nextStepResult;
+            
+            updateWorkflowState(wf => ({
+                ...wf,
+                steps: wf.steps.map((s, idx) => completedSteps.length === idx ? { ...s, summary: step_summary, tool_call } : s)
+            }));
+            
+             if (tool_call.name === 'finish') {
+                updateWorkflowState(wf => ({
+                    ...wf,
+                    status: 'completed',
+                    finalContent: tool_call.args.final_content,
+                    steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'completed' } : s)
+                }));
+                break;
+            }
+             if (tool_call.name === 'request_user_approval') {
+                updateWorkflowState(wf => ({
+                    ...wf,
+                    status: 'paused_for_approval',
+                    steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'paused_for_approval' } : s)
+                }));
+                // Pause execution and wait for user input
                 return;
             }
 
-            const groundingChunks = lastChunk?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-            const sources: Source[] = groundingChunks.reduce((acc: Source[], chunk: GroundingChunk) => {
-                if (chunk.web?.uri && chunk.web.title) {
-                    acc.push({ uri: chunk.web.uri, title: chunk.web.title, type: 'web' });
-                }
-                if (chunk.maps?.uri && chunk.maps.title) {
-                    acc.push({ uri: chunk.maps.uri, title: chunk.maps.title, type: 'map' });
-                }
-                return acc;
-            }, []);
-            
-            let finalHistory = [...historyWithUserMessage, { role: 'model', parts: [{ text: combinedText }] }];
-            setHistory(finalHistory);
-            
-             // Check for tool call
+            // Execute the tool
+            let tool_output: StructuredToolOutput = null;
             try {
-                const toolCallMatch = combinedText.match(/\{"tool_call":\s*".*?"\s*(,.*)?\}/s);
-                if (toolCallMatch) {
-                    const toolCallObject = JSON.parse(toolCallMatch[0]);
-                    handleToolCall(aiMessageId, toolCallObject);
-                    return; // Stop further processing as tool call will handle the rest
+                switch(tool_call.name) {
+                    case 'search_and_summarize':
+                        const searchRes = await performGoogleSearch(tool_call.args.query);
+                        const summary = await analyzeBrowsedContent(searchRes.text || '', `Summarize the key findings related to the query: "${tool_call.args.query}"`);
+                        tool_output = { type: 'text', content: summary };
+                        break;
+                    case 'write_file':
+                         setSessionFiles(prev => {
+                            const existingIndex = prev.findIndex(f => f.name === tool_call.args.filename);
+                            const newFile = { name: tool_call.args.filename, content: tool_call.args.content };
+                            if (existingIndex > -1) {
+                                const updatedFiles = [...prev];
+                                updatedFiles[existingIndex] = newFile;
+                                return updatedFiles;
+                            }
+                            return [...prev, newFile];
+                        });
+                        tool_output = { type: 'text', content: `Wrote ${tool_call.args.content.length} characters to ${tool_call.args.filename}` };
+                        break;
+                     case 'read_file':
+                        const fileContent = sessionFiles.find(f => f.name === tool_call.args.filename)?.content || `File not found: ${tool_call.args.filename}`;
+                        tool_output = { type: 'text', content: fileContent };
+                        break;
+                     case 'list_files':
+                        const files = sessionFiles.map(f => f.name).join('\n');
+                        tool_output = { type: 'text', content: files || 'No files in session.' };
+                        break;
+                    // TODO: Add cases for PPT, Word, Excel which would generate the file and return a structured output
                 }
             } catch (e) {
-                // Not a valid tool call, treat as regular text
+                 updateWorkflowState(wf => ({
+                    ...wf, status: 'error', finalContent: `Error executing tool: ${tool_call.name}`,
+                    steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'error' } : s)
+                 }));
+                break;
             }
             
-            setMessages(prev => prev.map(m => m.id === aiMessageId
-                ? { ...m, status: 'sent', text: combinedText, segments: parseMarkdown(combinedText), sources }
-                : m
-            ));
-
-        } catch (error) {
-            console.error("Error sending message:", error);
-            const errorMessage: Message = {
-                id: (Date.now() + 1).toString(),
-                text: "Sorry, I encountered an error. Please try again.",
-                sender: 'ai',
-                timestamp: new Date(),
-            };
-            setMessages(prev => [...prev, errorMessage]);
-        } finally {
-            setIsLoading(false);
-            setCurrentActivity(null);
+            updateWorkflowState(wf => ({
+                ...wf,
+                steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'completed', tool_output } : s)
+            }));
         }
-
-    }, [isLoading, history, userSettings, currentPersona, isAgentModeEnabled, handleToolCall]);
-
-    const handleQuickAction = (prompt: string) => {
-        setInput(prompt);
-        textareaRef.current?.focus();
-    };
-
-    const handleCancel = () => {
-        isCancelledRef.current = true;
-    };
-
-    const handleNewChat = () => {
-        setMessages([]);
-        setHistory([]);
-        setAttachments([]);
-        setInput('');
-        setCurrentPersona(null);
-        setIsAgentModeEnabled(false);
-        setSessionFiles([]);
     };
     
-    const handleSaveSettings = (newSettings: Partial<UserProfile>) => {
-        setUserSettings(prev => ({...prev, ...newSettings}));
-        if(authUserProfile) {
-            updateCurrentUser(newSettings);
+    const handleApproveWorkflow = (messageId: string) => {
+        setMessages(prev => prev.map(m => {
+            if (m.id === messageId && m.workflow) {
+                // Fix: Explicitly type the returned object in the map function to WorkflowStep to avoid type inference issues.
+                const newSteps = m.workflow.steps.map((s): WorkflowStep => 
+                    s.status === 'paused_for_approval' ? { ...s, status: 'completed', tool_output: { type: 'text', content: 'User approved.' } } : s
+                );
+                return { ...m, workflow: { ...m.workflow, status: 'running', steps: newSteps } };
+            }
+            return m;
+        }));
+        // Find the goal and resume the workflow
+        const message = messages.find(m => m.id === messageId);
+        if (message && message.workflow) {
+            runWorkflow(message.workflow.goal, messageId);
         }
-        setIsSettingsOpen(false);
+    };
+    
+    const handleDenyWorkflow = (messageId: string) => {
+        setMessages(prev => prev.map(m => {
+            if (m.id === messageId && m.workflow) {
+                // Fix: Explicitly type the returned object in the map function to WorkflowStep to avoid type inference issues.
+                 const newSteps = m.workflow.steps.map((s): WorkflowStep =>
+                    s.status === 'paused_for_approval' ? { ...s, status: 'denied' } : s
+                );
+                return { ...m, workflow: { ...m.workflow, status: 'denied', finalContent: 'Workflow denied by user.', steps: newSteps } };
+            }
+            return m;
+        }));
+    };
+
+    const handleSaveSettings = (settings: Partial<UserProfile>) => {
+        if (userProfile) {
+            updateCurrentUser(settings);
+            // Optionally refetch or update persona if custom instructions changed
+            if (activePersona.name === 'AikonAI' && settings.customInstructions) {
+                setActivePersona(prev => ({...prev, systemInstruction: aikonPersonaInstruction + '\n\n' + settings.customInstructions}));
+            }
+        }
+        setIsSettingsModalOpen(false);
     };
 
     const handleDeleteAllChats = () => {
-       handleNewChat();
-       setIsSettingsOpen(false);
+        setMessages([]);
+        setChatHistory([]);
+        setIsSettingsModalOpen(false);
+    };
+    
+    const saveCustomPersona = (persona: Persona) => {
+        let updatedPersonas;
+        const existingIndex = customPersonas.findIndex(p => p.name === persona.name);
+        if (existingIndex > -1) {
+            updatedPersonas = [...customPersonas];
+            updatedPersonas[existingIndex] = persona;
+        } else {
+            updatedPersonas = [...customPersonas, persona];
+        }
+        setCustomPersonas(updatedPersonas);
+        localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(updatedPersonas));
     };
 
-    const handleSavePersona = (persona: Persona, originalName?: string) => {
-        setAvailablePersonas(prev => {
-            const newPersonas = originalName
-                ? prev.map(p => p.name === originalName ? { ...persona, name: originalName } : p) // If editing, replace
-                : [...prev, persona]; // If new, add
-            
-            const customPersonas = newPersonas.filter(p => p.isCustom);
-            localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(customPersonas));
-            return newPersonas;
-        });
-        setIsCustomPersonaModalOpen(false);
-        setEditingPersona(null);
-        // If the edited persona was the current one, update it
-        if (currentPersona && currentPersona.name === originalName) {
-            setCurrentPersona(persona);
+    const deleteCustomPersona = (personaName: string) => {
+        const updatedPersonas = customPersonas.filter(p => p.name !== personaName);
+        setCustomPersonas(updatedPersonas);
+        localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(updatedPersonas));
+        // If the deleted persona was active, revert to default
+        if (activePersona.name === personaName) {
+            setActivePersona({ name: 'AikonAI', icon: '🤖', description: 'Default Assistant', systemInstruction: aikonPersonaInstruction });
         }
     };
     
-    const handleDeletePersona = (name: string) => {
-        if (currentPersona?.name === name) {
-            setCurrentPersona(null);
-        }
-        setAvailablePersonas(prev => {
-            const newPersonas = prev.filter(p => p.name !== name);
-            const customPersonas = newPersonas.filter(p => p.isCustom);
-            localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(customPersonas));
-            return newPersonas;
-        });
-    }
-
-    const handleEditPersona = (persona: Persona) => {
-        setEditingPersona(persona);
-        setIsCustomPersonaModalOpen(true);
-        setIsPersonaMenuOpen(false);
+    const toggleTheme = () => {
+        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     };
-
-    const handleDownloadGeneratedFile = (data: PresentationData | WordData | ExcelData, type: string, filename: string) => {
-        if (!data) return;
-        switch(type) {
-            case 'pptx':
-                createPptxFile(data as PresentationData, filename.replace('.pptx', ''));
-                break;
-            case 'docx':
-                createDocxFile(data as WordData);
-                break;
-            case 'xlsx':
-                 createXlsxFile(data as ExcelData);
-                break;
-        }
-    }
     
-    const downloadVirtualFile = (file: VirtualFile) => {
-        const blob = new Blob([file.content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
-    const openFileInCanvas = (filename: string) => {
-        const file = sessionFiles.find(f => f.name === filename);
-        if (file) {
-            setCanvasFiles({ [file.name]: file.content });
-            setIsCanvasVisible(true);
-        }
-    };
-
-    const rerunCode = (code: string) => {
-        const fakeToolCall = { tool_call: 'execute_python_code', code };
-        const aiMessageId = (Date.now() + 1).toString();
+    const startLiveConversation = async () => {
+        if (isLive) return;
         
-        setMessages(prev => [...prev, {
-            id: aiMessageId,
-            text: '', // This will be replaced by the tool call handler
-            sender: 'ai',
-            timestamp: new Date(),
-        }]);
+        setIsLive(true);
+        setLiveStatus('connecting');
 
-        handleToolCall(aiMessageId, fakeToolCall);
-    };
-    
-     const handleStartLive = async () => {
         try {
-            setLiveConnectionState('connecting');
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
+            if (!inputAudioContextRef.current) {
+                inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            }
+            if (!outputAudioContextRef.current) {
+                outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaStreamRef.current = stream;
 
-            audioContextRefs.current.input = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-            audioContextRefs.current.output = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-            nextStartTimeRef.current = 0;
-
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             sessionPromiseRef.current = ai.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
                 callbacks: {
                     onopen: () => {
-                        setLiveConnectionState('connected');
-                        const source = audioContextRefs.current.input!.createMediaStreamSource(stream);
-                        const scriptProcessor = audioContextRefs.current.input!.createScriptProcessor(4096, 1, 1);
-                        audioContextRefs.current.scriptProcessor = scriptProcessor;
-
+                        setLiveStatus('connected');
+                        const source = inputAudioContextRef.current.createMediaStreamSource(stream);
+                        const scriptProcessor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
+                        
                         scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
                             const pcmBlob = createBlob(inputData);
@@ -2175,254 +1479,431 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                 session.sendRealtimeInput({ media: pcmBlob });
                             });
                         };
+                        
                         source.connect(scriptProcessor);
-                        scriptProcessor.connect(audioContextRefs.current.input!.destination);
+                        scriptProcessor.connect(inputAudioContextRef.current.destination);
                     },
                     onmessage: async (message: LiveServerMessage) => {
-                        const base64EncodedAudioString = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
-                        if (base64EncodedAudioString && audioContextRefs.current.output) {
-                            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, audioContextRefs.current.output.currentTime);
-                            const audioBuffer = await decodeAudioData(decode(base64EncodedAudioString), audioContextRefs.current.output, 24000, 1);
-                            const source = audioContextRefs.current.output.createBufferSource();
+                        const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData.data;
+                        if (base64Audio && outputAudioContextRef.current) {
+                            nextStartTime = Math.max(nextStartTime, outputAudioContextRef.current.currentTime);
+                            const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContextRef.current, 24000, 1);
+                            
+                            const source = outputAudioContextRef.current.createBufferSource();
                             source.buffer = audioBuffer;
-                            source.connect(audioContextRefs.current.output.destination);
-                            source.addEventListener('ended', () => { audioContextRefs.current.sources.delete(source); });
-                            source.start(nextStartTimeRef.current);
-                            nextStartTimeRef.current += audioBuffer.duration;
-                            audioContextRefs.current.sources.add(source);
+                            source.connect(outputAudioContextRef.current.destination);
+                            
+                            source.addEventListener('ended', () => { audioSourcesRef.current.delete(source); });
+                            
+                            source.start(nextStartTime);
+                            nextStartTime += audioBuffer.duration;
+                            audioSourcesRef.current.add(source);
+                        }
+                        if (message.serverContent?.interrupted) {
+                             for (const source of audioSourcesRef.current.values()) {
+                                source.stop();
+                            }
+                            audioSourcesRef.current.clear();
+                            nextStartTime = 0;
                         }
                     },
                     onerror: (e: ErrorEvent) => {
-                        console.error('Live session error:', e);
-                        setLiveConnectionState('error');
+                        console.error("Live session error:", e);
+                        setLiveStatus('error');
+                        setIsLive(false);
                     },
                     onclose: (e: CloseEvent) => {
-                        handleDisconnectLive();
+                        setIsLive(false);
+                        setLiveStatus('idle');
+                         // Clean up resources
+                        stream.getTracks().forEach(track => track.stop());
                     },
                 },
                 config: {
                     responseModalities: [Modality.AUDIO],
                     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' }}},
-                    systemInstruction: aikonPersonaInstruction,
+                    systemInstruction: activePersona.systemInstruction,
                 },
             });
 
-        } catch (error) {
-            console.error('Failed to start live conversation:', error);
-            setLiveConnectionState('error');
+        } catch (err) {
+            console.error("Failed to start live conversation:", err);
+            setLiveStatus('error');
+            setIsLive(false);
         }
     };
     
-    const handleDisconnectLive = () => {
+    const stopLiveConversation = () => {
         sessionPromiseRef.current?.then(session => session.close());
-        mediaStreamRef.current?.getTracks().forEach(track => track.stop());
-        audioContextRefs.current.scriptProcessor?.disconnect();
-        audioContextRefs.current.input?.close();
-        audioContextRefs.current.output?.close();
-
-        sessionPromiseRef.current = null;
-        mediaStreamRef.current = null;
-        audioContextRefs.current = { input: null, output: null, scriptProcessor: null, sources: new Set() };
-        
-        setLiveConnectionState('disconnected');
+        setIsLive(false);
     };
-
-
-    const quickActionPills = [
-        { text: 'Write a poem about the monsoon', icon: '🌧️', disabled: isLoading },
-        { text: 'Explain quantum computing', icon: '🔬', disabled: isLoading },
-        { text: 'Plan a 3-day trip to Goa', icon: '✈️', disabled: isLoading },
-        { text: 'Help me debug my Python code', icon: '🐛', disabled: isLoading || !isAgentModeEnabled },
-        { text: 'Summarize a news article', icon: '📰', disabled: isLoading },
-        { text: 'Start live conversation', icon: '🎙️', disabled: isLoading, onClick: handleStartLive },
-    ];
-    
-    const filteredPersonas = availablePersonas.filter(p => 
-        p.name.toLowerCase().includes(personaSearch.toLowerCase()) || 
-        p.description.toLowerCase().includes(personaSearch.toLowerCase())
-    );
 
     return (
         <div className="chat-page-container">
+            {/* Header */}
             <header className="chat-header">
-                <a href="#" onClick={() => navigateTo('home')} className="flex items-center gap-2">
-                    <img src="/short_logo.jpeg" alt="AikonAI Logo" className="chat-header-logo" />
-                    <span className="font-bold text-lg hidden sm:inline">AikonAI</span>
-                </a>
-                <div className="chat-header-actions">
-                     <button onClick={handleNewChat} className="hidden sm:block">New Chat</button>
-                    <button onClick={() => setIsSettingsOpen(true)} className="hidden sm:block">Settings</button>
-                    {isAgentModeEnabled && <SessionFileManager files={sessionFiles} onOpenFile={openFileInCanvas} onDownloadFile={downloadVirtualFile} />}
-                    {isAgentModeEnabled && (
-                        <motion.button onClick={() => setIsCodeHistoryOpen(true)} title="Code History" className="theme-toggle-button" whileTap={{scale:0.9}} whileHover={{scale:1.1}}>
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </motion.button>
-                    )}
-                    <motion.button onClick={toggleTheme} title="Toggle theme" className="theme-toggle-button" whileTap={{scale:0.9}} whileHover={{scale:1.1}}>
+                <img src="/short_logo.jpeg" alt="AikonAI Logo" className="chat-header-logo" />
+                 <div className="chat-header-actions">
+                    {isAgentMode && <SessionFileManager files={sessionFiles} onOpenCodeCanvas={() => setIsCodeCanvasVisible(true)} />}
+                    <AgentModeToggle isEnabled={isAgentMode} onToggle={setIsAgentMode} />
+                    <button className="theme-toggle-button" onClick={toggleTheme} aria-label="Toggle theme">
                         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-                    </motion.button>
+                    </button>
+                    <button onClick={() => setIsSettingsModalOpen(true)}>Settings</button>
+                    <button onClick={logout} className="primary">Log Out</button>
                 </div>
             </header>
-
-            <AnimatePresence>
-                {viewingImage && <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />}
-                {liveConnectionState !== 'disconnected' && <LiveConversationOverlay connectionState={liveConnectionState} onDisconnect={handleDisconnectLive} />}
-                {isSettingsOpen && <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} profile={userSettings} onSave={handleSaveSettings} onDeleteAllChats={handleDeleteAllChats} />}
-                {isCustomPersonaModalOpen && <CustomPersonaModal onClose={() => {setIsCustomPersonaModalOpen(false); setEditingPersona(null);}} onSave={handleSavePersona} personaToEdit={editingPersona} />}
-                 {isCodeHistoryOpen && <CodeHistoryPanel history={codeHistory} onRerun={rerunCode} onClose={() => setIsCodeHistoryOpen(false)} />}
-            </AnimatePresence>
-
-            {isCanvasVisible && <CodeCanvas files={canvasFiles} isVisible={isCanvasVisible} onClose={() => setIsCanvasVisible(false)} />}
-
-            {messages.length === 0 ? (
-                <div className="chat-welcome-screen">
-                    <img src="/short_logo.jpeg" alt="AikonAI Logo" className="welcome-logo" />
-                    <h1 className="welcome-title">{welcomeMessage}</h1>
-                     <div className="welcome-actions">
-                        {quickActionPills.map(pill => (
-                            <motion.button 
-                                key={pill.text}
-                                className="action-pill" 
-                                onClick={pill.onClick ? pill.onClick : () => handleQuickAction(pill.text)} 
-                                disabled={pill.disabled}
-                                whileHover={{ scale: !pill.disabled ? 1.05 : 1 }}
-                                whileTap={{ scale: !pill.disabled ? 0.95 : 1 }}
-                            >
-                                <span className="text-xl mr-2">{pill.icon}</span>
-                                <span>{pill.text}</span>
-                            </motion.button>
-                        ))}
-                    </div>
-                </div>
-            ) : (
-                <div className="message-log-container" ref={chatWindowRef}>
-                    {messages.map((msg) => (
+            
+            {/* Message Log */}
+            <div ref={messageLogRef} className="message-log-container">
+                {messages.length === 0 ? (
+                    <WelcomeScreen onActionClick={handleSendMessage} isAgentMode={isAgentMode} />
+                ) : (
+                    messages.map((msg, index) => (
                         <MessageLogItem 
                             key={msg.id} 
                             message={msg} 
-                            onApprove={(stepIndex) => {}} // Placeholder
-                            onDeny={(stepIndex) => {}} // Placeholder
-                            onViewImage={setViewingImage}
-                            userProfile={userSettings as UserProfile}
-                            onDownloadGeneratedFile={handleDownloadGeneratedFile}
-                            onConfirmWorkflow={handleConfirmWorkflow}
-                            onCancelWorkflow={handleCancelWorkflow}
+                            isLast={index === messages.length - 1} 
+                            userProfile={userProfile}
+                            onApproveWorkflow={handleApproveWorkflow}
+                            onDenyWorkflow={handleDenyWorkflow}
                             theme={theme}
                         />
-                    ))}
-                    {isLoading && <TypingIndicator activity={currentActivity} persona={currentPersona} />}
-                    <div ref={bottomOfChatRef} />
-                </div>
-            )}
-            
-            {messages.length > 0 && (
-                 <div className="chat-actions-bar">
-                    <div className="chat-actions-inner">
-                        <div className="action-pill agent-toggle">
-                            <span>Agent Mode</span>
-                            <button
-                                className={`toggle-switch ${isAgentModeEnabled ? 'on' : ''}`}
-                                onClick={() => setIsAgentModeEnabled(!isAgentModeEnabled)}
-                                aria-label="Toggle Agent Mode"
-                            >
-                                <motion.div className="toggle-thumb" layout transition={{ type: "spring", stiffness: 700, damping: 30 }} />
-                            </button>
-                        </div>
-                        <div className="persona-menu-container" ref={personaMenuRef}>
-                            {currentPersona ? (
-                                 <motion.div layoutId="persona-pill" className="active-persona-indicator">
-                                    <span className="text-xl">{currentPersona.icon}</span>
-                                    <span>{currentPersona.name}</span>
-                                    <button onClick={() => setCurrentPersona(null)} title="Clear persona">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                </motion.div>
-                            ) : (
-                                <motion.button layoutId="persona-pill" className="action-pill" onClick={() => setIsPersonaMenuOpen(prev => !prev)}>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                    Select Persona
-                                </motion.button>
-                            )}
-                            <AnimatePresence>
-                                {isPersonaMenuOpen && (
-                                    <motion.div
-                                        className="persona-menu"
-                                        style={{ padding: 0, display: 'flex', flexDirection: 'column' }}
-                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                                    >
-                                        <div className="p-2 border-b border-zinc-700/50 flex-shrink-0">
-                                            <input
-                                                type="text"
-                                                placeholder="Search personas..."
-                                                value={personaSearch}
-                                                onChange={(e) => setPersonaSearch(e.target.value)}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="w-full bg-zinc-800 text-white placeholder-zinc-500 text-sm rounded-md px-3 py-1.5 border border-zinc-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                                            />
-                                        </div>
-                                        <div className="overflow-y-auto p-1">
-                                            {filteredPersonas.length > 0 ? (
-                                                [...filteredPersonas].sort((a,b) => (a.isCustom ? 1 : -1) - (b.isCustom ? 1 : -1) || a.name.localeCompare(b.name)).map(p => (
-                                                    <div key={p.name} className="persona-tooltip-wrapper">
-                                                        <div
-                                                            className={`persona-menu-item ${currentPersona?.name === p.name ? 'selected' : ''}`}
-                                                            onClick={() => { setCurrentPersona(p); setIsPersonaMenuOpen(false); setPersonaSearch(''); }}
-                                                        >
-                                                            <span className="icon">{p.icon}</span>
-                                                            <span>{p.name}</span>
-                                                            {p.isCustom && (
-                                                                <div className="persona-item-actions">
-                                                                    <button className="edit-btn" onClick={(e) => { e.stopPropagation(); handleEditPersona(p); }} title="Edit Persona">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
-                                                                    </button>
-                                                                    <button className="delete-btn" onClick={(e) => { e.stopPropagation(); handleDeletePersona(p.name); }} title="Delete Persona">
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="persona-tooltip">
-                                                            <p>{p.description}</p>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="p-4 text-center text-sm text-zinc-500">No personas found.</div>
-                                            )}
-                                        </div>
-                                        <div className="create-persona-button p-1 flex-shrink-0" style={{marginTop: 0, paddingTop: 0, borderTop: '1px solid #333' }}>
-                                            <div className="persona-menu-item" onClick={() => { setIsCustomPersonaModalOpen(true); setIsPersonaMenuOpen(false); }}>
-                                                 <span className="icon">＋</span>
-                                                <span>Create New Persona</span>
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                    ))
+                )}
+                 {isSending && messages.length > 0 && (
+                     <div className="message-log-item ai">
+                        <div className="message-bubble-wrapper">
+                            <div className="message-avatar ai-avatar">
+                                <img src="/short_logo.jpeg" alt="AikonAI Avatar" />
+                            </div>
+                            <div className="message-content-wrapper">
+                                <TypingIndicator 
+                                    persona={activePersona.name} 
+                                    task={
+                                        messages[messages.length-1].workflow ? 'workflow' :
+                                        messages[messages.length-1].generatedImage ? 'generate_image' : null
+                                    } 
+                                />
+                            </div>
                         </div>
                     </div>
-                 </div>
-            )}
-
-            <div className="chat-composer-section">
-                <ChatComposer
-                    onSendMessage={handleSendMessage}
-                    isLoading={isLoading}
-                    input={input}
-                    setInput={setInput}
-                    attachments={attachments}
-                    setAttachments={setAttachments}
-                    onCancel={handleCancel}
-                    textareaRef={textareaRef}
-                />
+                )}
             </div>
+            
+            {/* Composer */}
+            <div className="chat-actions-bar">
+                <div className="chat-actions-inner">
+                    <PersonaMenu 
+                        isOpen={isPersonaMenuOpen}
+                        setIsOpen={setIsPersonaMenuOpen}
+                        activePersona={activePersona}
+                        setActivePersona={setActivePersona}
+                        personas={[...PERSONAS, ...customPersonas]}
+                        onSavePersona={saveCustomPersona}
+                        onDeletePersona={deleteCustomPersona}
+                    />
+                    {activePersona.name !== 'AikonAI' && <ActivePersonaIndicator persona={activePersona} onClear={() => setActivePersona({ name: 'AikonAI', icon: '🤖', description: 'Default Assistant', systemInstruction: aikonPersonaInstruction })} />}
+                    {isAgentMode && (
+                        <>
+                         <button onClick={() => setCodeHistoryPanelVisible(true)} className="action-pill">
+                            <span>Code History ({codeHistory.length})</span>
+                        </button>
+                        </>
+                    )}
+                </div>
+            </div>
+            <ChatComposer 
+                onSendMessage={handleSendMessage}
+                onStartLiveConversation={startLiveConversation}
+                isSending={isSending} 
+                isAgentModeEnabled={isAgentMode}
+            />
 
+            <AnimatePresence>
+                {isSettingsModalOpen && (
+                    <SettingsModal
+                        isOpen={isSettingsModalOpen}
+                        onClose={() => setIsSettingsModalOpen(false)}
+                        profile={userProfile}
+                        onSave={handleSaveSettings}
+                        onDeleteAllChats={handleDeleteAllChats}
+                    />
+                )}
+                {isCodeCanvasVisible && (
+                     <CodeCanvas 
+                        files={sessionFiles.reduce((acc, file) => ({ ...acc, [file.name]: file.content }), {})} 
+                        isVisible={isCodeCanvasVisible} 
+                        onClose={() => setIsCodeCanvasVisible(false)} 
+                    />
+                )}
+                {codeHistoryPanelVisible && (
+                    <CodeHistoryPanel 
+                        history={codeHistory}
+                        isVisible={codeHistoryPanelVisible}
+                        onClose={() => setCodeHistoryPanelVisible(false)}
+                        onRunCode={(code) => handleSendMessage(code, [])}
+                    />
+                )}
+                {isLive && (
+                    <LiveConversationOverlay 
+                        status={liveStatus} 
+                        onDisconnect={stopLiveConversation} 
+                    />
+                )}
+            </AnimatePresence>
         </div>
     );
 };
 
-// FIX: Added a default export to the component to resolve the import error in App.tsx.
+const Header: React.FC<NavigationProps> = ({ navigateTo }) => {
+    // Basic header, can be expanded
+    return (
+        <header className="chat-header">
+            <img src="/short_logo.jpeg" alt="AikonAI Logo" className="chat-header-logo" />
+            <div className="chat-header-actions">
+                <button onClick={() => navigateTo('home')}>Home</button>
+            </div>
+        </header>
+    );
+};
+
+const PersonaMenu: React.FC<{
+    isOpen: boolean,
+    setIsOpen: (isOpen: boolean) => void,
+    activePersona: Persona,
+    setActivePersona: (persona: Persona) => void,
+    personas: Persona[],
+    onSavePersona: (persona: Persona) => void,
+    onDeletePersona: (name: string) => void,
+}> = ({ isOpen, setIsOpen, activePersona, setActivePersona, personas, onSavePersona, onDeletePersona }) => {
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [isEditing, setIsEditing] = useState<Persona | null>(null);
+
+    // Close menu on outside click
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [setIsOpen]);
+    
+    const handleSelectPersona = (persona: Persona) => {
+        setActivePersona(persona);
+        setIsOpen(false);
+    };
+
+    const handleEdit = (e: React.MouseEvent, persona: Persona) => {
+        e.stopPropagation();
+        setIsEditing(persona);
+    };
+
+    const handleDelete = (e: React.MouseEvent, personaName: string) => {
+        e.stopPropagation();
+        if (window.confirm(`Are you sure you want to delete the "${personaName}" persona?`)) {
+            onDeletePersona(personaName);
+        }
+    };
+    
+    const handleSaveEdit = (editedPersona: Persona) => {
+        onSavePersona(editedPersona);
+        setIsEditing(null);
+    };
+    
+    return (
+        <div className="persona-menu-container" ref={menuRef}>
+            <button className="action-pill" onClick={() => setIsOpen(!isOpen)}>
+                <span className="text-xl">{activePersona.icon}</span>
+                <span>Personas</span>
+            </button>
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div 
+                        className="persona-menu"
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    >
+                         {personas.map(p => (
+                            <div key={p.name} className="persona-tooltip-wrapper">
+                                <div 
+                                    className={`persona-menu-item ${activePersona.name === p.name ? 'selected' : ''}`}
+                                    onClick={() => handleSelectPersona(p)}
+                                >
+                                    <span className="icon">{p.icon}</span>
+                                    <span>{p.name}</span>
+                                    {p.isCustom && (
+                                        <div className="persona-item-actions">
+                                            <button className="edit-btn" onClick={(e) => handleEdit(e, p)}>✏️</button>
+                                            <button className="delete-btn" onClick={(e) => handleDelete(e, p.name)}>🗑️</button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="persona-tooltip">{p.description}</div>
+                            </div>
+                        ))}
+                         <div className="create-persona-button">
+                             <div className="persona-menu-item" onClick={() => setIsEditing({ name: '', icon: '', systemInstruction: '', description: '', isCustom: true })}>
+                                <span className="icon">➕</span>
+                                <span>Create New Persona</span>
+                             </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {isEditing && (
+                <CreatePersonaModal 
+                    persona={isEditing}
+                    onClose={() => setIsEditing(null)}
+                    onSave={handleSaveEdit}
+                />
+            )}
+        </div>
+    );
+};
+
+const CreatePersonaModal: React.FC<{
+    persona: Persona,
+    onClose: () => void,
+    onSave: (persona: Persona) => void
+}> = ({ persona, onClose, onSave }) => {
+    const [formData, setFormData] = useState<Persona>(persona);
+
+    const handleSave = () => {
+        onSave(formData);
+        onClose();
+    };
+    
+    return (
+        <div className="modal-backdrop">
+            <div className="modal-content">
+                <h2>{persona.name ? 'Edit' : 'Create'} Persona</h2>
+                <div className="form-group">
+                    <label>Name</label>
+                    <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} disabled={!!persona.name} />
+                </div>
+                <div className="form-group">
+                    <label>Icon</label>
+                    <input type="text" value={formData.icon} onChange={(e) => setFormData({...formData, icon: e.target.value})} maxLength={2} />
+                </div>
+                <div className="form-group">
+                    <label>Description (for tooltip)</label>
+                    <input type="text" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
+                </div>
+                <div className="form-group">
+                    <label>System Instruction</label>
+                    <textarea value={formData.systemInstruction} onChange={(e) => setFormData({...formData, systemInstruction: e.target.value})} />
+                </div>
+                 <div className="modal-footer">
+                    <button onClick={onClose} className="secondary">Cancel</button>
+                    <button onClick={handleSave} className="primary">Save</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ActivePersonaIndicator: React.FC<{ persona: Persona, onClear: () => void }> = ({ persona, onClear }) => (
+    <div className="active-persona-indicator">
+        <span className="text-xl">{persona.icon}</span>
+        <span className="font-semibold">{persona.name}</span>
+        <button onClick={onClear}>&times;</button>
+    </div>
+);
+
+const AgentModeToggle: React.FC<{ isEnabled: boolean, onToggle: (enabled: boolean) => void }> = ({ isEnabled, onToggle }) => (
+    <div className="action-pill agent-toggle">
+        <span className={`font-semibold text-sm ${isEnabled ? 'text-amber-400' : ''}`}>Agent Mode</span>
+        <button className={`toggle-switch ${isEnabled ? 'on' : ''}`} onClick={() => onToggle(!isEnabled)}>
+            <div className="toggle-thumb"></div>
+        </button>
+    </div>
+);
+
+const SessionFileManager: React.FC<{ files: VirtualFile[], onOpenCodeCanvas: () => void }> = ({ files, onOpenCodeCanvas }) => {
+    if (files.length === 0) return null;
+    return (
+        <div className="action-pill" onClick={onOpenCodeCanvas}>
+            <span>Session Files ({files.length})</span>
+        </div>
+    )
+};
+
+// Fix: Add 'idle' to the status prop type to align with the state variable.
+const LiveConversationOverlay: React.FC<{ status: 'connecting' | 'connected' | 'error' | 'idle', onDisconnect: () => void }> = ({ status, onDisconnect }) => {
+    // Fix: Add 'idle' case to the statusText map.
+    const statusText = {
+        connecting: 'Connecting...',
+        connected: 'Live Conversation Started',
+        error: 'Connection failed. Please try again.',
+        idle: 'Disconnected',
+    }[status];
+
+    return (
+        <motion.div className="live-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="live-content">
+                <div className={`live-orb ${status === 'connected' ? 'connected' : ''}`}>
+                    <div className="live-orb-inner"></div>
+                </div>
+                <p className="live-status">{statusText}</p>
+                <button onClick={onDisconnect} className="live-disconnect-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 8l2-2m0 0l2 2m-2-2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2" /></svg>
+                    Disconnect
+                </button>
+            </div>
+        </motion.div>
+    );
+};
+
+const CodeHistoryPanel: React.FC<{ 
+    history: CodeExecutionHistoryItem[], 
+    isVisible: boolean, 
+    onClose: () => void,
+    onRunCode: (code: string) => void,
+}> = ({ history, isVisible, onClose, onRunCode }) => {
+    return (
+         <AnimatePresence>
+            {isVisible && (
+                <motion.div 
+                    className="code-history-panel"
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                >
+                    <div className="code-history-header">
+                        <h3 className="text-lg font-bold text-amber-400">Code History</h3>
+                        <motion.button whileTap={{scale: 0.9}} onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</motion.button>
+                    </div>
+                    <div className="code-history-list">
+                        {history.length === 0 ? (
+                            <p className="text-gray-500 text-center italic mt-4">No code has been executed in this session.</p>
+                        ) : (
+                            history.map(item => (
+                                <div key={item.id} className="code-history-item">
+                                    <div className="code-history-item-code">
+                                        <CodeBlock language="python" code={item.code} />
+                                    </div>
+                                    <div className="code-history-item-footer">
+                                        <span className="code-history-timestamp">{item.timestamp.toLocaleTimeString()}</span>
+                                        <div className="code-history-actions">
+                                            <button onClick={() => onRunCode(item.code)}>
+                                                <span>▶️</span> Run Again
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    )
+};
+
+
 export default AikonChatPage;

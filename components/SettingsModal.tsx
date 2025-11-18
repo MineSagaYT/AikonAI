@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { motion } from 'framer-motion';
@@ -21,6 +20,23 @@ const SettingsItem: React.FC<{title: string; description?: string; children: Rea
     </div>
 );
 
+const NavItem: React.FC<{
+    tabName: SettingsTab; 
+    icon: React.ReactNode; 
+    children: React.ReactNode; 
+    activeTab: SettingsTab; 
+    onClick: (tabName: SettingsTab) => void;
+}> = ({ tabName, icon, children, activeTab, onClick }) => (
+    <button
+        onClick={() => onClick(tabName)}
+        className={`settings-nav-item ${activeTab === tabName ? 'active' : ''}`}
+    >
+        {icon} <span>{children}</span>
+        {activeTab === tabName && (
+            <motion.div className="active-nav-indicator" layoutId="activeSettingsTab" />
+        )}
+    </button>
+);
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -81,18 +97,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
         }
     }
 
-    const NavItem: React.FC<{tabName: SettingsTab; icon: React.ReactNode; children: React.ReactNode;}> = ({ tabName, icon, children }) => (
-        <button
-            onClick={() => setActiveTab(tabName)}
-            className={`settings-nav-item ${activeTab === tabName ? 'active' : ''}`}
-        >
-            {icon} <span>{children}</span>
-            {activeTab === tabName && (
-                <motion.div className="active-nav-indicator" layoutId="activeSettingsTab" />
-            )}
-        </button>
-    );
-
     return (
         <motion.div 
             className="modal-backdrop" 
@@ -110,8 +114,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             >
                 <nav className="settings-nav">
-                    <NavItem tabName="Personalization" icon={<PersonalizationIcon />}>Personalization</NavItem>
-                    <NavItem tabName="Data Controls" icon={<DataIcon />}>Data</NavItem>
+                    <NavItem 
+                        tabName="Personalization" 
+                        icon={<PersonalizationIcon />} 
+                        activeTab={activeTab} 
+                        onClick={setActiveTab}
+                    >
+                        Personalization
+                    </NavItem>
+                    <NavItem 
+                        tabName="Data Controls" 
+                        icon={<DataIcon />}
+                        activeTab={activeTab} 
+                        onClick={setActiveTab}
+                    >
+                        Data
+                    </NavItem>
                 </nav>
                 <div className="settings-content">
                     {renderContent()}
