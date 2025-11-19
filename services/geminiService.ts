@@ -1,17 +1,80 @@
-import { GoogleGenAI, GenerateContentResponse, Chat, Part, GroundingChunk, GenerateVideosOperation, Content, Modality, Type } from "@google/genai";
-import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile, VirtualFile } from "../types";
+import { GoogleGenAI, GenerateContentResponse, Chat, Part, GroundingChunk, GenerateVideosOperation, Content, Modality, Type, FunctionDeclaration } from "@google/genai";
+import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile, VirtualFile, Task } from "../types";
 
 const defaultModel = 'gemini-2.5-flash';
 const proModel = 'gemini-2.5-pro';
 // User-specified model for video generation
 const veoModel = 'veo-3.1-fast-generate-preview';
 const flashImageModel = 'gemini-2.5-flash-image';
-// Switched to flashImageModel to reduce cost
-// const imagenModel = 'imagen-4.0-generate-001'; 
 const ttsModel = 'gemini-2.5-flash-preview-tts';
 
 const getAiInstance = () => {
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
+// --- LIVE API FUNCTION DECLARATIONS ---
+export const getLiveFunctionDeclarations = (): FunctionDeclaration[] => {
+    return [
+        {
+            name: "generate_image",
+            description: "Generates an image based on a text prompt. Use this when the user asks to 'draw', 'create', or 'make' an image.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    prompt: { type: Type.STRING, description: "Detailed description of the image to generate." }
+                },
+                required: ["prompt"]
+            }
+        },
+        {
+            name: "generate_website",
+            description: "Generates a single-page website (HTML/CSS/JS). Use this when the user asks to 'build a website', 'make a portfolio', 'create a web page', etc.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    topic: { type: Type.STRING, description: "The topic or purpose of the website." },
+                    style: { type: Type.STRING, description: "The visual style (e.g., modern, minimalist, retro)." },
+                    features: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of features to include." }
+                },
+                required: ["topic", "style"]
+            }
+        },
+        {
+            name: "write_python_code",
+            description: "Writes and executes Python code. Use this for math, data analysis, or general coding tasks.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    code: { type: Type.STRING, description: "The Python code to execute." }
+                },
+                required: ["code"]
+            }
+        },
+        {
+            name: "get_weather",
+            description: "Gets the current weather for a specific city.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    city: { type: Type.STRING, description: "The city name." }
+                },
+                required: ["city"]
+            }
+        },
+        {
+            name: "perform_real_world_action",
+            description: "Performs a real-world action on the user's device like calling a phone number, opening a specific website/app (YouTube, Spotify, Maps), or sending an email.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    action: { type: Type.STRING, description: "The action to perform. Values: 'call', 'open_app', 'navigation', 'email'." },
+                    target: { type: Type.STRING, description: "For 'call': The name of the contact (e.g., 'Mom', 'Boss'). For 'open_app': The app name (e.g., 'YouTube', 'Spotify'). For 'navigation': The destination." },
+                    query: { type: Type.STRING, description: "Optional. For 'open_app', this is the search query (e.g., song name, video title). For 'email', this is the subject." }
+                },
+                required: ["action", "target"]
+            }
+        }
+    ];
 };
 
 
@@ -98,7 +161,6 @@ export const browseWebpage = async (url: string, question: string): Promise<stri
     try {
         const ai = getAiInstance();
         // This is a simplified approach. A real implementation would fetch the page content.
-        // For this project, we'll ask the AI to "virtually" browse it based on its knowledge.
         const prompt = `Based on your knowledge of the content at the URL "${url}", please answer the following question: "${question}". If you don't have specific knowledge of this page's content, say so.`;
         const response = await ai.models.generateContent({
             model: defaultModel,
@@ -144,7 +206,7 @@ export const analyzeBrowsedContent = async (content: string, question: string): 
     }
 };
 
-export const executePythonCode = async (code: string, files: VirtualFile[]): Promise<string> => {
+export const executePythonCode = async (code: string, files: VirtualFile[] = []): Promise<string> => {
     // This is a MOCK execution environment.
     // In a real application, this would call a secure backend sandbox.
     console.log("Executing Python code (mock):", code);
@@ -154,7 +216,7 @@ export const executePythonCode = async (code: string, files: VirtualFile[]): Pro
         // Check for plotting
         if (code.includes('matplotlib') || code.includes('plt.show()') || code.includes('plt.savefig(')) {
             // Return a placeholder plot image
-            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37P7d/e//+T+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f0ff27/9v79/9u/vX/+Z/dv79//uf3b+/d/bv/2/v2f27+9//7f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
+            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37/7c/u39+z+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f37/7c/u39+//3P7t/v//c/u39+z+3f3v//d/2b+/d/bv71//uf3b+/f/bn92/v3f27/9v79/9u/vX/+Z/dv79//uf3b+/d/bv71//uf3b+/f/bn92/v3f27/9v77f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
             return `[PLOT_GENERATED]\n${placeholderPlot}`;
         }
 
@@ -223,9 +285,13 @@ For any of the tools below, you MUST ONLY respond with the corresponding JSON ob
    - Use this tool when you need to read the detailed content of a specific URL.
    - **Note on Search:** You have native access to Google Search. You do NOT need a tool for general searching; simply answer the user's question and the system will search for you if needed.
 
-**2. Email:**
-   - **Send Email:** When a user asks to send an email, use this tool. The system will handle authentication. You must extract the recipient's email, a subject line, and the body content from the user's request.
-   - **Format:** \`{"tool_call": "send_email", "recipient": "email@example.com", "subject": "Email Subject", "body": "The content of the email."}\`
+**2. System Actions (Real World):**
+   - **Call / Open App / Navigate:** \`{"tool_call": "perform_real_world_action", "action": "call" | "open_app" | "navigation" | "email", "target": "name/app/location", "query": "optional details"}\`
+   - Use this tool when the user asks to:
+     - "Call [Name]" -> action: "call", target: "[Name]"
+     - "Open YouTube/Spotify and play [Song]" -> action: "open_app", target: "YouTube" | "Spotify", query: "[Song]"
+     - "Navigate to [Location]" -> action: "navigation", target: "[Location]"
+     - "Email [Name] about [Subject]" -> action: "email", target: "[Name]", query: "[Subject]"
 
 **3. Weather:**
    - \`{"tool_call": "get_weather", "city": "City Name"}\`
@@ -309,7 +375,8 @@ export const streamMessageToChat = async (
     
     // Pre-process text-based files to include their content in the prompt
     let fileContentsText = '';
-    const textFiles = files.filter(f => 
+    // Safe filter check
+    const textFiles = (files || []).filter(f => 
         !f.mimeType.startsWith('image/') && 
         !f.mimeType.startsWith('audio/') && 
         !f.mimeType.startsWith('video/')
@@ -330,7 +397,7 @@ export const streamMessageToChat = async (
 
     const parts: Part[] = [{ text: fileContentsText + message }];
 
-    const imageFiles = files.filter(f => f.mimeType.startsWith('image/'));
+    const imageFiles = (files || []).filter(f => f.mimeType.startsWith('image/'));
     if (imageFiles.length > 0) {
         for (const imageFile of imageFiles) {
             parts.push({
@@ -363,6 +430,78 @@ export const streamMessageToChat = async (
 
     const stream = await ai.models.generateContentStream(modelConfig);
     return { stream, historyWithUserMessage };
+};
+
+export const generateProactiveGreeting = async (
+    userProfile: Partial<UserProfile> | null,
+    time: Date,
+    tasks: Task[]
+): Promise<string> => {
+    const systemPrompt = `You are AikonAI, a proactive autonomous agent.
+    Your goal is to initiate the interaction with the user when they open the app.
+    Do NOT wait for a prompt. Analyze the context and offer specific, helpful actions.
+
+    Context:
+    - User: ${userProfile?.displayName || userProfile?.aboutYou || 'User'}
+    - Current Time: ${time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+    - Pending Tasks: ${tasks.length > 0 ? JSON.stringify(tasks.map(t => t.description)) : "None"}
+
+    Guidelines:
+    1. Greet the user warmly based on the time of day.
+    2. If there are pending tasks, remind them of the most important one and ask if they want to work on it.
+    3. If no tasks, suggest a helpful action (e.g., "Shall we design a new website today?", "I can help you research a topic.", or "Draft a new project plan?").
+    4. Be concise, intelligent, and professional.
+    5. Keep it under 50 words.`;
+
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: defaultModel,
+            contents: "Generate proactive greeting.",
+            config: { systemInstruction: systemPrompt }
+        });
+        return response.text || "Hello! I'm ready to help. What's on your mind?";
+    } catch (e) {
+        console.error("Proactive greeting failed:", e);
+        return "Hello! I'm ready to help. What's on your mind?";
+    }
+};
+
+export const generateAwayReport = async (
+    userProfile: Partial<UserProfile> | null,
+    hoursAway: number,
+    tasks: Task[]
+): Promise<string> => {
+    const systemPrompt = `You are AikonAI, an autonomous agent who has been running in the background (simulated) while the user was away.
+    The user has returned after ${hoursAway.toFixed(1)} hours.
+    Your goal is to provide a "While You Were Away" report.
+
+    Context:
+    - User: ${userProfile?.displayName || userProfile?.aboutYou || 'User'}
+    - Time Away: ${hoursAway.toFixed(1)} hours
+    - Pending Tasks: ${tasks.length > 0 ? JSON.stringify(tasks.map(t => t.description)) : "None"}
+
+    Instructions:
+    1. Welcome the user back.
+    2. Claim that you have been monitoring their tasks or the general tech landscape while they were gone.
+    3. If there are pending tasks, creatively suggest you've "prepared some research" or "drafted ideas" for one of them (be imaginative but plausible).
+    4. If no tasks, mention a relevant tech news headline or idea you "found" for them.
+    5. End by asking if they want to see what you've prepared.
+    6. Keep it professional, slightly sci-fi/agentic, and under 60 words.
+    `;
+
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: defaultModel,
+            contents: "Generate away report.",
+            config: { systemInstruction: systemPrompt }
+        });
+        return response.text || "Welcome back! I've been monitoring things while you were away. Ready to resume?";
+    } catch (e) {
+        console.error("Away report failed:", e);
+        return "Welcome back! Ready to pick up where we left off?";
+    }
 };
 
 
@@ -592,7 +731,7 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
                                 properties: {
                                     sheetName: { type: Type.STRING },
                                     headers: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                    rows: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } }
+                                    rows: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } } }
                                 }
                             }
                         }

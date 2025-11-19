@@ -1,8 +1,9 @@
+
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData, CodeExecutionHistoryItem, InteractiveChartData } from '../../types';
-import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction, classifyIntentAndSelectPersona, generateWebsiteCode } from '../../services/geminiService';
+import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction, classifyIntentAndSelectPersona, generateWebsiteCode, getLiveFunctionDeclarations, generateProactiveGreeting, generateAwayReport } from '../../services/geminiService';
 import { fetchWeather } from '../../services/weatherService';
-import { GenerateVideosOperation, Content, GenerateContentResponse, GoogleGenAI, Modality, GroundingChunk, Blob as GenAI_Blob, LiveServerMessage } from '@google/genai';
+import { GenerateVideosOperation, Content, GenerateContentResponse, GoogleGenAI, Modality, GroundingChunk, Blob as GenAI_Blob, LiveServerMessage, FunctionDeclaration } from '@google/genai';
 import { parseMarkdown, renderParagraph, createPptxFile, createDocxFile, createXlsxFile, createPdfFile } from '../../utils/markdown';
 import CodeBlock from '../CodeBlock';
 import CodeCanvas from '../CodeCanvas';
@@ -13,9 +14,9 @@ import LoadingSpinner from '../LoadingSpinner';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import WeatherCard from '../WeatherCard';
 import InteractiveChart from '../InteractiveChart';
+import { getTasks } from '../../services/firebase';
 
 // Add a global type definition for the aistudio window object to avoid TypeScript errors.
-// The `aistudio` property on Window requires a named type `AIStudio` to prevent conflicts with other global declarations.
 declare global {
     interface AIStudio {
         hasSelectedApiKey: () => Promise<boolean>;
@@ -25,6 +26,14 @@ declare global {
         aistudio?: AIStudio;
     }
 }
+
+// Mock Contacts Database for Demo purposes
+const CONTACTS: { [key: string]: string } = {
+    "Mom": "1234567890",
+    "Dad": "0987654321",
+    "Boss": "5550123456",
+    "Emergency": "911"
+};
 
 // Sound effects utility
 const playSound = (src: string, volume: number = 0.5) => {
@@ -37,8 +46,7 @@ const playSound = (src: string, volume: number = 0.5) => {
     }
 };
 
-
-// Audio processing functions (as per @google/genai guidelines)
+// Audio processing functions
 function encode(bytes: Uint8Array) {
   let binary = '';
   const len = bytes.byteLength;
@@ -48,7 +56,6 @@ function encode(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-// From @google/genai docs for decoding audio
 function decode(base64: string) {
     const binaryString = atob(base64);
     const len = binaryString.length;
@@ -78,7 +85,6 @@ async function decodeAudioData(
   return buffer;
 }
 
-
 function createBlob(data: Float32Array): GenAI_Blob {
   const l = data.length;
   const int16 = new Int16Array(l);
@@ -91,145 +97,486 @@ function createBlob(data: Float32Array): GenAI_Blob {
   };
 }
 
-
-// Helper function to create a WAV file from raw PCM data
-function pcmToWav(pcmData: Uint8Array, sampleRate: number, numChannels: number, bitsPerSample: number): Blob {
-    const dataSize = pcmData.length;
-    const buffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(buffer);
-
-    function writeString(view: DataView, offset: number, string: string) {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-        }
-    }
-
-    // RIFF chunk descriptor
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true);
-    writeString(view, 8, 'WAVE');
-    // "fmt " sub-chunk
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true); // 16 for PCM
-    view.setUint16(20, 1, true); // PCM is 1
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true); // byteRate
-    view.setUint16(32, numChannels * (bitsPerSample / 8), true); // blockAlign
-    view.setUint16(34, bitsPerSample, true);
-    // "data" sub-chunk
-    writeString(view, 36, 'data');
-    view.setUint32(40, dataSize, true);
-
-    // Write PCM data
-    for (let i = 0; i < dataSize; i++) {
-        view.setUint8(44 + i, pcmData[i]);
-    }
-    
-    return new Blob([view], { type: 'audio/wav' });
-}
-
 const PERSONAS: Persona[] = [
     {
         name: 'Legal Document Reviewer',
         icon: '📖',
         description: 'Analyzes legal documents for key clauses, risks, and inconsistencies with formal, objective language.',
-        systemInstruction: `You are an expert legal document reviewer specializing in INDIAN law. Your role is to carefully read any legal text provided (such as contracts, agreements, pleadings, statutes, or policies) and provide: 1. **Analysis & Explanation** - Summarize the main points in clear, plain English. - Identify key legal implications, obligations, risks, or ambiguities. - Highlight unusual or concerning provisions that deviate from common practice. 2. **Legal Basis & Citations** - Where applicable, cite relevant sections of **Indian statutes, regulations, or case law**. - Make sure citations are accurate and formatted properly. 3. **Practical Guidance** - Explain how the terms may affect the parties involved. - Suggest clarifications or revisions to strengthen the document or reduce risk. - Provide neutral, fact-based insight (not legal advice specific to an individual’s case). 4. **Output Format** - **Summary:** Brief overview of the document’s purpose and scope. - **Key Issues:** Bullet-point list of important clauses, risks, or ambiguities. - **Legal References:** Cite relevant statutes, regulations, or precedent. - **Recommendations:** Practical suggestions for clarification or improvement. At the end of your message clarify that the user should always advise consulting a licensed attorney before acting on the given information.`
+        systemInstruction: `You are an expert legal document reviewer specializing in INDIAN law. Your role is to carefully read any legal text provided and provide analysis, citations, and practical guidance. Always advise consulting a licensed attorney.`
     },
     {
         name: 'Study Buddy',
         icon: '🎓',
         description: 'Explains complex topics using fun, cartoon-style images like a helpful friend.',
-        systemInstruction: `You are 'Study Buddy', a friendly and fun AI tutor. Your goal is to explain any topic to the user by generating a series of simple, cartoon-style images. You communicate like a friend, using encouraging and easy-to-understand language.
-
-When the user asks you to explain a topic, your primary task is to break it down into key visual concepts and create descriptive prompts for images. Your image prompts MUST specify a 'friendly, simple cartoon style'.
-
-**CRITICAL RULE:** If the user's request can be explained much more effectively with text (like a simple definition, a code snippet, or a math formula), you must first respond with ONLY this exact text: 'This topic could be explained with text much more easily. Do you still want me to use images?'. If the user agrees in their next message, then you will proceed with generating the images.
-
-For all other requests, you MUST respond ONLY with the JSON for the 'create_storyboard' tool call, containing your generated prompts. Do not add any conversational text before or after the JSON tool call.`
+        systemInstruction: `You are 'Study Buddy', a friendly and fun AI tutor. Explain topics by generating simple, cartoon-style images. If a topic is better explained with text, ask the user first. For visual explanations, use the 'create_storyboard' tool.`
     },
     {
         name: 'Writing Assistant',
         icon: '📝',
-        description: 'A supportive assistant to help brainstorm, outline, and improve writing with constructive suggestions.',
-        systemInstruction: `You are an expert writing assistant specialized in enhancing clarity, conciseness, engagement, grammar, style, and flow. Your goal is to make any given text more effective while preserving the original meaning and voice as much as possible. When I provide you with some text, follow these steps exactly: Analyze the text: Read it carefully and identify areas for improvement, such as awkward phrasing, redundancy, weak structure, or opportunities for stronger impact. Rewrite it: Produce a polished, improved version. Aim to make it more readable and compelling without adding or removing key ideas. Summarize changes: After the improved text, provide a concise bullet-point list (3-5 bullets max) explaining your key improvements. Focus on what you changed and why it helps (e.g., "Shortened sentences for better rhythm and readability"). Output format: Start with the improved text Follow with the summary under a heading "## Improvements Summary".`
+        description: 'A supportive assistant to help brainstorm, outline, and improve writing.',
+        systemInstruction: `You are an expert writing assistant. Analyze text for clarity, conciseness, and flow. Rewrite it to be more effective and provide a summary of improvements.`
     },
     {
         name: 'Fitness Advice',
         icon: '🍎',
         description: 'A motivational fitness coach providing safe, evidence-based fitness and nutrition advice.',
-        systemInstruction: `You are an expert fitness coach, nutrition guide, and health educator. Your role is to provide clear, actionable, and safe advice to users who want to improve their fitness, nutrition, and overall health. Be supportive, encouraging, and practical in your guidance. Tailor recommendations to the user’s context (fitness level, goals, preferences, and constraints). Use only verified, evidence-based sources. Cite your sources whenever you provide factual claims, recommendations, or statistics. When giving exercise, nutrition, or wellness advice, always include safety considerations and suggest consulting a qualified professional (such as a physician or certified trainer) for personalized medical guidance. Answer questions across a wide range of fitness topics, including: strength training, cardio, flexibility, recovery, injury prevention, nutrition, supplementation, weight management, and motivation strategies. If the user’s request falls outside safe or science-backed recommendations, politely explain the risks and guide them toward healthier alternatives. Your goal: help the user achieve their fitness goals in a safe, effective, and motivating way while grounding your advice in reliable evidence and proper citations.`
+        systemInstruction: `You are a certified fitness and nutrition coach. Provide personalized workout plans and dietary advice. Always include a disclaimer to consult a doctor before starting any new regimen.`
     },
     {
         name: 'Personal Finance Assistant',
-        icon: '💲',
-        description: 'Provides educational content on budgeting, saving, and general investment principles in a clear, calm tone.',
-        systemInstruction: `You are an expert personal finance assistant. You will be given a spreadsheet containing the user’s budget and financial details. Your role is to: 1. **Interpret the budget** – read and understand the spreadsheet categories (income, expenses, savings, debt, investments, etc.). 2. **Answer finance-related questions** – provide clear, tailored answers that reference the user’s own budget data. 3. **Offer best practices** – give guidance based on sound personal finance principles (e.g., budgeting, saving, debt reduction, emergency funds, investing basics). 4. **Stay practical** – ensure explanations are simple, actionable, and adapted to the user’s context. 5. **Maintain neutrality** – do not make speculative investment recommendations or guarantee outcomes. When the user asks a question, combine insights from their budget with general financial best practices to produce helpful, trustworthy advice.`
+        icon: '💰',
+        description: 'Helps with budgeting, saving strategies, and basic financial literacy.',
+        systemInstruction: `You are a personal finance assistant. Help users create budgets, understand financial concepts, and save money. Do not provide investment advice or specific stock recommendations.`
     },
     {
         name: 'Developer Sandbox',
         icon: '💻',
-        description: 'A powerful code interpreter for running Python, managing files, and performing data analysis.',
-        systemInstruction: `You are 'Developer Sandbox', a powerful AI code interpreter. Your goal is to help users by writing, executing, and debugging Python code.
-- **Environment**: You have a sandboxed Python environment with common libraries like pandas, numpy, and matplotlib. You also have a temporary virtual file system.
-- **Tool Usage**: You MUST use the following tools to interact with the environment. Respond ONLY with the tool's JSON object. Do not add any conversational text.
-  - \`list_files\`: To see files in the current session.
-  - \`read_file\`: To read the content of a file.
-  - \`write_file\`: To create or overwrite a file.
-  - \`execute_python_code\`: To run Python code.
-- **Workflow**:
-  1. Understand the user's goal.
-  2. If necessary, write code to a file using \`write_file\`.
-  3. Execute the code using \`execute_python_code\`.
-  4. Analyze the output and present the final answer to the user, or explain the next step if the task is multi-step.
-- **Plotting**: If asked to create a plot, use matplotlib. The execution environment will capture the plot as an image and return it.
-- **User Interaction**: Be concise. Explain your plan briefly if needed, then use the tools. Present the final result clearly.`
-    },
+        description: 'An environment for coding, file management, and technical problem solving.',
+        systemInstruction: `You are an expert software developer. You can write and execute Python code, manage files, and help with debugging. Use the code execution tool frequently.`
+    }
 ];
 
-const CUSTOM_PERSONAS_STORAGE_KEY = 'aikon-custom-personas';
+// --- SUB-COMPONENTS MOVED OUTSIDE ---
 
-const DownloadIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} {...props}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-    </svg>
-);
+const MessageLogItem: React.FC<{
+    msg: Message;
+    userProfile: UserProfile | null;
+    onCopy: (text: string) => void;
+    onRegenerate: () => void;
+    isLastAiMessage: boolean;
+}> = ({ msg, userProfile, onCopy, onRegenerate, isLastAiMessage }) => {
+    const isUser = msg.sender === 'user';
+    const [showActions, setShowActions] = useState(false);
+    const [copied, setCopied] = useState(false);
 
-const WebIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9V3m0 18a9 9 0 009-9m-9 9a9 9 0 00-9-9" /></svg>);
-const MapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>);
-const ChevronIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>);
-const SunIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>);
-const MoonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>);
-
-
-const SourceDisplay: React.FC<{ sources: Source[] }> = ({ sources }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
-
-    if (!sources || sources.length === 0) return null;
+    const handleCopyClick = () => {
+        onCopy(msg.text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     return (
-        <div className="mt-3 border-t border-gray-700/50 pt-3">
-            <button 
-                onClick={() => setIsExpanded(!isExpanded)} 
-                className={`sources-toggle-button flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-white w-full text-left ${isExpanded ? 'expanded' : ''}`}
-                aria-expanded={isExpanded}
-            >
-                <ChevronIcon />
-                Sources ({sources.length})
-            </button>
-            {isExpanded && (
-                <div className="mt-2 space-y-2 pl-4 animate-fade-in" style={{animationDuration: '0.3s'}}>
-                    {sources.map((source, index) => (
-                        <a
-                            key={index}
-                            href={source.uri}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="source-link flex items-center gap-2 text-xs text-sky-400 hover:text-sky-300 hover:underline"
-                        >
-                            {source.type === 'web' ? <WebIcon /> : <MapIcon />}
-                            <span className="truncate">{source.title}</span>
-                        </a>
+        <motion.div 
+            className={`message-log-item ${isUser ? 'user' : 'ai'}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            onMouseEnter={() => setShowActions(true)}
+            onMouseLeave={() => setShowActions(false)}
+        >
+            <div className="message-bubble-wrapper">
+                {!isUser && (
+                    <div className="message-avatar ai-avatar">
+                         <img src="/short_logo.jpeg" alt="Aikon" />
+                    </div>
+                )}
+                <div className="relative group">
+                    <div className={`message-content-wrapper ${msg.status === 'streaming' ? 'streaming' : ''}`}>
+                        {isUser && msg.attachments && msg.attachments.length > 0 && (
+                             <div className="user-attachments-container mb-3">
+                                {msg.attachments.map((file, idx) => (
+                                    <div key={idx} className="relative">
+                                        {file.mimeType.startsWith('image/') ? (
+                                            <img src={file.base64} alt={file.name} />
+                                        ) : (
+                                            <div className="file-attachment-chip">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M5.625 1.5c-1.036 0-2.014.58-2.528 1.498a.75.75 0 01-1.312-.734C2.72 1.022 4.277.001 6.037.001h1.53c1.76 0 3.316 1.02 4.252 2.263a.75.75 0 01-1.312.734c-.514-.917-1.492-1.498-2.528-1.498h-2.354zM13.5 12.75a.75.75 0 00.75-.75V6a.75.75 0 00-1.5 0v6a.75.75 0 00.75.75z" /><path fillRule="evenodd" d="M13.875 3a.75.75 0 000 1.5h4.5c.414 0 .75.336.75.75v15a.75.75 0 01-.75.75H5.625a.75.75 0 01-.75-.75v-15c0-.414.336-.75.75-.75h4.5a.75.75 0 000-1.5h-4.5A2.25 2.25 0 003.375 5.25v15A2.25 2.25 0 005.625 22.5h13.5A2.25 2.25 0 0021.375 20.25v-15A2.25 2.25 0 0019.125 3h-5.25z" clipRule="evenodd" /></svg>
+                                                <span>{file.name}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                             </div>
+                        )}
+
+                        <div className="message-content">
+                             {msg.generatedImage && (
+                                <div className="mb-4">
+                                    {msg.generatedImage.isLoading ? (
+                                        <div className={`skeleton-loader aspect-${msg.generatedImage.aspectRatio?.replace(':', '-') || '1-1'}`}>
+                                            <span>Generating Image...</span>
+                                        </div>
+                                    ) : msg.generatedImage.url ? (
+                                        <img src={msg.generatedImage.url} alt={msg.generatedImage.prompt} className="rounded-lg w-full max-w-md shadow-lg" />
+                                    ) : null}
+                                </div>
+                            )}
+
+                             {msg.editedImage && (
+                                <div className="mb-4 flex gap-2">
+                                    <div className="w-1/2">
+                                        <p className="text-xs text-gray-500 mb-1">Original</p>
+                                        <img src={msg.editedImage.beforeUrl} alt="Original" className="rounded-lg w-full shadow-md opacity-60" />
+                                    </div>
+                                    <div className="w-1/2">
+                                         <p className="text-xs text-gray-500 mb-1">Edited</p>
+                                         {msg.editedImage.isLoading ? (
+                                            <div className="skeleton-loader aspect-1-1"><span>Editing...</span></div>
+                                         ) : msg.editedImage.afterUrl ? (
+                                            <img src={msg.editedImage.afterUrl} alt="Edited" className="rounded-lg w-full shadow-lg" />
+                                         ) : null}
+                                    </div>
+                                </div>
+                            )}
+
+                            {msg.generatedVideo && (
+                                <div className="mb-4">
+                                    {msg.generatedVideo.status === 'generating' ? (
+                                        <div className="skeleton-loader aspect-16-9"><span>Creating Video... (this may take a moment)</span></div>
+                                    ) : msg.generatedVideo.url ? (
+                                        <video src={msg.generatedVideo.url} controls className="rounded-lg w-full max-w-md shadow-lg" />
+                                    ) : (
+                                         <div className="p-4 bg-red-900/20 text-red-400 rounded-lg text-sm">Video generation failed.</div>
+                                    )}
+                                </div>
+                            )}
+                            
+                            {msg.weatherData && (
+                                <div className="mb-4">
+                                    <WeatherCard data={msg.weatherData} />
+                                </div>
+                            )}
+                            
+                            {msg.storyboardImages && (
+                                <div className="storyboard-grid">
+                                    {msg.storyboardImages.map((panel, idx) => (
+                                        <div key={idx} className="storyboard-panel">
+                                            {panel.url ? (
+                                                 <img src={panel.url} alt={`Panel ${idx + 1}`} />
+                                            ) : (
+                                                <div className="skeleton-loader aspect-1-1 h-full"><span>Panel {idx+1}</span></div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {msg.segments ? (
+                                msg.segments.map((segment, idx) => (
+                                    <React.Fragment key={idx}>
+                                        {segment.type === 'paragraph' ? (
+                                            <div dangerouslySetInnerHTML={{ __html: renderParagraph(segment.content) }} />
+                                        ) : (
+                                            <CodeBlock code={segment.content} language={segment.language} filename={segment.filename} />
+                                        )}
+                                    </React.Fragment>
+                                ))
+                            ) : (
+                                <div dangerouslySetInnerHTML={{ __html: renderParagraph(msg.text) }} />
+                            )}
+
+                            {msg.workflow && (
+                                <div className="mt-4">
+                                    <WorkflowBubble workflow={msg.workflow} />
+                                </div>
+                            )}
+                            
+                            {msg.interactiveChartData && (
+                                <div className="mt-4 bg-white/5 p-2 rounded-xl border border-white/10">
+                                    <InteractiveChart chartData={msg.interactiveChartData} theme="dark" />
+                                </div>
+                            )}
+
+                            {msg.generatedFile && (
+                                <div className="mt-2">
+                                    {msg.generatedFile.type === 'pptx' && <PptPreviewCard fileData={msg.generatedFile} />}
+                                    {(msg.generatedFile.type === 'docx' || msg.generatedFile.type === 'pdf') && (
+                                        <div className="file-generated-output">
+                                             <span>{msg.generatedFile.type?.toUpperCase()}</span>
+                                             <p>Generated: <strong>{msg.generatedFile.filename}</strong></p>
+                                             <button 
+                                                onClick={() => msg.generatedFile?.type === 'docx' ? createDocxFile(msg.generatedFile.data as WordData) : createPdfFile(msg.generatedFile.data as WordData)}
+                                                className="text-xs bg-amber-500 text-black px-2 py-1 rounded font-bold hover:bg-amber-400"
+                                             >
+                                                Download
+                                             </button>
+                                        </div>
+                                    )}
+                                     {msg.generatedFile.type === 'xlsx' && (
+                                        <div className="file-generated-output">
+                                             <span>XLSX</span>
+                                             <p>Generated: <strong>{msg.generatedFile.filename}</strong></p>
+                                             <button 
+                                                onClick={() => createXlsxFile(msg.generatedFile!.data as ExcelData)}
+                                                className="text-xs bg-amber-500 text-black px-2 py-1 rounded font-bold hover:bg-amber-400"
+                                             >
+                                                Download
+                                             </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            
+                             {msg.generatedWebsite && (
+                                <div className="mt-4 bg-[#1e1e1e] rounded-lg border border-gray-700 p-4">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="text-amber-400 font-bold flex items-center gap-2">
+                                            <span className="text-xl">🌐</span> Website Generated
+                                        </h4>
+                                        {msg.generatedWebsite.isLoading ? (
+                                            <span className="text-xs text-gray-400 animate-pulse">Building...</span>
+                                        ) : (
+                                            <span className="text-xs text-green-400">Ready</span>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-300 mb-3">Topic: {msg.generatedWebsite.topic}</p>
+                                    {!msg.generatedWebsite.isLoading && (
+                                        <button 
+                                            className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-semibold text-sm transition-colors"
+                                            onClick={() => {
+                                                // Open preview logic needs to be passed down or handled via context/event
+                                                const event = new CustomEvent('openWebsitePreview', { detail: msg.generatedWebsite });
+                                                window.dispatchEvent(event);
+                                            }}
+                                        >
+                                            Preview & Download
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+
+                            {msg.generatedQRCode && (
+                                <div className="mt-4 qr-code-output">
+                                    <img src={msg.generatedQRCode.dataUrl} alt="QR Code" />
+                                    <p>{msg.generatedQRCode.text}</p>
+                                </div>
+                            )}
+                            
+                             {msg.codeExecutionResult && (
+                                <div className="code-execution-result">
+                                    <div className="code-execution-header">Python Execution Output</div>
+                                    <div className="code-execution-output">
+                                        {msg.codeExecutionResult.output.includes('[PLOT_GENERATED]') ? (
+                                            <img src={msg.codeExecutionResult.output.replace('[PLOT_GENERATED]\n', '')} alt="Generated Plot" />
+                                        ) : (
+                                            msg.codeExecutionResult.output
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {msg.tasks && (
+                                <div className="mt-4">
+                                     {/* Task list display is handled by main page state, this is just a log record */}
+                                     <p className="text-xs text-gray-500 italic">Task list updated.</p>
+                                </div>
+                            )}
+
+                            {msg.sources && msg.sources.length > 0 && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {msg.sources.map((source, idx) => (
+                                        <a key={idx} href={source.uri} target="_blank" rel="noopener noreferrer" className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded-md flex items-center gap-1 transition-colors">
+                                            <span className="opacity-50">{idx + 1}.</span> {source.title}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {msg.audioUrl && (
+                                <div className="mt-2">
+                                    <audio src={msg.audioUrl} controls className="w-full h-8" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Action Buttons (Copy / Regenerate) */}
+                    {!isUser && (
+                        <AnimatePresence>
+                            {showActions && (
+                                <motion.div 
+                                    className="absolute -bottom-6 left-0 flex gap-2"
+                                    initial={{ opacity: 0, y: -5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -5 }}
+                                >
+                                    <button 
+                                        onClick={handleCopyClick}
+                                        className="text-xs text-gray-500 hover:text-white flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm"
+                                    >
+                                        {copied ? (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                                        )}
+                                        {copied ? 'Copied' : 'Copy'}
+                                    </button>
+                                    {isLastAiMessage && (
+                                        <button 
+                                            onClick={onRegenerate}
+                                            className="text-xs text-gray-500 hover:text-white flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v3.276a1 1 0 01-2 0V13.107a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
+                                            Re-generate
+                                        </button>
+                                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    )}
+                </div>
+                {isUser && (
+                    <div className="message-avatar user-avatar">
+                        {userProfile?.photoURL ? <img src={userProfile.photoURL} alt="User" /> : (userProfile?.displayName?.[0] || 'U')}
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+};
+
+const ChatComposer: React.FC<{
+    input: string;
+    setInput: (val: string) => void;
+    onSend: () => void;
+    files: FileAttachment[];
+    setFiles: React.Dispatch<React.SetStateAction<FileAttachment[]>>;
+    isLoading: boolean;
+    fileInputRef: React.RefObject<HTMLInputElement>;
+}> = ({ input, setInput, onSend, files, setFiles, isLoading, fileInputRef }) => {
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onSend();
+        }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+             Array.from(e.target.files).forEach((file: File) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64 = reader.result as string;
+                    // Extract base64 data part
+                    const base64Data = base64.split(',')[1];
+                    setFiles(prev => [...prev, { name: file.name, base64: base64Data, mimeType: file.type }]);
+                };
+                reader.readAsDataURL(file);
+            });
+             // Reset the input so the same file can be selected again if needed
+            e.target.value = '';
+        }
+    };
+
+    const removeFile = (index: number) => {
+        setFiles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="chat-composer-container">
+             <AnimatePresence>
+                {files.length > 0 && (
+                    <motion.div 
+                        className="composer-file-preview"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                    >
+                        <div className="composer-file-preview-inner">
+                             <div className="composer-multi-file-container">
+                                {files.map((file, idx) => (
+                                    <div key={idx} className="composer-file-thumb">
+                                         {file.mimeType.startsWith('image/') ? (
+                                            <img src={`data:${file.mimeType};base64,${file.base64}`} alt={file.name} />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-700 text-xs text-center p-1 break-words">
+                                                {file.name.split('.').pop()?.toUpperCase()}
+                                            </div>
+                                        )}
+                                        <button onClick={() => removeFile(idx)} className="remove-attachment-btn">×</button>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <div className="chat-composer">
+                <input
+                    type="file"
+                    multiple
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileChange}
+                />
+                <button 
+                    className="composer-icon-button" 
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach files"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                </button>
+                <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ask Aikon anything..."
+                    className="composer-textarea"
+                    rows={1}
+                />
+                <button 
+                    className="composer-icon-button composer-send-button"
+                    onClick={onSend}
+                    disabled={(!input.trim() && files.length === 0) || isLoading}
+                >
+                    {isLoading ? (
+                        <span className="animate-spin h-5 w-5 border-2 border-current border-t-transparent rounded-full" />
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const WorkflowBubble: React.FC<{ workflow: Workflow }> = ({ workflow }) => {
+    const [expanded, setExpanded] = useState(false);
+    
+    return (
+        <div className="workflow-container">
+            <div className="flex justify-between items-center cursor-pointer" onClick={() => setExpanded(!expanded)}>
+                <div className="flex items-center gap-2">
+                    <div className="typing-indicator task-workflow"><span></span></div>
+                    <h4 className="font-bold text-white">Autonomous Agent Workflow</h4>
+                </div>
+                 <span className="text-xs text-gray-500">{expanded ? 'Hide' : 'Show'} Details</span>
+            </div>
+            <p className="text-sm text-gray-400 mt-1">Goal: {workflow.goal}</p>
+            
+            {expanded && (
+                <div className="mt-4 space-y-3">
+                    <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Execution Plan</h5>
+                    {workflow.steps.map((step, idx) => (
+                        <div key={idx} className="text-sm border-l-2 border-gray-700 pl-3 py-1">
+                            <div className="flex items-center gap-2 mb-1">
+                                <StepIcon status={step.status} />
+                                <span className={step.status === 'running' ? 'text-amber-400 font-bold' : 'text-gray-300'}>
+                                    Step {idx + 1}
+                                </span>
+                                <StatusPill status={step.status} />
+                            </div>
+                            <p className="text-gray-400">{step.summary}</p>
+                            {step.tool_call && (
+                                <div className="mt-1 text-xs bg-black/30 p-2 rounded font-mono text-gray-500 flex items-center gap-2">
+                                    <ToolIcon name={step.tool_call.name} />
+                                    <span>{step.tool_call.name}</span>
+                                </div>
+                            )}
+                            {step.tool_output && (
+                                <div className="workflow-step-tool-output">
+                                    <details>
+                                        <summary>View Output</summary>
+                                        <div className="output-content">
+                                            {JSON.stringify(step.tool_output, null, 2)}
+                                        </div>
+                                    </details>
+                                </div>
+                            )}
+                        </div>
                     ))}
                 </div>
             )}
@@ -237,1893 +584,1093 @@ const SourceDisplay: React.FC<{ sources: Source[] }> = ({ sources }) => {
     );
 };
 
-// --- Refactored Components from WorkflowBubble ---
-
-const StatusPill: React.FC<{ status: WorkflowStep['status'] }> = ({ status }) => {
-    const statusInfo = {
-        pending: { text: 'Pending', color: 'bg-gray-500', icon: '🕒' },
-        running: { text: 'Running', color: 'bg-blue-500 animate-pulse', icon: '⏳' },
-        completed: { text: 'Completed', color: 'bg-green-600', icon: '✅' },
-        paused_for_approval: { text: 'Paused', color: 'bg-yellow-500', icon: '⏸️' },
-        error: { text: 'Error', color: 'bg-red-600', icon: '❌' },
-        denied: { text: 'Denied', color: 'bg-red-700', icon: '🚫' },
-    }[status];
-
-    return (
-        <div className={`status-pill inline-flex items-center gap-1.5 text-xs font-medium text-white px-2 py-1 rounded-full ${statusInfo.color}`}>
-            {statusInfo.icon}
-            <span>{statusInfo.text}</span>
-        </div>
-    );
+const StatusPill: React.FC<{ status: string }> = ({ status }) => {
+    const colors: {[key:string]: string} = {
+        'pending': 'bg-gray-700 text-gray-300',
+        'running': 'bg-amber-500/20 text-amber-400 animate-pulse',
+        'completed': 'bg-green-500/20 text-green-400',
+        'error': 'bg-red-500/20 text-red-400'
+    };
+    return <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${colors[status] || colors.pending}`}>{status}</span>
 };
 
-const ToolIcon: React.FC<{ toolName: string }> = ({ toolName }) => {
-    const icon = {
-        'search_and_summarize': '🌐', 'browse_webpage': '🌐', 'perform_google_search': '🌐',
-        'list_files': '📁', 'read_file': '📄', 'write_file': '✍️',
-        'execute_python_code': '🐍',
-        'create_powerpoint': '📊', 'create_word_document': '📝', 'create_excel_spreadsheet': '📈',
-        'finish': '🏁', 'request_user_approval': '🤔',
-        'generate_website': '🌐',
-    }[toolName] || '⚙️';
-    return <span className="text-xl" title={toolName}>{icon}</span>;
+const ToolIcon: React.FC<{ name: string }> = ({ name }) => {
+    if (name.includes('search')) return <span>🔍</span>;
+    if (name.includes('write')) return <span>✍️</span>;
+    if (name.includes('create')) return <span>📄</span>;
+    return <span>🛠️</span>;
 };
 
-const StepIcon: React.FC<{ status: WorkflowStep['status']; isLastStep: boolean }> = ({ status, isLastStep }) => {
-    let iconContent, iconClass;
+const StepIcon: React.FC<{ status: string }> = ({ status }) => {
+    if (status === 'completed') return <span className="text-green-500">✓</span>;
+    if (status === 'error') return <span className="text-red-500">✕</span>;
+    if (status === 'running') return <span className="text-amber-500">➜</span>;
+    return <span className="text-gray-600">○</span>;
+};
 
-    if (status === 'running') {
-        iconContent = <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></div>;
-        iconClass = "bg-blue-900/50 border-blue-500";
-    } else if (status === 'completed') {
-        iconContent = <svg className="w-3.5 h-3.5 text-green-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path></svg>;
-        iconClass = "bg-green-900/50 border-green-600";
-    } else if (status === 'error' || status === 'denied') {
-        iconContent = <svg className="w-3.5 h-3.5 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd"></path></svg>;
-        iconClass = "bg-red-900/50 border-red-600";
-    } else { // pending or paused
-        iconContent = <div className="w-2.5 h-2.5 bg-gray-500 rounded-full"></div>;
-        iconClass = "bg-gray-800 border-gray-600";
-    }
+const PptPreviewCard: React.FC<{ fileData: any }> = ({ fileData }) => {
+    const [isHovered, setIsHovered] = useState(false);
     
     return (
-        <div className="step-icon-wrapper flex flex-col items-center mr-4">
-            <div className={`step-icon flex items-center justify-center w-8 h-8 rounded-full border-2 ${iconClass}`}>
-                {iconContent}
-            </div>
-            {!isLastStep && <div className="step-connector w-0.5 h-full bg-gray-600"></div>}
-        </div>
-    );
-};
-
-
-// --- Refactored Component from PptPreviewCard ---
-const PptIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-orange-500" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 2a2 2 0 00-2 2v1H6a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2V4a2 2 0 00-2-2zM8 4h4v1H8V4z" />
-        <path d="M7 9a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1zm1 3a1 1 0 100 2h2a1 1 0 100-2H8z" />
-    </svg>
-);
-
-
-// --- Website Preview Component ---
-
-const WebsitePreview: React.FC<{
-    htmlContent: string;
-    isVisible: boolean;
-    onClose: () => void;
-}> = ({ htmlContent, isVisible, onClose }) => {
-    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
-
-    const handleDownload = () => {
-        const blob = new Blob([htmlContent], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'website.html';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    };
-
-    return (
-        <AnimatePresence>
-            {isVisible && (
-                <motion.div
-                    className="fixed inset-0 z-[200] flex flex-col bg-gray-900"
-                    initial={{ opacity: 0, y: '100%' }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: '100%' }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                >
-                    {/* Toolbar */}
-                    <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700 shadow-md">
-                        <div className="flex items-center gap-4">
-                            <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                                <span className="text-amber-400">✨</span> Aikon Web Designer
-                            </h3>
-                            <div className="flex bg-gray-700 rounded-lg p-1">
-                                <button
-                                    onClick={() => setViewMode('desktop')}
-                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'desktop' ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
-                                >
-                                    Desktop
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('mobile')}
-                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'mobile' ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
-                                >
-                                    Mobile
-                                </button>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleDownload}
-                                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-sm transition-colors"
-                            >
-                                Download Code
-                            </button>
-                            <button
-                                onClick={onClose}
-                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Viewport Area */}
-                    <div className="flex-grow bg-gray-900 flex items-center justify-center overflow-hidden relative">
-                        <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                             backgroundImage: 'radial-gradient(#444 1px, transparent 1px)',
-                             backgroundSize: '20px 20px'
-                        }}></div>
-                        
-                        <motion.div
-                            layout
-                            className={`bg-white transition-all duration-500 ease-in-out shadow-2xl overflow-hidden ${
-                                viewMode === 'mobile' 
-                                    ? 'w-[375px] h-[812px] rounded-[40px] border-[8px] border-gray-800' 
-                                    : 'w-full h-full'
-                            }`}
-                        >
-                            <iframe
-                                srcDoc={htmlContent}
-                                title="Generated Website"
-                                className="w-full h-full border-0"
-                                sandbox="allow-scripts" // Allow scripts for interactivity
-                            />
-                        </motion.div>
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-    );
-};
-
-
-// --- Main Page and Sub-components ---
-
-const MessageLogItem: React.FC<{
-    message: Message;
-    isLast: boolean;
-    userProfile: Partial<UserProfile> | null;
-    onApproveWorkflow: (messageId: string) => void;
-    onDenyWorkflow: (messageId: string) => void;
-    theme: 'light' | 'dark';
-    onViewWebsite: (html: string) => void; // New prop
-}> = memo(({ message, isLast, userProfile, onApproveWorkflow, onDenyWorkflow, theme, onViewWebsite }) => {
-
-    const messageContentRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (messageContentRef.current) {
-            const codeElements = messageContentRef.current.querySelectorAll('pre code');
-            codeElements.forEach((el) => {
-                // Fix: Check if hljs is available on the window object before using it.
-                if (typeof hljs !== 'undefined') {
-                    hljs.highlightElement(el as HTMLElement);
-                }
-            });
-        }
-    }, [message.text]);
-    
-    const renderMessageContent = () => {
-        if (message.sender === 'user') {
-            return (
-                <div className="message-content">
-                    {message.attachments && message.attachments.length > 0 && (
-                        <div className="user-attachments-container mb-2">
-                            {message.attachments.map((file, index) => (
-                                <div key={index}>
-                                    {file.mimeType.startsWith('image/') ? (
-                                        <img src={`data:${file.mimeType};base64,${file.base64}`} alt={file.name} />
-                                    ) : (
-                                        <div className="file-attachment-chip">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
-                                            <span>{file.name}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                     <p>{message.text}</p>
-                </div>
-            );
-        }
-
-        // AI Message Rendering
-        const segments = message.segments || parseMarkdown(message.text);
-        const streaming = isLast && message.status === 'streaming';
-        
-        return (
-            <div ref={messageContentRef} className={`message-content ${streaming ? 'streaming' : ''}`}
-                // Use dangerouslySetInnerHTML for markdown-to-HTML rendering
-                // The output is sanitized by only allowing specific tags/attributes via the rendering functions
-                dangerouslySetInnerHTML={{
-                    __html: segments.map(seg => 
-                        seg.type === 'paragraph' ? renderParagraph(seg.content) : '' // Code blocks rendered separately
-                    ).join('')
-                }}
-            />
-        );
-    };
-
-    const bubbleVariants: Variants = {
-        hidden: { opacity: 0, y: 20, scale: 0.95 },
-        visible: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 300, damping: 25 } }
-    };
-
-    return (
-        <motion.div
-            className={`message-log-item ${message.sender}`}
-            variants={bubbleVariants}
-            initial="hidden"
-            animate="visible"
-            layout="position"
+        <div 
+            className="ppt-preview-card"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="message-bubble-wrapper">
-                {message.sender === 'ai' && (
-                    <div className="message-avatar ai-avatar">
-                        <img src="/short_logo.jpeg" alt="AikonAI Avatar" />
-                    </div>
-                )}
-                <div className={`message-content-wrapper ${message.workflow || message.generatedFile ? 'has-special-content' : ''}`}>
-                    {renderMessageContent()}
-                    {message.segments?.filter(seg => seg.type === 'code').map((seg, i) =>
-                        seg.type === 'code' && <CodeBlock key={i} language={seg.language} code={seg.content} filename={seg.filename}/>
-                    )}
-                    {message.weatherData && <WeatherCard data={message.weatherData} />}
-                    {message.tasks && <TaskList tasks={message.tasks} onTaskUpdate={()=>{}} />}
-                    {message.workflow && (
-                        <WorkflowBubble 
-                            workflow={message.workflow} 
-                            messageId={message.id}
-                            onApprove={onApproveWorkflow}
-                            onDeny={onDenyWorkflow}
-                        />
-                    )}
-                     {message.generatedImage && (
-                        <div className="generated-image-container mt-2">
-                             {message.generatedImage.isLoading ? (
-                                <div className={`skeleton-loader aspect-${message.generatedImage.aspectRatio?.replace(':', '-') || '1-1'}`}>
-                                    <span>Generating image of "{message.generatedImage.prompt}"...</span>
-                                </div>
-                            ) : (
-                                <img src={message.generatedImage.url} alt={message.generatedImage.prompt} className="rounded-lg max-w-full" />
-                            )}
-                        </div>
-                    )}
-                     {message.editedImage && (
-                        <div className="edited-image-container mt-2 flex gap-2">
-                            <div className="w-1/2">
-                                <span className="text-xs text-gray-400">Before</span>
-                                <img src={message.editedImage.beforeUrl} className="rounded-lg w-full" alt="Original" />
-                            </div>
-                            <div className="w-1/2">
-                                 <span className="text-xs text-gray-400">After</span>
-                                {message.editedImage.isLoading ? (
-                                    <div className="skeleton-loader aspect-1-1">
-                                        <span>Editing...</span>
-                                    </div>
-                                ) : (
-                                    <img src={message.editedImage.afterUrl} className="rounded-lg w-full" alt={message.editedImage.prompt} />
-                                )}
-                            </div>
-                        </div>
-                    )}
-                    {message.generatedVideo && (
-                        <div className="generated-video-container mt-2">
-                            {message.generatedVideo.status === 'generating' ? (
-                                <div className="skeleton-loader aspect-16-9">
-                                    <span>Generating video of "{message.generatedVideo.prompt}"... This may take a few minutes.</span>
-                                </div>
-                            ) : message.generatedVideo.status === 'completed' && message.generatedVideo.url ? (
-                                <video src={message.generatedVideo.url} controls className="rounded-lg w-full"></video>
-                            ) : (
-                                <p className="text-red-400">Video generation failed.</p>
-                            )}
-                        </div>
-                    )}
-                     {message.storyboardImages && (
-                        <div className="storyboard-grid">
-                            {message.storyboardImages.map((img, index) => (
-                                <div key={index} className="storyboard-panel">
-                                    {img.url === 'loading' ? (
-                                        <div className="skeleton-loader aspect-1-1"><span>Generating...</span></div>
-                                    ) : img.url === 'error' ? (
-                                        <div className="skeleton-loader aspect-1-1"><span>Failed to load</span></div>
-                                    ) : (
-                                        <img src={img.url} alt={img.prompt} />
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                     {message.audioUrl && (
-                        <audio controls src={message.audioUrl} className="w-full mt-2"></audio>
-                    )}
-                    {message.codeExecutionResult && (
-                        <div className="code-execution-result">
-                            <div className="code-execution-header">Executed Code</div>
-                            <div className="code-execution-code"><CodeBlock language="python" code={message.codeExecutionResult.code} /></div>
-                            <div className="code-execution-header">Output</div>
-                            <pre className="code-execution-output">
-                                {message.codeExecutionResult.output.startsWith('data:image/png;base64,') 
-                                    ? <img src={message.codeExecutionResult.output} alt="Generated plot" /> 
-                                    : <code>{message.codeExecutionResult.output}</code>
-                                }
-                            </pre>
-                        </div>
-                    )}
-                    {message.generatedFile && (
-                        <>
-                         {message.generatedFile.type === 'pptx' ? (
-                            <PptPreviewCard 
-                                filename={message.generatedFile.filename}
-                                data={message.generatedFile.data as PresentationData}
-                                imageUrl={message.generatedFile.previewImageUrl}
-                                isLoading={message.generatedFile.isPreviewLoading}
-                            />
-                         ) : (
-                             <div className="file-generated-output">
-                                 <p>Generated file: <span>{message.generatedFile.filename}</span></p>
-                                <button className="composer-icon-button" onClick={() => {
-                                    if (message.generatedFile?.type === 'docx' && message.generatedFile.data) {
-                                        createDocxFile(message.generatedFile.data as WordData);
-                                    } else if (message.generatedFile?.type === 'xlsx' && message.generatedFile.data) {
-                                        createXlsxFile(message.generatedFile.data as ExcelData);
-                                    } else if (message.generatedFile?.type === 'pdf' && message.generatedFile.data) {
-                                        createPdfFile(message.generatedFile.data as WordData); // Reuses WordData structure
-                                    }
-                                }}>
-                                    <DownloadIcon />
-                                </button>
-                             </div>
-                         )}
-                         </>
-                    )}
-                    {message.generatedQRCode && (
-                         <div className="qr-code-output">
-                            <img src={message.generatedQRCode.dataUrl} alt="Generated QR Code" />
-                             <p>{message.generatedQRCode.text}</p>
-                         </div>
-                    )}
-                    {message.interactiveChartData && (
-                        <InteractiveChart chartData={message.interactiveChartData} theme={theme} />
-                    )}
-                    {/* Website Generation Output */}
-                    {message.generatedWebsite && (
-                        <div className="mt-3 bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
-                            <div className="p-4 bg-gradient-to-r from-gray-800 to-gray-900 flex justify-between items-center">
-                                <div>
-                                    <h4 className="text-white font-bold flex items-center gap-2">
-                                        <span className="text-xl">🌐</span> 
-                                        Website Generated
-                                    </h4>
-                                    <p className="text-xs text-gray-400 mt-0.5">Topic: {message.generatedWebsite.topic}</p>
-                                </div>
-                                {message.generatedWebsite.isLoading ? (
-                                    <div className="px-3 py-1 bg-amber-500/20 text-amber-400 text-xs rounded-full animate-pulse">
-                                        Coding...
-                                    </div>
-                                ) : (
-                                    <div className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
-                                        Ready
-                                    </div>
-                                )}
-                            </div>
-                            {!message.generatedWebsite.isLoading && (
-                                <div className="p-4 bg-gray-900/50">
-                                    <button 
-                                        onClick={() => onViewWebsite(message.generatedWebsite!.htmlContent)}
-                                        className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2"
-                                    >
-                                        <span>🚀</span> Launch Preview
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    
-                    {message.sources && <SourceDisplay sources={message.sources} />}
-                </div>
-                 {message.sender === 'user' && (
-                    <div className="message-avatar user-avatar">
-                        {userProfile?.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                )}
-            </div>
-        </motion.div>
-    );
-});
-
-const ChatComposer: React.FC<{
-    onSendMessage: (message: string, attachments: FileAttachment[]) => void;
-    onStartLiveConversation: () => void;
-    isSending: boolean;
-    isAgentModeEnabled: boolean;
-}> = memo(({ onSendMessage, onStartLiveConversation, isSending, isAgentModeEnabled }) => {
-    const [message, setMessage] = useState('');
-    const [attachments, setAttachments] = useState<FileAttachment[]>([]);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const handleSendMessage = () => {
-        const trimmedMessage = message.trim();
-        if (trimmedMessage || attachments.length > 0) {
-            onSendMessage(trimmedMessage, attachments);
-            playSound('/send_message.mp3', 0.2);
-            setMessage('');
-            setAttachments([]);
-        }
-    };
-    
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
-        }
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const files = Array.from(e.target.files);
-            const newAttachments: FileAttachment[] = [];
-            
-            files.forEach((file: File) => {
-                 if (attachments.length + newAttachments.length >= 5) {
-                    alert("You can attach a maximum of 5 files.");
-                    return;
-                }
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const base64 = (event.target?.result as string).split(',')[1];
-                    newAttachments.push({ name: file.name, base64, mimeType: file.type });
-                    if(newAttachments.length === files.length) {
-                        setAttachments(prev => [...prev, ...newAttachments]);
-                    }
-                };
-                reader.readAsDataURL(file);
-            });
-        }
-    };
-
-    const removeAttachment = (index: number) => {
-        setAttachments(prev => prev.filter((_, i) => i !== index));
-    };
-
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-        }
-    }, [message]);
-
-    return (
-        <div className="chat-composer-container">
-             {attachments.length > 0 && (
-                <div className="composer-file-preview">
-                    <div className="composer-file-preview-inner">
-                         <div className="composer-multi-file-container">
-                             {attachments.map((file, index) => (
-                                 <div key={index} className="composer-file-thumb">
-                                     {file.mimeType.startsWith('image/') ? (
-                                        <img src={`data:${file.mimeType};base64,${file.base64}`} alt={file.name} />
-                                     ) : (
-                                         <div className="flex items-center justify-center h-full text-xs p-1 text-center">{file.name}</div>
-                                     )}
-                                     <button onClick={() => removeAttachment(index)} className="remove-attachment-btn">&times;</button>
-                                 </div>
-                             ))}
-                         </div>
-                         <button onClick={() => setAttachments([])} className="composer-icon-button">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-                        </button>
-                    </div>
-                </div>
-            )}
-            <div className="chat-composer">
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    multiple
-                    accept="image/*,text/*,.pdf,.doc,.docx,.csv"
-                    style={{ display: 'none' }}
-                />
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="composer-icon-button"
-                    disabled={isSending || isAgentModeEnabled}
-                    aria-label="Attach file"
-                    title={isAgentModeEnabled ? "File attachments disabled in Agent Mode" : "Attach file"}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                </button>
-                 <button
-                    onClick={onStartLiveConversation}
-                    className="composer-icon-button"
-                    disabled={isSending}
-                    aria-label="Start Live Conversation"
-                    title="Start Live Conversation"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                </button>
-                <textarea
-                    ref={textareaRef}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Message AikonAI..."
-                    className="composer-textarea"
-                    rows={1}
-                    disabled={isSending}
-                    aria-label="Chat input"
-                ></textarea>
-                <button
-                    onClick={handleSendMessage}
-                    disabled={isSending || (!message.trim() && attachments.length === 0)}
-                    className="composer-icon-button composer-send-button"
-                    aria-label="Send message"
-                >
-                    {isSending ? (
-                        <div className="w-5 h-5 border-2 border-t-transparent border-black rounded-full animate-spin"></div>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
-                        </svg>
-                    )}
-                </button>
-            </div>
-        </div>
-    );
-});
-
-
-const WorkflowBubble: React.FC<{ 
-    workflow: Workflow; 
-    messageId: string;
-    onApprove: (messageId: string) => void;
-    onDeny: (messageId:string) => void;
-}> = memo(({ workflow, messageId, onApprove, onDeny }) => {
-
-    const renderToolOutput = (output: StructuredToolOutput) => {
-        if (!output) return <p className="text-gray-400 text-sm italic">No output was produced.</p>;
-
-        switch(output.type) {
-            case 'search_results':
-                return (
-                    <ul className="list-disc pl-5 space-y-1">
-                        {output.results.slice(0, 3).map((res, i) => (
-                            <li key={i}><a href={res.link} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline text-sm">{res.title}</a></li>
-                        ))}
-                    </ul>
-                );
-            case 'browsed_content':
-                return <p className="text-sm text-gray-300 truncate">{output.content}</p>
-            case 'file_generated':
-                return <p className="text-sm text-green-400 font-mono">{output.message}</p>;
-            case 'plot':
-                return <img src={output.dataUrl} alt="Generated Plot" className="max-w-full rounded-md" />;
-            case 'text':
-            default:
-                return <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">{output.content}</pre>;
-        }
-    };
-    
-    return (
-        <div className="workflow-container">
-            <div className="workflow-header flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center text-xl">🤖</div>
-                <div>
-                    <h3 className="font-bold text-white text-lg">Agent Mode: Running Workflow</h3>
-                    <p className="text-gray-400 text-sm">Goal: "{workflow.goal}"</p>
-                </div>
-            </div>
-            
-             {workflow.status === 'paused_for_approval' && (
-                <div className="workflow-confirmation-container">
-                    <h4 className="workflow-confirmation-header">Approval Required</h4>
-                    <p className="workflow-confirmation-goal mb-4">{workflow.steps.find(s => s.status === 'paused_for_approval')?.tool_call?.args.question}</p>
-                    <div className="workflow-confirmation-buttons">
-                        <button onClick={() => onDeny(messageId)} className="deny-btn">Deny</button>
-                        <button onClick={() => onApprove(messageId)} className="approve-btn">Approve</button>
-                    </div>
-                </div>
-            )}
-            
-            <div className="workflow-steps-container relative">
-                {workflow.steps.map((step, index) => (
-                    <div key={index} className="workflow-step flex">
-                        <StepIcon status={step.status} isLastStep={index === workflow.steps.length - 1} />
-                        <div className="workflow-step-content pb-6 w-full">
-                            <div className="flex justify-between items-start">
-                                <p className="font-semibold text-gray-200">{step.summary}</p>
-                                <StatusPill status={step.status} />
-                            </div>
-                            {step.tool_call && (
-                                <div className="tool-call-info flex items-center gap-2 mt-1 text-sm text-gray-400">
-                                    <ToolIcon toolName={step.tool_call.name} />
-                                    <span className="font-mono">{step.tool_call.name}</span>
-                                </div>
-                            )}
-                            {step.tool_output && (
-                                <div className="workflow-step-tool-output">
-                                    <details>
-                                        <summary>View Tool Output</summary>
-                                        <div className="output-content">
-                                            {renderToolOutput(step.tool_output)}
-                                        </div>
-                                    </details>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
-            
-             {workflow.finalContent && workflow.status === 'completed' && (
-                <div className="workflow-final-output mt-4 border-t border-green-700 pt-4">
-                     <h4 className="text-green-400 font-bold mb-2">Final Result</h4>
-                     <p className="text-gray-200 whitespace-pre-wrap">{workflow.finalContent}</p>
-                </div>
-            )}
-        </div>
-    );
-});
-
-const PptPreviewCard: React.FC<{
-    filename: string;
-    data: PresentationData;
-    imageUrl?: string;
-    isLoading?: boolean;
-}> = memo(({ filename, data, imageUrl, isLoading }) => {
-    const [isDownloading, setIsDownloading] = useState(false);
-
-    const handleDownload = async () => {
-        setIsDownloading(true);
-        try {
-            await createPptxFile(data, filename.replace('.pptx', ''));
-        } catch (error) {
-            console.error("Failed to generate PPTX:", error);
-            alert("Sorry, there was an error creating the presentation file.");
-        } finally {
-            setIsDownloading(false);
-        }
-    };
-
-    return (
-        <div className="ppt-preview-card">
             <div className="ppt-preview-image-container">
-                {isLoading ? (
-                    <div className="skeleton-loader aspect-16-9"><span>Generating preview...</span></div>
-                ) : imageUrl ? (
-                    <img src={imageUrl} alt="Presentation Preview" className="ppt-preview-image" />
+                {fileData.previewImageUrl ? (
+                    <img src={fileData.previewImageUrl} alt="Slide Preview" className="ppt-preview-image" />
                 ) : (
                     <div className="ppt-preview-no-image">
-                        <PptIcon />
+                        <div className="flex flex-col items-center gap-2">
+                            <PptIcon />
+                            <span className="text-xs">Preview Unavailable</span>
+                        </div>
                     </div>
                 )}
             </div>
             <div className="ppt-preview-content">
                 <div className="ppt-preview-header">
-                    <PptIcon />
-                    <span>Presentation</span>
+                    <PptIcon size={16} />
+                    <span>POWERPOINT PRESENTATION</span>
                 </div>
-                <h4 className="ppt-preview-title">{filename}</h4>
+                <h3 className="ppt-preview-title">{fileData.filename}</h3>
+                <p className="text-xs text-gray-500 mt-1">Generated by AikonAI</p>
             </div>
             <div className="ppt-preview-footer">
-                <button 
+                 <button 
+                    onClick={() => createPptxFile(fileData.data as PresentationData, fileData.filename.replace('.pptx', ''))}
                     className="ppt-preview-download-btn"
-                    onClick={handleDownload}
-                    disabled={isDownloading}
                 >
-                    {isDownloading ? (
-                         <div className="w-5 h-5 border-2 border-t-transparent border-black rounded-full animate-spin"></div>
-                    ) : (
-                        <DownloadIcon />
-                    )}
-                    <span>{isDownloading ? 'Generating...' : 'Download .pptx'}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Download .PPTX
                 </button>
             </div>
         </div>
     );
-});
+};
 
-const TypingIndicator: React.FC<{ persona: string, task: string | null }> = memo(({ persona, task }) => {
-    
-    const getTaskSpecificClass = () => {
-        switch (task) {
-            case 'generate_image':
-            case 'edit_image':
-            case 'create_storyboard':
-                return 'task-image-gen';
-            case 'browse_webpage':
-            case 'perform_google_search':
-                return 'task-browsing';
-            case 'workflow':
-                return 'task-workflow';
-            case 'generate_website':
-                return 'task-workflow'; // Reuse same animation
-            default:
-                return '';
+const PptIcon = ({ size = 24 }: { size?: number }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fca5a5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M8 13h8"></path><path d="M8 17h8"></path><path d="M10 9h4"></path></svg>
+);
+
+const WebsitePreview: React.FC<{ websiteData: any, onClose: () => void }> = ({ websiteData, onClose }) => {
+    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+
+    useEffect(() => {
+        if (iframeRef.current && websiteData.htmlContent) {
+            const doc = iframeRef.current.contentWindow?.document;
+            if (doc) {
+                doc.open();
+                doc.write(websiteData.htmlContent);
+                doc.close();
+            }
         }
-    }
-    
+    }, [websiteData]);
+
+    const downloadHtml = () => {
+        const blob = new Blob([websiteData.htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'website.html';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
-        <div className={`typing-indicator persona-${persona.toLowerCase().replace(/\s+/g, '-')} ${getTaskSpecificClass()}`}>
-            <span></span>
-            <span></span>
-            <span></span>
+        <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col">
+            <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-center px-4 relative">
+                <div className="absolute left-4 flex items-center gap-4">
+                    <h3 className="text-white font-bold">Website Preview</h3>
+                    <div className="flex bg-zinc-800 rounded-md p-1">
+                        <button onClick={() => setViewMode('desktop')} className={`p-1 rounded ${viewMode === 'desktop' ? 'bg-zinc-600 text-white' : 'text-gray-400'}`}>🖥️</button>
+                        <button onClick={() => setViewMode('mobile')} className={`p-1 rounded ${viewMode === 'mobile' ? 'bg-zinc-600 text-white' : 'text-gray-400'}`}>📱</button>
+                    </div>
+                </div>
+                <div className="flex gap-2 absolute right-4">
+                    <button onClick={downloadHtml} className="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-500">Download HTML</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+            </div>
+            <div className="flex-grow bg-zinc-800 flex items-center justify-center p-4 overflow-hidden">
+                <motion.div 
+                    className="bg-white h-full shadow-2xl transition-all duration-300"
+                    style={{ width: viewMode === 'mobile' ? '375px' : '100%', maxWidth: viewMode === 'mobile' ? '375px' : '1200px' }}
+                >
+                    <iframe ref={iframeRef} className="w-full h-full border-0" title="Preview" sandbox="allow-scripts" />
+                </motion.div>
+            </div>
         </div>
     );
-});
+};
 
-const WelcomeScreen: React.FC<{ onActionClick: (prompt: string, files?: FileAttachment[]) => void; isAgentMode: boolean; }> = memo(({ onActionClick, isAgentMode }) => {
-    
-    const actions = [
-        { text: "Explain quantum computing", icon: "🔬" },
-        { text: "Draft a startup pitch deck", icon: "💡", agentOnly: true },
-        { text: "Make a portfolio website for me", icon: "🌐" },
-        { text: "Write a Python script for web scraping", icon: "💻", agentOnly: true },
-    ];
+// --- LIVE CONVERSATION COMPONENTS ---
+
+interface LiveVisualContent {
+    type: 'image' | 'weather' | 'website' | 'text';
+    data: any;
+}
+
+const LiveConversationOverlay: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    status: 'connecting' | 'connected' | 'error' | 'idle';
+    volume: number;
+    liveContent: LiveVisualContent | null;
+    onUpload: () => void;
+}> = ({ isOpen, onClose, status, volume, liveContent, onUpload }) => {
+    if (!isOpen) return null;
 
     return (
-        <div className="chat-welcome-screen">
-            <img src="/short_logo.jpeg" alt="AikonAI Logo" className="welcome-logo" />
-            <h1 className="welcome-title">AikonAI</h1>
-            <div className="welcome-actions">
-                {actions.map((action) => (
-                    <button 
-                        key={action.text} 
-                        className="action-pill"
-                        onClick={() => onActionClick(action.text)}
-                        disabled={isAgentMode && !action.agentOnly}
+        <div className="live-overlay">
+            <div className="live-content w-full h-full relative">
+                {/* Close Button */}
+                <button onClick={onClose} className="absolute top-6 right-6 z-50 text-white/50 hover:text-white bg-black/20 p-2 rounded-full backdrop-blur-md transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+
+                {/* Main Centered Orb */}
+                <div className="flex flex-col items-center justify-center h-full pb-20">
+                    <div className={`live-orb ${status === 'connected' ? 'connected' : ''}`}>
+                        <div 
+                            className="live-orb-inner" 
+                            style={{ 
+                                transform: `scale(${1 + volume})`,
+                                transition: 'transform 0.05s ease-out' // Faster reaction for volume
+                            }}
+                        />
+                    </div>
+                    
+                    <p className="live-status mt-8">
+                        {status === 'connecting' && "Connecting to Aikon..."}
+                        {status === 'connected' && "Listening..."}
+                        {status === 'error' && "Connection Error"}
+                    </p>
+
+                    {/* Visual Stage for Content (Images, Weather, etc.) */}
+                    <AnimatePresence>
+                        {liveContent && (
+                            <motion.div 
+                                className="mt-8 max-w-lg w-full px-4"
+                                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                            >
+                                <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-4 border border-white/10 shadow-2xl">
+                                    {liveContent.type === 'weather' && (
+                                        <div className="flex justify-center">
+                                            <WeatherCard data={liveContent.data} />
+                                        </div>
+                                    )}
+                                    {liveContent.type === 'image' && (
+                                        <div className="flex flex-col items-center">
+                                            <img src={liveContent.data.url} alt="Generated" className="rounded-lg w-full max-h-64 object-contain shadow-lg mb-2" />
+                                            <p className="text-xs text-gray-400 italic">{liveContent.data.prompt}</p>
+                                        </div>
+                                    )}
+                                    {liveContent.type === 'website' && (
+                                        <div className="text-center">
+                                            <div className="bg-zinc-800 rounded-lg p-4 mb-3">
+                                                <span className="text-4xl">🌐</span>
+                                            </div>
+                                            <h4 className="text-white font-bold">Website Ready</h4>
+                                            <p className="text-sm text-gray-400 mb-4">Topic: {liveContent.data.topic}</p>
+                                            <button 
+                                                onClick={() => {
+                                                    const event = new CustomEvent('openWebsitePreview', { detail: liveContent.data });
+                                                    window.dispatchEvent(event);
+                                                }}
+                                                className="bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-400 w-full"
+                                            >
+                                                View Website
+                                            </button>
+                                        </div>
+                                    )}
+                                     {liveContent.type === 'text' && (
+                                        <div className="text-center">
+                                            <div className="bg-zinc-800 rounded-lg p-3 mb-2 inline-block">
+                                                <span className="text-2xl">🚀</span>
+                                            </div>
+                                            <p className="text-white font-semibold">{liveContent.data}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                {/* Bottom Toolbar */}
+                <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 z-50">
+                    <motion.button 
+                        onClick={onUpload}
+                        className="p-4 bg-zinc-800 rounded-full text-white hover:bg-zinc-700 transition-colors border border-zinc-700 shadow-lg"
+                        whileTap={{ scale: 0.95 }}
+                        title="Upload Image for Editing"
                     >
-                        {action.icon}
-                        <span>{action.text}</span>
-                    </button>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    </motion.button>
+                    
+                    <motion.button 
+                        onClick={onClose} 
+                        className="px-8 py-4 bg-red-600 rounded-full text-white font-bold hover:bg-red-500 transition-colors shadow-lg flex items-center gap-2"
+                        whileTap={{ scale: 0.95 }}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>
+                        End Call
+                    </motion.button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SessionFileManager: React.FC<{ files: VirtualFile[], onOpenFile: (filename: string) => void }> = ({ files, onOpenFile }) => {
+    if (files.length === 0) return null;
+    return (
+        <div className="flex items-center gap-2 overflow-x-auto py-2 px-4 bg-black/20 border-b border-white/5">
+            <span className="text-xs text-gray-500 uppercase font-bold tracking-wider">Session Files:</span>
+            {files.map((file, idx) => (
+                <button 
+                    key={idx}
+                    onClick={() => onOpenFile(file.name)}
+                    className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs px-2 py-1 rounded border border-zinc-700 transition-colors"
+                >
+                    <span>📄</span>
+                    {file.name}
+                </button>
+            ))}
+        </div>
+    );
+};
+
+const CodeHistoryPanel: React.FC<{ history: CodeExecutionHistoryItem[] }> = ({ history }) => {
+    if (history.length === 0) return null;
+    return (
+        <div className="code-history-panel">
+             <div className="code-history-header">
+                <h3 className="text-white font-bold">Code Execution History</h3>
+            </div>
+            <div className="code-history-list">
+                {history.map(item => (
+                    <div key={item.id} className="code-history-item">
+                        <div className="code-history-item-code">
+                             <pre className="text-xs text-gray-300">{item.code}</pre>
+                        </div>
+                        <div className="code-history-item-footer">
+                            <span className="code-history-timestamp">{item.timestamp.toLocaleTimeString()}</span>
+                        </div>
+                    </div>
                 ))}
             </div>
         </div>
     );
-});
+}
+
+
+// --- MAIN PAGE COMPONENT ---
 
 const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
+    const { currentUser } = useAuth();
+    const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
-    const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-    const [isSending, setIsSending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const messageLogRef = useRef<HTMLDivElement>(null);
-    const [chatHistory, setChatHistory] = useState<Content[]>([]);
-    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-    const [isCodeCanvasVisible, setIsCodeCanvasVisible] = useState(false);
-    const [codeHistoryPanelVisible, setCodeHistoryPanelVisible] = useState(false);
-    const [codeHistory, setCodeHistory] = useState<CodeExecutionHistoryItem[]>([]);
-    
-    const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-
-    const [activePersona, setActivePersona] = useState<Persona>({ name: 'AikonAI', icon: '🤖', description: 'Default Assistant', systemInstruction: aikonPersonaInstruction });
-    const [customPersonas, setCustomPersonas] = useState<Persona[]>([]);
-    const [isPersonaMenuOpen, setIsPersonaMenuOpen] = useState(false);
-    
+    const [files, setFiles] = useState<FileAttachment[]>([]);
     const [isAgentMode, setIsAgentMode] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [activePersona, setActivePersona] = useState<Persona>(PERSONAS[0]); // Default to first (Legal Reviewer, purely as placeholder) but logic sets to AikonAI usually
+    const [showPersonaMenu, setShowPersonaMenu] = useState(false);
+    const [activeWorkflow, setActiveWorkflow] = useState<Workflow | null>(null);
     const [sessionFiles, setSessionFiles] = useState<VirtualFile[]>([]);
-    
-    // Live Conversation State
-    const [isLive, setIsLive] = useState(false);
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [isCodeCanvasOpen, setIsCodeCanvasOpen] = useState(false);
+    const [codeHistory, setCodeHistory] = useState<CodeExecutionHistoryItem[]>([]);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [showLiveOverlay, setShowLiveOverlay] = useState(false);
     const [liveStatus, setLiveStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
-    const sessionPromiseRef = useRef<Promise<any> | null>(null);
-    const inputAudioContextRef = useRef<AudioContext | null>(null);
-    const outputAudioContextRef = useRef<AudioContext | null>(null);
-    const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-    let nextStartTime = 0;
-    
-    const { currentUser, logout, updateCurrentUser } = useAuth();
-    const userProfile = currentUser; // Assuming currentUser is the UserProfile object
-    const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-    
-    // New state for website preview
-    const [websitePreviewContent, setWebsitePreviewContent] = useState<string | null>(null);
+    const [liveVolume, setLiveVolume] = useState(0);
+    const [liveContent, setLiveContent] = useState<LiveVisualContent | null>(null); // State for visual content in live call
+    const [generatedWebsiteData, setGeneratedWebsiteData] = useState<any>(null);
+    const [isDarkMode, setIsDarkMode] = useState(true);
 
-    // Initial setup
+    // Refs
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const liveFileInputRef = useRef<HTMLInputElement>(null); // Dedicated input for live mode
+    const liveClientRef = useRef<any>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const audioStreamRef = useRef<MediaStream | null>(null);
+    const audioQueueRef = useRef<AudioBuffer[]>([]);
+    const isPlayingRef = useRef(false);
+    const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+    // Manage Body Classes for Theme
     useEffect(() => {
-        // Apply theme to body
-        document.body.className = `${theme}-theme-chat`;
+        // Remove global app theme class to prevent conflicts/legacy styles
+        document.body.classList.remove('dark-theme-body');
         
-        // Fetch location
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                setLocation({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                });
-            },
-            (err) => {
-                console.warn(`Could not get location: ${err.message}`);
-            }
-        );
-        
-        // Load custom personas from local storage
-        try {
-            const storedPersonas = localStorage.getItem(CUSTOM_PERSONAS_STORAGE_KEY);
-            if (storedPersonas) {
-                setCustomPersonas(JSON.parse(storedPersonas));
-            }
-        } catch (e) {
-            console.error("Failed to load custom personas:", e);
+        if (isDarkMode) {
+            document.body.classList.add('dark-theme-chat');
+            document.body.classList.remove('light-theme-chat');
+        } else {
+            document.body.classList.add('light-theme-chat');
+            document.body.classList.remove('dark-theme-chat');
         }
 
-    }, [theme]);
-    
-    // Scroll to bottom of message log
+        // Cleanup on unmount
+        return () => {
+            document.body.classList.remove('dark-theme-chat');
+            document.body.classList.remove('light-theme-chat');
+            document.body.classList.add('dark-theme-body'); // Restore global app theme
+        };
+    }, [isDarkMode]);
+
+    // Initialize "AikonAI" as the true default persona
     useEffect(() => {
-        if (messageLogRef.current) {
-            messageLogRef.current.scrollTop = messageLogRef.current.scrollHeight;
+        const defaultPersona: Persona = {
+             name: 'AikonAI',
+             icon: '🧠',
+             description: 'The core Aikon experience.',
+             systemInstruction: aikonPersonaInstruction
+        };
+        setActivePersona(defaultPersona);
+    }, []);
+
+    // Proactive Agent Greeting
+    useEffect(() => {
+        const initAgent = async () => {
+            // Check last visit time stored in localStorage
+            const lastVisit = localStorage.getItem('aikon_last_visit');
+            const now = Date.now();
+            
+            if (lastVisit) {
+                const hoursAway = (now - parseInt(lastVisit)) / (1000 * 60 * 60);
+                if (hoursAway > 1) {
+                     // Away Report
+                     setIsLoading(true);
+                     const report = await generateAwayReport(currentUser, hoursAway, tasks);
+                     const msg: Message = { id: Date.now().toString(), text: report, sender: 'ai', timestamp: new Date(), status: 'sent' };
+                     setMessages(prev => [...prev, msg]);
+                     setIsLoading(false);
+                } else {
+                    // Just a greeting if short absence
+                     const greeting = await generateProactiveGreeting(currentUser, new Date(), tasks);
+                     const msg: Message = { id: Date.now().toString(), text: greeting, sender: 'ai', timestamp: new Date(), status: 'sent' };
+                     setMessages(prev => [...prev, msg]);
+                }
+            } else {
+                 // First time ever
+                 const greeting = await generateProactiveGreeting(currentUser, new Date(), tasks);
+                 const msg: Message = { id: Date.now().toString(), text: greeting, sender: 'ai', timestamp: new Date(), status: 'sent' };
+                 setMessages(prev => [...prev, msg]);
+            }
+            
+            localStorage.setItem('aikon_last_visit', now.toString());
+        };
+        
+        initAgent();
+        
+        // Update last visit on unload
+        const handleUnload = () => localStorage.setItem('aikon_last_visit', Date.now().toString());
+        window.addEventListener('beforeunload', handleUnload);
+        return () => window.removeEventListener('beforeunload', handleUnload);
+    }, [currentUser, tasks]); // Removed dependencies to run once on mount
+
+    useEffect(() => {
+        const loadTasks = async () => {
+            if (currentUser) {
+                const loadedTasks = await getTasks(currentUser.uid);
+                setTasks(loadedTasks);
+            }
+        };
+        loadTasks();
+    }, [currentUser]);
+
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [messages]);
 
-    const handleSendMessage = async (message: string, attachments: FileAttachment[] = []) => {
-        if (isSending) return;
+    // Listen for website preview event
+    useEffect(() => {
+        const handleOpenPreview = (e: any) => setGeneratedWebsiteData(e.detail);
+        window.addEventListener('openWebsitePreview', handleOpenPreview);
+        return () => window.removeEventListener('openWebsitePreview', handleOpenPreview);
+    }, []);
 
-        setIsSending(true);
-        setError(null);
-        
-        const userMessage: Message = {
-            id: `user-${Date.now()}`,
-            text: message,
+
+    const handleSendMessage = async () => {
+        if (!input.trim() && files.length === 0) return;
+
+        const userMsg: Message = {
+            id: Date.now().toString(),
+            text: input,
             sender: 'user',
             timestamp: new Date(),
-            attachments: attachments,
+            status: 'sent',
+            attachments: files
         };
-        
-        setMessages(prev => [...prev, userMessage]);
-        
-        const aiResponsePlaceholder: Message = {
-            id: `ai-${Date.now()}`,
-            text: '',
-            sender: 'ai',
-            timestamp: new Date(),
-            status: 'streaming',
-        };
-        setMessages(prev => [...prev, aiResponsePlaceholder]);
+
+        setMessages(prev => [...prev, userMsg]);
+        setInput('');
+        setFiles([]);
+        setIsLoading(true);
+        playSound('/sounds/send_message.mp3');
+
+        // --- AGENTIC PERSONA SWITCHING ---
+        if (activePersona.name === 'AikonAI' && !isAgentMode) {
+             // Only try to switch if in default mode
+             const detectedPersonaName = await classifyIntentAndSelectPersona(input);
+             if (detectedPersonaName !== 'AikonAI') {
+                 const newPersona = PERSONAS.find(p => p.name === detectedPersonaName);
+                 if (newPersona) {
+                     setActivePersona(newPersona);
+                     // Add a system note that persona switched
+                     setMessages(prev => [...prev, {
+                         id: Date.now().toString(),
+                         text: `*Switching to ${newPersona.icon} ${newPersona.name} mode...*`,
+                         sender: 'ai',
+                         timestamp: new Date(),
+                         status: 'sent',
+                         segments: [{ type: 'paragraph', content: `*Switching to ${newPersona.icon} ${newPersona.name} mode...*` }]
+                     }]);
+                 }
+             }
+        }
 
         try {
-            // Automatic Persona Switching Logic
-            let personaForThisTurn = activePersona;
-            if (activePersona.name === 'AikonAI' && !isAgentMode && message.trim().length > 0) {
-                const determinedPersonaName = await classifyIntentAndSelectPersona(message);
-                const newPersona = [...PERSONAS, ...customPersonas].find(p => p.name === determinedPersonaName);
-                if (newPersona && newPersona.name !== 'AikonAI') {
-                    personaForThisTurn = newPersona;
-                    setActivePersona(newPersona); // Update state for UI indication
-                }
-            }
-            
-            const { stream, historyWithUserMessage } = await streamMessageToChat(
-                chatHistory,
-                message,
-                attachments,
-                location,
-                userProfile,
-                undefined, // No chat continuation for now
-                personaForThisTurn.systemInstruction,
-                isAgentMode
-            );
-            
-            setChatHistory(historyWithUserMessage);
-            
-            let fullResponseText = '';
-            let toolCallObject: any = null;
-            let isBufferingForToolCall = false;
-            let streamedText = '';
-
-            for await (const chunk of stream) {
-                const chunkText = chunk.text;
-                if (!chunkText) continue;
-
-                fullResponseText += chunkText;
-
-                // Once we detect a potential tool call (by finding a '{'), stop streaming to the UI and buffer everything.
-                if (!isBufferingForToolCall && fullResponseText.includes('{')) {
-                    isBufferingForToolCall = true;
+            if (isAgentMode) {
+                // --- AUTONOMOUS AGENT LOGIC ---
+                const planResult = await generatePlan(input);
+                if ('error' in planResult) {
+                    setMessages(prev => [...prev, { id: Date.now().toString(), text: planResult.error, sender: 'ai', timestamp: new Date(), status: 'sent' }]);
+                    setIsLoading(false);
+                    return;
                 }
 
-                if (!isBufferingForToolCall) {
-                    streamedText = fullResponseText;
-                    setMessages(prev =>
-                        prev.map(m =>
-                            m.id === aiResponsePlaceholder.id
-                                ? { ...m, text: streamedText, segments: parseMarkdown(streamedText) }
-                                : m
-                        )
-                    );
-                }
-            }
+                const initialWorkflow: Workflow = {
+                    goal: input,
+                    plan: planResult.plan,
+                    steps: planResult.plan.map(step => ({ summary: step, status: 'pending' })),
+                    status: 'running',
+                    finalContent: null
+                };
 
-            // After the stream has finished, process the full response
-            if (isBufferingForToolCall) {
-                try {
-                    const startIndex = fullResponseText.indexOf('{');
-                    const endIndex = fullResponseText.lastIndexOf('}');
-                    if (startIndex !== -1 && endIndex > startIndex) {
-                        const jsonString = fullResponseText.substring(startIndex, endIndex + 1);
-                        const parsed = JSON.parse(jsonString);
-                        if (parsed.tool_call) {
-                            toolCallObject = parsed;
-                            const textBeforeToolCall = fullResponseText.substring(0, startIndex).trim();
-                            setMessages(prev =>
-                                prev.map(m =>
-                                    m.id === aiResponsePlaceholder.id
-                                        ? { ...m, text: textBeforeToolCall, segments: parseMarkdown(textBeforeToolCall), status: 'sent' }
-                                        : m
-                                )
-                            );
-                        }
-                    }
-                } catch (e) {
-                    console.warn("Could not parse potential tool call from buffer. Treating response as text.", e);
-                    toolCallObject = null;
-                }
-            }
-            
-            if (toolCallObject) {
-                await handleToolCall(toolCallObject, aiResponsePlaceholder.id, attachments);
+                // Create a placeholder AI message for the workflow
+                const workflowMsgId = Date.now().toString();
+                setMessages(prev => [...prev, {
+                    id: workflowMsgId,
+                    text: "Starting workflow...",
+                    sender: 'ai',
+                    timestamp: new Date(),
+                    status: 'streaming',
+                    workflow: initialWorkflow
+                }]);
+
+                await runWorkflow(initialWorkflow, workflowMsgId);
+
             } else {
-                // If no tool call was found (or if parsing failed), render the full text.
-                const finalHistory = [...historyWithUserMessage, { role: 'model', parts: [{ text: fullResponseText }] }];
-                setChatHistory(finalHistory);
-                setMessages(prev =>
-                    prev.map(m =>
-                        m.id === aiResponsePlaceholder.id
-                            ? { ...m, text: fullResponseText, segments: parseMarkdown(fullResponseText), status: 'sent' }
-                            : m
-                    )
-                );
-            }
-            
-        } catch (error) {
-             console.error("Error during chat:", error);
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-            setError(errorMessage);
-            setMessages(prev =>
-                prev.map(m =>
-                    m.id === aiResponsePlaceholder.id
-                        ? { ...m, text: `Sorry, I encountered an error: ${errorMessage}`, status: 'sent' }
-                        : m
-                )
-            );
-        } finally {
-            setIsSending(false);
-        }
-    };
-    
-    // Simplified tool call handling
-    const handleToolCall = async (toolCall: any, messageId: string, attachments: FileAttachment[]) => {
-        const { tool_call, ...args } = toolCall;
-        
-        let toolResult = 'Tool call received.';
-        let updatedMessage: Partial<Message> = { text: `Using tool: \`${tool_call}\`...`};
+                // --- STANDARD CHAT LOGIC ---
+                const history = messages.map(m => ({ role: m.sender === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
+                const { stream } = await streamMessageToChat(history, input, files, null, currentUser, undefined, activePersona.systemInstruction);
 
-        setMessages(prev => prev.map(m => m.id === messageId ? {...m, ...updatedMessage, status: 'sent'} : m));
+                let fullText = '';
+                const msgId = Date.now().toString();
+                setMessages(prev => [...prev, { id: msgId, text: '', sender: 'ai', timestamp: new Date(), status: 'streaming' }]);
 
-        try {
-            switch (tool_call) {
-                case 'get_weather':
-                    const weatherData = await fetchWeather(args.city);
-                     if ('error' in weatherData) {
-                        updatedMessage = { text: weatherData.error };
-                    } else {
-                        updatedMessage = { text: `Here is the weather for ${weatherData.city}.`, weatherData: weatherData };
-                    }
-                    break;
-                case 'generate_image':
-                    updatedMessage.generatedImage = { prompt: args.prompt, isLoading: true, aspectRatio: '1:1' };
-                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
-                    const imageUrl = await generateImage(args.prompt);
-                    updatedMessage.generatedImage.url = imageUrl || undefined;
-                    updatedMessage.generatedImage.isLoading = false;
-                    updatedMessage.text = imageUrl ? `Here is the image you requested for "${args.prompt}"` : "Sorry, I couldn't generate the image.";
-                    break;
-                case 'edit_image':
-                    const imageToEdit = attachments.find(f => f.mimeType.startsWith('image/'));
-                    if (!imageToEdit) {
-                        updatedMessage.text = "You need to upload an image to edit it.";
-                        break;
-                    }
-                    updatedMessage.editedImage = { beforeUrl: `data:${imageToEdit.mimeType};base64,${imageToEdit.base64}`, prompt: args.prompt, isLoading: true };
-                     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
-                    const editedUrl = await editImage(imageToEdit, args.prompt);
-                    updatedMessage.editedImage.afterUrl = editedUrl || undefined;
-                    updatedMessage.editedImage.isLoading = false;
-                     updatedMessage.text = editedUrl ? `Here's the edited image based on your request: "${args.prompt}"` : "Sorry, I couldn't edit the image.";
-                    break;
-                 case 'generate_video':
-                    updatedMessage.generatedVideo = { prompt: args.prompt, status: 'generating' };
-                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
+                for await (const chunk of stream) {
+                    // The SDK defines `text` as a property getter, not a function.
+                    // Accessing it as chunk.text() throws "is not a function".
+                    const chunkText = chunk.text || ''; 
+                    fullText += chunkText;
                     
-                    if (window.aistudio) {
-                        const hasKey = await window.aistudio.hasSelectedApiKey();
-                        if (!hasKey) {
-                            await window.aistudio.openSelectKey();
-                        }
+                    // Robust Tool Call Handling (buffer until valid JSON)
+                    // Simple check for start of JSON object if it looks like a tool
+                    if (fullText.trim().startsWith('{') && fullText.trim().endsWith('}')) {
+                         try {
+                             const toolCall = JSON.parse(fullText);
+                             if (toolCall.tool_call) {
+                                 await handleToolCall(toolCall, msgId);
+                                 return; // Stop text streaming if tool handled
+                             }
+                         } catch (e) {
+                             // Not valid JSON yet, keep streaming
+                         }
                     }
 
-                    const operation = await generateVideo(args.prompt);
-                    if (operation) {
-                        let opResult = operation;
-                        while (!opResult.done) {
-                            await new Promise(resolve => setTimeout(resolve, 5000));
-                            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-                            opResult = await ai.operations.getVideosOperation({ operation: opResult });
-                        }
-                        const videoUri = opResult.response?.generatedVideos?.[0]?.video?.uri;
-                        if (videoUri) {
-                            const videoBlob = await fetchVideoFromUri(videoUri);
-                            const videoUrl = URL.createObjectURL(videoBlob);
-                            updatedMessage.generatedVideo = { prompt: args.prompt, status: 'completed', url: videoUrl };
-                        } else {
-                             updatedMessage.generatedVideo = { prompt: args.prompt, status: 'error' };
-                        }
-                    } else {
-                         updatedMessage.generatedVideo = { prompt: args.prompt, status: 'error' };
-                    }
-                    updatedMessage.text = updatedMessage.generatedVideo.status === 'completed' ? `Here is the video for "${args.prompt}"` : "Sorry, video generation failed.";
-                    break;
-                case 'summarize_document':
-                    const docToSummarize = attachments.find(f => f.mimeType.startsWith('text/'));
-                    if (!docToSummarize) {
-                        updatedMessage.text = "Please upload a text document to summarize.";
-                        break;
-                    }
-                    const content = atob(docToSummarize.base64);
-                    const summary = await summarizeDocument(content);
-                    updatedMessage.text = summary;
-                    break;
-                case 'text_to_speech':
-                    const audioBase64 = await generateSpeech(args.text);
-                    if (audioBase64) {
-                        const audioBytes = decode(audioBase64);
-                        const audioBlob = pcmToWav(audioBytes, 24000, 1, 16);
-                        const audioUrl = URL.createObjectURL(audioBlob);
-                        updatedMessage.audioUrl = audioUrl;
-                        updatedMessage.text = `Here is the audio for: "${args.text}"`;
-                    } else {
-                        updatedMessage.text = "Sorry, I couldn't generate the speech.";
-                    }
-                    break;
-                case 'create_storyboard':
-                    const prompts: string[] = args.prompts || [];
-                    if (prompts.length === 0) {
-                        updatedMessage.text = "I need some prompts to create a storyboard.";
-                        break;
-                    }
-                    // Show placeholders
-                    updatedMessage.storyboardImages = prompts.map(p => ({ prompt: p, url: 'loading' }));
-                    updatedMessage.text = `Understood! I'll create a storyboard for you.`;
-                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
-
-                    // Generate images
-                    const imageUrls = await Promise.all(
-                        prompts.map(p => generateImage(p, '1:1'))
-                    );
-                    
-                    updatedMessage.storyboardImages = prompts.map((p, i) => ({
-                        prompt: p,
-                        url: imageUrls[i] || 'error',
-                    }));
-                    updatedMessage.text = `Here is the storyboard for "${prompts[0]}"...`;
-                    break;
-                 case 'create_powerpoint':
-                    const pptData = await generatePresentationContent(args.topic, args.num_slides || 5);
-                    if ('error' in pptData) {
-                        updatedMessage.text = `Error: ${pptData.error}`;
-                    } else {
-                        updatedMessage.text = `I have generated a PowerPoint presentation on "${args.topic}". You can download it now.`;
-                        updatedMessage.generatedFile = {
-                            filename: `${args.topic}.pptx`,
-                            message: `Generated presentation on ${args.topic}`,
-                            data: pptData,
-                            type: 'pptx',
-                            isPreviewLoading: true
-                        };
-                        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
-                        // Generate a preview image for the first slide
-                        const previewPrompt = `Create a single, visually appealing title slide image for a presentation titled "${args.topic}". Style: professional, modern, minimalist.`;
-                        const previewUrl = await generateImage(previewPrompt, '16:9');
-                        updatedMessage.generatedFile.previewImageUrl = previewUrl || undefined;
-                        updatedMessage.generatedFile.isPreviewLoading = false;
-                    }
-                    break;
-                case 'create_word_document':
-                    const wordData = await generateWordContent(args.topic, args.sections);
-                     if ('error' in wordData) {
-                        updatedMessage.text = `Error: ${wordData.error}`;
-                    } else {
-                         updatedMessage.text = `I have generated a Word document titled "${wordData.title}".`;
-                         updatedMessage.generatedFile = { filename: `${wordData.title}.docx`, message: `Generated document`, data: wordData, type: 'docx' };
-                    }
-                    break;
-                case 'create_excel_spreadsheet':
-                    const excelData = await generateExcelContent(args.data_description, args.columns);
-                     if ('error' in excelData) {
-                        updatedMessage.text = `Error: ${excelData.error}`;
-                    } else {
-                         updatedMessage.text = `I have generated an Excel file named "${args.filename}.xlsx".`;
-                         updatedMessage.generatedFile = { filename: `${args.filename}.xlsx`, message: 'Generated spreadsheet', data: { ...excelData, filename: args.filename }, type: 'xlsx' };
-                    }
-                    break;
-                case 'create_pdf_document':
-                    const pdfContentData = await generateWordContent(args.topic, args.sections); // Use Word structure for content
-                    if ('error' in pdfContentData) {
-                        updatedMessage.text = `Error: ${pdfContentData.error}`;
-                    } else {
-                        updatedMessage.text = `I have generated a PDF document titled "${pdfContentData.title}".`;
-                        updatedMessage.generatedFile = { filename: `${pdfContentData.title}.pdf`, message: 'Generated PDF', data: pdfContentData, type: 'pdf' };
-                    }
-                    break;
-                case 'generate_qr_code':
-                    const qrDataUrl = await new Promise<string>((resolve) => {
-                        QRCode.toDataURL(args.text, { width: 256 }, (err: any, url: string) => resolve(url));
-                    });
-                    updatedMessage.generatedQRCode = { text: args.text, dataUrl: qrDataUrl };
-                    updatedMessage.text = `Here is the QR code for "${args.text}"`;
-                    break;
-                case 'initiate_workflow':
-                    updatedMessage.text = "Starting autonomous workflow...";
-                    updatedMessage.workflow = { goal: args.goal, plan: [], steps: [], status: 'running', finalContent: null };
-                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
-                    await runWorkflow(args.goal, messageId);
-                    return; // Return early as runWorkflow handles its own message updates
-                // --- Developer Sandbox Tools ---
-                case 'list_files':
-                    const fileList = sessionFiles.length > 0 ? sessionFiles.map(f => f.name).join('\n') : "No files in session.";
-                    updatedMessage.text = `Current files:\n${fileList}`;
-                    break;
-                case 'read_file':
-                    const fileToRead = sessionFiles.find(f => f.name === args.filename);
-                    updatedMessage.text = fileToRead ? `Content of ${args.filename}:\n\n${fileToRead.content}` : `Error: File not found: ${args.filename}`;
-                    break;
-                case 'write_file':
-                    setSessionFiles(prev => {
-                        const existingIndex = prev.findIndex(f => f.name === args.filename);
-                        const newFile = { name: args.filename, content: args.content };
-                        if (existingIndex > -1) {
-                            const updatedFiles = [...prev];
-                            updatedFiles[existingIndex] = newFile;
-                            return updatedFiles;
-                        }
-                        return [...prev, newFile];
-                    });
-                    updatedMessage.text = `Successfully wrote to ${args.filename}.`;
-                    break;
-                case 'execute_python_code':
-                    const output = await executePythonCode(args.code, sessionFiles);
-                    updatedMessage.codeExecutionResult = { code: args.code, output };
-                    updatedMessage.text = 'Python code executed.';
-                    // Add to history
-                    setCodeHistory(prev => [{ id: `code-${Date.now()}`, code: args.code, timestamp: new Date() }, ...prev]);
-                    break;
-                 case 'create_interactive_chart':
-                    updatedMessage.interactiveChartData = args.chart_config;
-                    updatedMessage.text = 'Here is the interactive chart you requested.';
-                    break;
-                 case 'generate_website':
-                    // Initial state: Loading
-                    updatedMessage.generatedWebsite = { topic: args.topic, htmlContent: '', isLoading: true };
-                    updatedMessage.text = `Designing a ${args.style} website for "${args.topic}"...`;
-                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
-                    
-                    // Call the new service
-                    const websiteHtml = await generateWebsiteCode(args.topic, args.style, args.features || []);
-                    
-                    // Final state: Ready
-                    updatedMessage.generatedWebsite = { topic: args.topic, htmlContent: websiteHtml, isLoading: false };
-                    updatedMessage.text = `I've created a ${args.style} website for "${args.topic}". Click 'Launch Preview' to see it!`;
-                    break;
-                default:
-                    updatedMessage = { text: `It seems there was a misunderstanding and I tried to use a tool I don't have: \`${tool_call}\`. Could you please rephrase your request?` };
-                    break;
-            }
-        } catch (e) {
-            console.error(`Error handling tool ${tool_call}:`, e);
-            updatedMessage = { text: `Sorry, there was an error using the tool: ${tool_call}.` };
-        }
-
-        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
-    };
-
-    const runWorkflow = async (goal: string, messageId: string) => {
-        let currentWorkflow: Workflow;
-        
-        // Helper to update the message state
-        const updateWorkflowState = (updater: (wf: Workflow) => Workflow) => {
-            setMessages(prev => {
-                return prev.map(m => {
-                    if (m.id === messageId && m.workflow) {
-                        const newWorkflow = updater(m.workflow);
-                        currentWorkflow = newWorkflow; // Keep local copy in sync
-                        return { ...m, workflow: newWorkflow };
-                    }
-                    return m;
-                });
-            });
-        };
-        
-        // 1. Generate Plan
-        updateWorkflowState(wf => ({...wf, status: 'running'}));
-        const planResult = await generatePlan(goal);
-        
-        if ('error' in planResult) {
-            updateWorkflowState(wf => ({ ...wf, status: 'error', finalContent: planResult.error }));
-            return;
-        }
-
-        updateWorkflowState(wf => ({
-            ...wf,
-            plan: planResult.plan,
-            steps: planResult.plan.map(summary => ({ summary, status: 'pending' })),
-        }));
-        
-        // 2. Execute Steps
-        for (let i = 0; i < 10; i++) { // Max 10 steps to prevent infinite loops
-            const completedSteps = messages.find(m => m.id === messageId)?.workflow?.steps.filter(s => s.status === 'completed') || [];
-            
-            // Set current step to 'running'
-             updateWorkflowState(wf => ({
-                ...wf,
-                steps: wf.steps.map((s, idx) => completedSteps.length === idx ? { ...s, status: 'running' } : s)
-            }));
-            
-            const nextStepResult = await runWorkflowStep(goal, currentWorkflow.plan, completedSteps);
-            
-            if ('error' in nextStepResult) {
-                 updateWorkflowState(wf => ({ ...wf, status: 'error', finalContent: nextStepResult.error }));
-                break;
-            }
-            
-            const { step_summary, tool_call } = nextStepResult;
-            
-            updateWorkflowState(wf => ({
-                ...wf,
-                steps: wf.steps.map((s, idx) => completedSteps.length === idx ? { ...s, summary: step_summary, tool_call } : s)
-            }));
-            
-             if (tool_call.name === 'finish') {
-                updateWorkflowState(wf => ({
-                    ...wf,
-                    status: 'completed',
-                    finalContent: tool_call.args.final_content,
-                    steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'completed' } : s)
-                }));
-                break;
-            }
-             if (tool_call.name === 'request_user_approval') {
-                updateWorkflowState(wf => ({
-                    ...wf,
-                    status: 'paused_for_approval',
-                    steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'paused_for_approval' } : s)
-                }));
-                // Pause execution and wait for user input
-                return;
-            }
-
-            // Execute the tool
-            let tool_output: StructuredToolOutput = null;
-            try {
-                switch(tool_call.name) {
-                    case 'search_and_summarize':
-                        const searchRes = await performGoogleSearch(tool_call.args.query);
-                        const summary = await analyzeBrowsedContent(searchRes.text || '', `Summarize the key findings related to the query: "${tool_call.args.query}"`);
-                        tool_output = { type: 'text', content: summary };
-                        break;
-                    case 'write_file':
-                         setSessionFiles(prev => {
-                            const existingIndex = prev.findIndex(f => f.name === tool_call.args.filename);
-                            const newFile = { name: tool_call.args.filename, content: tool_call.args.content };
-                            if (existingIndex > -1) {
-                                const updatedFiles = [...prev];
-                                updatedFiles[existingIndex] = newFile;
-                                return updatedFiles;
-                            }
-                            return [...prev, newFile];
-                        });
-                        tool_output = { type: 'text', content: `Wrote ${tool_call.args.content.length} characters to ${tool_call.args.filename}` };
-                        break;
-                     case 'read_file':
-                        const fileContent = sessionFiles.find(f => f.name === tool_call.args.filename)?.content || `File not found: ${tool_call.args.filename}`;
-                        tool_output = { type: 'text', content: fileContent };
-                        break;
-                     case 'list_files':
-                        const files = sessionFiles.map(f => f.name).join('\n');
-                        tool_output = { type: 'text', content: files || 'No files in session.' };
-                        break;
-                    // TODO: Add cases for PPT, Word, Excel which would generate the file and return a structured output
+                    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: fullText, segments: parseMarkdown(fullText) } : m));
                 }
-            } catch (e) {
-                 updateWorkflowState(wf => ({
-                    ...wf, status: 'error', finalContent: `Error executing tool: ${tool_call.name}`,
-                    steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'error' } : s)
-                 }));
-                break;
+                
+                // Final pass to check for embedded tool calls
+                 if (fullText.includes('tool_call')) {
+                    try {
+                        // Regex to extract JSON object
+                        const match = fullText.match(/\{[\s\S]*"tool_call"[\s\S]*\}/);
+                        if (match) {
+                            const toolCall = JSON.parse(match[0]);
+                             // Hide the raw JSON from the user in the final message state
+                            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Processing request...", segments: [] } : m));
+                            await handleToolCall(toolCall, msgId);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse embedded tool call", e);
+                    }
+                }
+
+                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m));
+            }
+        } catch (error) {
+            console.error("Error in chat:", error);
+            setMessages(prev => [...prev, { id: Date.now().toString(), text: "Sorry, something went wrong. Please try again.", sender: 'ai', timestamp: new Date(), status: 'sent' }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // --- HELPER TO EXECUTE REAL WORLD ACTIONS ---
+    const executeSystemAction = (action: string, target: string, query: string = '') => {
+        let message = '';
+
+        if (action === 'call') {
+            message = `Calling ${target}...`;
+            const number = CONTACTS[target];
+            if (number) {
+                window.open(`tel:${number}`, '_self');
+            } else {
+                message = `I couldn't find a contact number for ${target}. Attempting to dial anyway...`;
+                // Try to dial if target looks like a number, otherwise prompt
+                if (/^\d+$/.test(target)) {
+                     window.open(`tel:${target}`, '_self');
+                }
+            }
+        } 
+        else if (action === 'open_app') {
+            const appName = target.toLowerCase();
+            let url = '';
+
+            if (appName.includes('youtube')) {
+                url = query ? `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}` : 'https://www.youtube.com';
+                message = query ? `Playing ${query} on YouTube...` : `Opening YouTube...`;
+            } 
+            else if (appName.includes('spotify')) {
+                url = query ? `https://open.spotify.com/search/${encodeURIComponent(query)}` : 'https://open.spotify.com';
+                message = query ? `Searching ${query} on Spotify...` : `Opening Spotify...`;
+            }
+            else if (appName.includes('google')) {
+                url = `https://www.google.com/search?q=${encodeURIComponent(query || target)}`;
+                message = `Searching Google...`;
+            }
+            else if (appName.includes('instagram')) {
+                url = `https://www.instagram.com/${query.replace('@', '')}`;
+                message = `Opening Instagram...`;
+            }
+            else {
+                // Generic search fallback
+                 url = `https://www.google.com/search?q=${encodeURIComponent(target + ' ' + query)}`;
+                 message = `Opening ${target}...`;
             }
             
-            updateWorkflowState(wf => ({
-                ...wf,
-                steps: wf.steps.map((s, idx) => idx === completedSteps.length ? { ...s, status: 'completed', tool_output } : s)
-            }));
+            if (url) window.open(url, '_blank');
         }
-    };
-    
-    const handleApproveWorkflow = (messageId: string) => {
-        setMessages(prev => prev.map(m => {
-            if (m.id === messageId && m.workflow) {
-                // Fix: Explicitly type the returned object in the map function to WorkflowStep to avoid type inference issues.
-                const newSteps = m.workflow.steps.map((s): WorkflowStep => 
-                    s.status === 'paused_for_approval' ? { ...s, status: 'completed', tool_output: { type: 'text', content: 'User approved.' } } : s
-                );
-                return { ...m, workflow: { ...m.workflow, status: 'running', steps: newSteps } };
-            }
-            return m;
-        }));
-        // Find the goal and resume the workflow
-        const message = messages.find(m => m.id === messageId);
-        if (message && message.workflow) {
-            runWorkflow(message.workflow.goal, messageId);
+        else if (action === 'navigation') {
+             message = `Navigating to ${target}...`;
+             const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`;
+             window.open(url, '_blank');
         }
-    };
-    
-    const handleDenyWorkflow = (messageId: string) => {
-        setMessages(prev => prev.map(m => {
-            if (m.id === messageId && m.workflow) {
-                // Fix: Explicitly type the returned object in the map function to WorkflowStep to avoid type inference issues.
-                 const newSteps = m.workflow.steps.map((s): WorkflowStep =>
-                    s.status === 'paused_for_approval' ? { ...s, status: 'denied' } : s
-                );
-                return { ...m, workflow: { ...m.workflow, status: 'denied', finalContent: 'Workflow denied by user.', steps: newSteps } };
-            }
-            return m;
-        }));
+        else if (action === 'email') {
+             message = `Drafting email to ${target}...`;
+             const mailto = `mailto:${target}?subject=${encodeURIComponent(query)}`;
+             window.open(mailto, '_blank');
+        }
+
+        return message;
     };
 
-    const handleSaveSettings = (settings: Partial<UserProfile>) => {
-        if (userProfile) {
-            updateCurrentUser(settings);
-            // Optionally refetch or update persona if custom instructions changed
-            if (activePersona.name === 'AikonAI' && settings.customInstructions) {
-                setActivePersona(prev => ({...prev, systemInstruction: aikonPersonaInstruction + '\n\n' + settings.customInstructions}));
-            }
+
+    const handleToolCall = async (tool: any, msgId: string) => {
+        // 1. Image Generation
+        if (tool.tool_call === 'generate_image') {
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, generatedImage: { prompt: tool.prompt, isLoading: true } } : m));
+            const imageUrl = await generateImage(tool.prompt);
+            setMessages(prev => prev.map(m => m.id === msgId ? {
+                ...m,
+                text: `Here is the image for: "${tool.prompt}"`,
+                generatedImage: { prompt: tool.prompt, url: imageUrl || undefined, isLoading: false },
+                status: 'sent'
+            } : m));
         }
-        setIsSettingsModalOpen(false);
+        // 2. Website Generation
+        else if (tool.tool_call === 'generate_website') {
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, generatedWebsite: { topic: tool.topic, htmlContent: '', isLoading: true } } : m));
+            const code = await generateWebsiteCode(tool.topic, tool.style, tool.features || []);
+            setMessages(prev => prev.map(m => m.id === msgId ? {
+                ...m,
+                text: `I've designed a website for ${tool.topic}.`,
+                generatedWebsite: { topic: tool.topic, htmlContent: code, isLoading: false },
+                status: 'sent'
+            } : m));
+        }
+        // 3. Storyboard
+        else if (tool.tool_call === 'create_storyboard') {
+            const prompts = tool.prompts as string[];
+            const panels = prompts.map(p => ({ prompt: p, url: '' })); // placeholder
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, storyboardImages: panels } : m));
+            
+            // Generate images in parallel
+            const promises = prompts.map(p => generateImage(p));
+            const results = await Promise.all(promises);
+            
+            setMessages(prev => prev.map(m => m.id === msgId ? {
+                ...m,
+                text: "Here is the storyboard explaining the topic.",
+                storyboardImages: results.map((url, i) => ({ prompt: prompts[i], url: url || '' })),
+                status: 'sent'
+            } : m));
+        }
+        // 4. Code Execution
+        else if (tool.tool_call === 'write_python_code' || tool.tool_call === 'execute_python_code') {
+             const result = await executePythonCode(tool.code);
+             setMessages(prev => prev.map(m => m.id === msgId ? {
+                ...m,
+                text: "Executed Python Code.",
+                codeExecutionResult: { code: tool.code, output: result },
+                status: 'sent'
+            } : m));
+        }
+        // 5. System / Real World Actions
+        else if (tool.tool_call === 'perform_real_world_action') {
+            const feedbackMsg = executeSystemAction(tool.action, tool.target, tool.query);
+            setMessages(prev => prev.map(m => m.id === msgId ? {
+                ...m,
+                text: feedbackMsg,
+                status: 'sent'
+            } : m));
+        }
+        // Fallback
+        else {
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: `I tried to use tool ${tool.tool_call} but it is not fully implemented yet.`, status: 'sent' } : m));
+        }
+        setIsLoading(false);
     };
 
-    const handleDeleteAllChats = () => {
-        setMessages([]);
-        setChatHistory([]);
-        setIsSettingsModalOpen(false);
-    };
-    
-    const saveCustomPersona = (persona: Persona) => {
-        let updatedPersonas;
-        const existingIndex = customPersonas.findIndex(p => p.name === persona.name);
-        if (existingIndex > -1) {
-            updatedPersonas = [...customPersonas];
-            updatedPersonas[existingIndex] = persona;
-        } else {
-            updatedPersonas = [...customPersonas, persona];
-        }
-        setCustomPersonas(updatedPersonas);
-        localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(updatedPersonas));
-    };
-
-    const deleteCustomPersona = (personaName: string) => {
-        const updatedPersonas = customPersonas.filter(p => p.name !== personaName);
-        setCustomPersonas(updatedPersonas);
-        localStorage.setItem(CUSTOM_PERSONAS_STORAGE_KEY, JSON.stringify(updatedPersonas));
-        // If the deleted persona was active, revert to default
-        if (activePersona.name === personaName) {
-            setActivePersona({ name: 'AikonAI', icon: '🤖', description: 'Default Assistant', systemInstruction: aikonPersonaInstruction });
-        }
-    };
-    
-    const toggleTheme = () => {
-        setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-    };
-    
-    const startLiveConversation = async () => {
-        if (isLive) return;
+    // --- AGENT WORKFLOW RUNNER ---
+    const runWorkflow = async (workflow: Workflow, msgId: string) => {
+        let currentWorkflow = { ...workflow };
         
-        setIsLive(true);
+        // Loop through steps
+        for (let i = 0; i < currentWorkflow.steps.length; i++) {
+            const step = currentWorkflow.steps[i];
+            
+            // Update UI: Step Running
+            currentWorkflow.steps[i].status = 'running';
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, workflow: { ...currentWorkflow } } : m));
+            
+            // Execute Step
+            const result = await runWorkflowStep(currentWorkflow.goal, currentWorkflow.plan, currentWorkflow.steps.slice(0, i));
+            
+            if ('error' in result) {
+                 currentWorkflow.steps[i].status = 'error';
+                 currentWorkflow.status = 'error';
+                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, workflow: { ...currentWorkflow } } : m));
+                 return;
+            }
+            
+            // Update Step Result
+            currentWorkflow.steps[i].status = 'completed';
+            currentWorkflow.steps[i].tool_call = result.tool_call;
+            // (Mocking tool output for now as generic success)
+            currentWorkflow.steps[i].tool_output = { type: 'text', content: 'Step completed successfully.' };
+            
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, workflow: { ...currentWorkflow } } : m));
+            
+            if (result.tool_call.name === 'finish') {
+                 break;
+            }
+        }
+        
+        currentWorkflow.status = 'completed';
+        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, workflow: { ...currentWorkflow }, text: "Workflow completed." } : m));
+    };
+
+
+    // --- LIVE CONVERSATION LOGIC ---
+
+    const startLiveConversation = async () => {
         setLiveStatus('connecting');
+        setShowLiveOverlay(true);
+        setLiveContent(null); // Reset previous content
 
         try {
-            if (!inputAudioContextRef.current) {
-                inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            // Resume Audio Context (User Interaction Requirement)
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
             }
-            if (!outputAudioContextRef.current) {
-                outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-            }
+            await audioContextRef.current.resume();
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStreamRef.current = stream;
+            
+            // Setup Audio Visualizer for input
+            const audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(stream);
+            const analyzer = audioContext.createAnalyser();
+            analyzer.fftSize = 256;
+            source.connect(analyzer);
+            const dataArray = new Uint8Array(analyzer.frequencyBinCount);
+            
+            const updateVolume = () => {
+                if (!showLiveOverlay) return;
+                analyzer.getByteFrequencyData(dataArray);
+                const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
+                setLiveVolume(avg / 128); // Normalize 0-2 approx
+                requestAnimationFrame(updateVolume);
+            };
+            requestAnimationFrame(updateVolume);
 
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            sessionPromiseRef.current = ai.live.connect({
+            
+            // Inject recent context
+            const recentHistory = messages.slice(-5).map(m => `${m.sender}: ${m.text}`).join('\n');
+            const systemInstruction = `${aikonPersonaInstruction}\n\nRecent Chat Context:\n${recentHistory}`;
+
+            const session = await ai.live.connect({
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
+                config: {
+                    systemInstruction: systemInstruction,
+                    responseModalities: [Modality.AUDIO],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+                    },
+                    tools: [{ functionDeclarations: getLiveFunctionDeclarations() }]
+                },
                 callbacks: {
                     onopen: () => {
                         setLiveStatus('connected');
-                        const source = inputAudioContextRef.current.createMediaStreamSource(stream);
-                        const scriptProcessor = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
+                        // Setup input streaming
+                        const inputCtx = new AudioContext({ sampleRate: 16000 });
+                        const inputSource = inputCtx.createMediaStreamSource(stream);
+                        const processor = inputCtx.createScriptProcessor(4096, 1, 1);
                         
-                        scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
-                            const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-                            const pcmBlob = createBlob(inputData);
-                            sessionPromiseRef.current?.then((session) => {
-                                session.sendRealtimeInput({ media: pcmBlob });
-                            });
+                        processor.onaudioprocess = (e) => {
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            const blob = createBlob(inputData);
+                            session.sendRealtimeInput({ media: blob });
                         };
                         
-                        source.connect(scriptProcessor);
-                        scriptProcessor.connect(inputAudioContextRef.current.destination);
+                        inputSource.connect(processor);
+                        processor.connect(inputCtx.destination);
                     },
-                    onmessage: async (message: LiveServerMessage) => {
-                        const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData.data;
-                        if (base64Audio && outputAudioContextRef.current) {
-                            nextStartTime = Math.max(nextStartTime, outputAudioContextRef.current.currentTime);
-                            const audioBuffer = await decodeAudioData(decode(base64Audio), outputAudioContextRef.current, 24000, 1);
-                            
-                            const source = outputAudioContextRef.current.createBufferSource();
-                            source.buffer = audioBuffer;
-                            source.connect(outputAudioContextRef.current.destination);
-                            
-                            source.addEventListener('ended', () => { audioSourcesRef.current.delete(source); });
-                            
-                            source.start(nextStartTime);
-                            nextStartTime += audioBuffer.duration;
-                            audioSourcesRef.current.add(source);
+                    onmessage: async (msg: LiveServerMessage) => {
+                        // 1. Handle Audio Output
+                        const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+                        if (audioData) {
+                            const buffer = await decodeAudioData(decode(audioData), audioContextRef.current!, 24000, 1);
+                            playAudioBuffer(buffer);
                         }
-                        if (message.serverContent?.interrupted) {
-                             for (const source of audioSourcesRef.current.values()) {
-                                source.stop();
-                            }
-                            audioSourcesRef.current.clear();
-                            nextStartTime = 0;
-                        }
-                    },
-                    onerror: (e: ErrorEvent) => {
-                        console.error("Live session error:", e);
-                        setLiveStatus('error');
-                        setIsLive(false);
-                    },
-                    onclose: (e: CloseEvent) => {
-                        setIsLive(false);
-                        setLiveStatus('idle');
-                         // Clean up resources
-                        stream.getTracks().forEach(track => track.stop());
-                    },
-                },
-                config: {
-                    responseModalities: [Modality.AUDIO],
-                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' }}},
-                    systemInstruction: activePersona.systemInstruction,
-                },
-            });
 
-        } catch (err) {
-            console.error("Failed to start live conversation:", err);
+                        // 2. Handle Interruptions
+                        if (msg.serverContent?.interrupted) {
+                            audioQueueRef.current = [];
+                            if (currentSourceRef.current) {
+                                currentSourceRef.current.stop();
+                            }
+                        }
+
+                        // 3. Handle Tool Calls (In-Call Actions)
+                        if (msg.toolCall) {
+                            for (const call of msg.toolCall.functionCalls) {
+                                if (call.name === 'generate_image') {
+                                     const url = await generateImage(call.args.prompt as string);
+                                     // Show image in overlay
+                                     setLiveContent({ type: 'image', data: { url: url || '', prompt: call.args.prompt } });
+                                     
+                                     // Notify model
+                                     session.sendToolResponse({
+                                         functionResponses: {
+                                             id: call.id,
+                                             name: call.name,
+                                             response: { result: "Image displayed to user on the holographic stage." }
+                                         }
+                                     });
+                                } else if (call.name === 'get_weather') {
+                                    const data = await fetchWeather(call.args.city as string);
+                                    if ('city' in data) {
+                                        setLiveContent({ type: 'weather', data: data });
+                                        session.sendToolResponse({
+                                            functionResponses: {
+                                                id: call.id,
+                                                name: call.name,
+                                                response: { result: JSON.stringify(data) }
+                                            }
+                                        });
+                                    }
+                                } else if (call.name === 'generate_website') {
+                                    const code = await generateWebsiteCode(call.args.topic as string, call.args.style as string, call.args.features as string[] || []);
+                                    setLiveContent({ type: 'website', data: { topic: call.args.topic, htmlContent: code, isLoading: false } });
+                                    session.sendToolResponse({
+                                         functionResponses: {
+                                             id: call.id,
+                                             name: call.name,
+                                             response: { result: "Website generated and displayed." }
+                                         }
+                                     });
+                                } else if (call.name === 'perform_real_world_action') {
+                                    // LIVE CALL: Perform Call/App Open
+                                    const feedback = executeSystemAction(call.args.action as string, call.args.target as string, call.args.query as string);
+                                    setLiveContent({ type: 'text', data: feedback }); // Show feedback text on orb
+                                    session.sendToolResponse({
+                                        functionResponses: {
+                                            id: call.id,
+                                            name: call.name,
+                                            response: { result: "Action executed successfully: " + feedback }
+                                        }
+                                    });
+                                }
+                                
+                            }
+                        }
+                    },
+                    onclose: () => {
+                        setLiveStatus('idle');
+                        setShowLiveOverlay(false);
+                    },
+                    onerror: (e) => {
+                        console.error("Live error", e);
+                        setLiveStatus('error');
+                    }
+                }
+            });
+            liveClientRef.current = session;
+
+        } catch (error) {
+            console.error("Failed to start live session:", error);
             setLiveStatus('error');
-            setIsLive(false);
         }
     };
     
-    const stopLiveConversation = () => {
-        sessionPromiseRef.current?.then(session => session.close());
-        setIsLive(false);
+    const handleLiveFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0 && liveClientRef.current) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = reader.result as string;
+                const base64Data = base64.split(',')[1];
+                
+                // Send image to Live Session as Realtime Input
+                liveClientRef.current.sendRealtimeInput([{
+                    mimeType: file.type,
+                    data: base64Data
+                }]);
+                
+                // Notify user it's uploaded via audio cue or toast (optional)
+                playSound('/sounds/send_message.mp3');
+            };
+            reader.readAsDataURL(file);
+        }
     };
+    
+    const playAudioBuffer = (buffer: AudioBuffer) => {
+        audioQueueRef.current.push(buffer);
+        if (!isPlayingRef.current) {
+            playNextBuffer();
+        }
+    };
+
+    const playNextBuffer = () => {
+        if (audioQueueRef.current.length === 0) {
+            isPlayingRef.current = false;
+            return;
+        }
+        
+        isPlayingRef.current = true;
+        const buffer = audioQueueRef.current.shift()!;
+        const source = audioContextRef.current!.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContextRef.current!.destination);
+        source.start();
+        currentSourceRef.current = source;
+        
+        source.onended = () => {
+            playNextBuffer();
+        };
+    };
+
+    const endLiveConversation = () => {
+        if (liveClientRef.current) {
+            // No explicit close method on session object in SDK types, but we can disconnect stream
+            audioStreamRef.current?.getTracks().forEach(t => t.stop());
+            // session.close() if available
+        }
+        setShowLiveOverlay(false);
+        setLiveStatus('idle');
+    };
+
 
     return (
         <div className="chat-page-container">
-            {/* Header */}
             <header className="chat-header">
-                <img src="/short_logo.jpeg" alt="AikonAI Logo" className="chat-header-logo" />
-                 <div className="chat-header-actions">
-                    {isAgentMode && <SessionFileManager files={sessionFiles} onOpenCodeCanvas={() => setIsCodeCanvasVisible(true)} />}
-                    <AgentModeToggle isEnabled={isAgentMode} onToggle={setIsAgentMode} />
-                    <button className="theme-toggle-button" onClick={toggleTheme} aria-label="Toggle theme">
-                        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+                <div className="flex items-center gap-3">
+                    <img src="/long_logo.jpeg" alt="Aikon Logo" className="chat-header-logo rounded-md" />
+                    <div className="hidden md:block">
+                        <h1 className="font-bold text-white text-lg tracking-tight">AIKON STUDIO</h1>
+                        <p className="text-xs text-gray-500">Engineered by Aditya Jain</p>
+                    </div>
+                </div>
+                <div className="chat-header-actions">
+                     <div className="agent-toggle">
+                        <span className={`text-xs font-bold mr-2 ${isAgentMode ? 'text-amber-400' : 'text-gray-500'}`}>Agent Mode</span>
+                        <button 
+                            className={`toggle-switch ${isAgentMode ? 'on' : ''}`}
+                            onClick={() => setIsAgentMode(!isAgentMode)}
+                        >
+                            <div className="toggle-thumb" />
+                        </button>
+                    </div>
+                    
+                    <button onClick={startLiveConversation} className="text-amber-400 border-amber-400 hover:bg-amber-400 hover:text-black" title="Start Voice Call">
+                        🎙️ Call
                     </button>
-                    <button onClick={() => setIsSettingsModalOpen(true)}>Settings</button>
-                    <button onClick={logout} className="primary">Log Out</button>
+                    
+                    <button onClick={() => setIsDarkMode(!isDarkMode)} className="theme-toggle-button" title="Toggle Theme">
+                        {isDarkMode ? '☀️' : '🌙'}
+                    </button>
+
+                    <button onClick={() => setIsCodeCanvasOpen(true)} title="Code Canvas">
+                        <span className="mr-1">💻</span> Code
+                    </button>
+                    <button onClick={() => setIsSettingsOpen(true)}>Settings</button>
+                    <button onClick={() => navigateTo('home')}>Exit</button>
                 </div>
             </header>
-            
-            {/* Message Log */}
-            <div ref={messageLogRef} className="message-log-container">
-                {messages.length === 0 ? (
-                    <WelcomeScreen onActionClick={handleSendMessage} isAgentMode={isAgentMode} />
-                ) : (
-                    messages.map((msg, index) => (
-                        <MessageLogItem 
-                            key={msg.id} 
-                            message={msg} 
-                            isLast={index === messages.length - 1} 
-                            userProfile={userProfile}
-                            onApproveWorkflow={handleApproveWorkflow}
-                            onDenyWorkflow={handleDenyWorkflow}
-                            theme={theme}
-                            onViewWebsite={(html) => setWebsitePreviewContent(html)}
-                        />
-                    ))
-                )}
-                 {isSending && messages.length > 0 && (
-                     <div className="message-log-item ai">
-                        <div className="message-bubble-wrapper">
-                            <div className="message-avatar ai-avatar">
-                                <img src="/short_logo.jpeg" alt="AikonAI Avatar" />
-                            </div>
-                            <div className="message-content-wrapper">
-                                <TypingIndicator 
-                                    persona={activePersona.name} 
-                                    task={
-                                        messages[messages.length-1].workflow ? 'workflow' :
-                                        messages[messages.length-1].generatedImage ? 'generate_image' : 
-                                        messages[messages.length-1].generatedWebsite ? 'generate_website' : null
-                                    } 
-                                />
-                            </div>
+
+            <div ref={chatContainerRef} className="message-log-container">
+                {messages.length === 0 && (
+                    <div className="chat-welcome-screen">
+                        <img src="/short_logo.jpeg" alt="Aikon" className="welcome-logo rounded-2xl shadow-2xl" />
+                        <h2 className="welcome-title">How can I help?</h2>
+                         {currentUser && (
+                            <p className="text-gray-400 mt-4 text-lg">Welcome back, {currentUser.displayName || currentUser.aboutYou}.</p>
+                        )}
+                        <div className="welcome-actions">
+                            <button className="action-pill" onClick={() => { setInput("Explain quantum computing"); handleSendMessage(); }}>
+                                <span>⚛️</span> Explain quantum computing
+                            </button>
+                            <button className="action-pill" onClick={() => { setInput("Write a python script to parse CSV"); handleSendMessage(); }}>
+                                <span>🐍</span> Write a python script
+                            </button>
+                            <button className="action-pill" onClick={() => { setInput("Create a marketing plan for a coffee shop"); handleSendMessage(); }}>
+                                <span>☕</span> Create marketing plan
+                            </button>
+                            <button className="action-pill" onClick={startLiveConversation}>
+                                <span>🎙️</span> Start Voice Call
+                            </button>
                         </div>
                     </div>
                 )}
+                
+                {messages.map((msg, index) => (
+                    <MessageLogItem 
+                        key={msg.id} 
+                        msg={msg} 
+                        userProfile={currentUser} 
+                        onCopy={(text) => navigator.clipboard.writeText(text)}
+                        onRegenerate={() => {
+                             const lastUserMsg = messages.slice(0, index).reverse().find(m => m.sender === 'user');
+                             if (lastUserMsg) {
+                                 setInput(lastUserMsg.text);
+                                 handleSendMessage();
+                             }
+                        }}
+                        isLastAiMessage={index === messages.length - 1 && msg.sender === 'ai'}
+                    />
+                ))}
             </div>
-            
-            {/* Composer */}
+
             <div className="chat-actions-bar">
                 <div className="chat-actions-inner">
-                    <PersonaMenu 
-                        isOpen={isPersonaMenuOpen}
-                        setIsOpen={setIsPersonaMenuOpen}
-                        activePersona={activePersona}
-                        setActivePersona={setActivePersona}
-                        personas={[...PERSONAS, ...customPersonas]}
-                        onSavePersona={saveCustomPersona}
-                        onDeletePersona={deleteCustomPersona}
-                    />
-                    {activePersona.name !== 'AikonAI' && <ActivePersonaIndicator persona={activePersona} onClear={() => setActivePersona({ name: 'AikonAI', icon: '🤖', description: 'Default Assistant', systemInstruction: aikonPersonaInstruction })} />}
-                    {isAgentMode && (
-                        <>
-                         <button onClick={() => setCodeHistoryPanelVisible(true)} className="action-pill">
-                            <span>Code History ({codeHistory.length})</span>
+                    <div className="persona-menu-container relative">
+                        <button 
+                            className="active-persona-indicator"
+                            onClick={() => setShowPersonaMenu(!showPersonaMenu)}
+                        >
+                            <span>{activePersona.icon}</span>
+                            <span className="font-bold">{activePersona.name}</span>
+                             <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${showPersonaMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </button>
-                        </>
-                    )}
+                        
+                         <AnimatePresence>
+                            {showPersonaMenu && (
+                                <motion.div 
+                                    className="persona-menu"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                >
+                                    {PERSONAS.map(persona => (
+                                        <div 
+                                            key={persona.name} 
+                                            className={`persona-menu-item ${activePersona.name === persona.name ? 'selected' : ''}`}
+                                            onClick={() => { setActivePersona(persona); setShowPersonaMenu(false); }}
+                                        >
+                                             <div className="persona-tooltip-wrapper w-full flex items-center gap-2">
+                                                <span className="icon">{persona.icon}</span>
+                                                <span>{persona.name}</span>
+                                                <div className="persona-tooltip">{persona.description}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </div>
+
             <ChatComposer 
-                onSendMessage={handleSendMessage}
-                onStartLiveConversation={startLiveConversation}
-                isSending={isSending} 
-                isAgentModeEnabled={isAgentMode}
+                input={input} 
+                setInput={setInput} 
+                onSend={handleSendMessage} 
+                files={files}
+                setFiles={setFiles}
+                isLoading={isLoading}
+                fileInputRef={fileInputRef}
             />
-
-            <AnimatePresence>
-                {isSettingsModalOpen && (
-                    <SettingsModal
-                        isOpen={isSettingsModalOpen}
-                        onClose={() => setIsSettingsModalOpen(false)}
-                        profile={userProfile}
-                        onSave={handleSaveSettings}
-                        onDeleteAllChats={handleDeleteAllChats}
-                    />
-                )}
-                {isCodeCanvasVisible && (
-                     <CodeCanvas 
-                        files={sessionFiles.reduce((acc, file) => ({ ...acc, [file.name]: file.content }), {})} 
-                        isVisible={isCodeCanvasVisible} 
-                        onClose={() => setIsCodeCanvasVisible(false)} 
-                    />
-                )}
-                {codeHistoryPanelVisible && (
-                    <CodeHistoryPanel 
-                        history={codeHistory}
-                        isVisible={codeHistoryPanelVisible}
-                        onClose={() => setCodeHistoryPanelVisible(false)}
-                        onRunCode={(code) => handleSendMessage(code, [])}
-                    />
-                )}
-                {isLive && (
-                    <LiveConversationOverlay 
-                        status={liveStatus} 
-                        onDisconnect={stopLiveConversation} 
-                    />
-                )}
-                {websitePreviewContent && (
-                    <WebsitePreview
-                        htmlContent={websitePreviewContent}
-                        isVisible={!!websitePreviewContent}
-                        onClose={() => setWebsitePreviewContent(null)}
-                    />
-                )}
-            </AnimatePresence>
-        </div>
-    );
-};
-
-const Header: React.FC<NavigationProps> = ({ navigateTo }) => {
-    // Basic header, can be expanded
-    return (
-        <header className="chat-header">
-            <img src="/short_logo.jpeg" alt="AikonAI Logo" className="chat-header-logo" />
-            <div className="chat-header-actions">
-                <button onClick={() => navigateTo('home')}>Home</button>
-            </div>
-        </header>
-    );
-};
-
-const PersonaMenu: React.FC<{
-    isOpen: boolean,
-    setIsOpen: (isOpen: boolean) => void,
-    activePersona: Persona,
-    setActivePersona: (persona: Persona) => void,
-    personas: Persona[],
-    onSavePersona: (persona: Persona) => void,
-    onDeletePersona: (name: string) => void,
-}> = ({ isOpen, setIsOpen, activePersona, setActivePersona, personas, onSavePersona, onDeletePersona }) => {
-    const menuRef = useRef<HTMLDivElement>(null);
-    const [isEditing, setIsEditing] = useState<Persona | null>(null);
-
-    // Close menu on outside click
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [setIsOpen]);
-    
-    const handleSelectPersona = (persona: Persona) => {
-        setActivePersona(persona);
-        setIsOpen(false);
-    };
-
-    const handleEdit = (e: React.MouseEvent, persona: Persona) => {
-        e.stopPropagation();
-        setIsEditing(persona);
-    };
-
-    const handleDelete = (e: React.MouseEvent, personaName: string) => {
-        e.stopPropagation();
-        if (window.confirm(`Are you sure you want to delete the "${personaName}" persona?`)) {
-            onDeletePersona(personaName);
-        }
-    };
-    
-    const handleSaveEdit = (editedPersona: Persona) => {
-        onSavePersona(editedPersona);
-        setIsEditing(null);
-    };
-    
-    return (
-        <div className="persona-menu-container" ref={menuRef}>
-            <button className="action-pill" onClick={() => setIsOpen(!isOpen)}>
-                <span className="text-xl">{activePersona.icon}</span>
-                <span>Personas</span>
-            </button>
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div 
-                        className="persona-menu"
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    >
-                         {personas.map(p => (
-                            <div key={p.name} className="persona-tooltip-wrapper">
-                                <div 
-                                    className={`persona-menu-item ${activePersona.name === p.name ? 'selected' : ''}`}
-                                    onClick={() => handleSelectPersona(p)}
-                                >
-                                    <span className="icon">{p.icon}</span>
-                                    <span>{p.name}</span>
-                                    {p.isCustom && (
-                                        <div className="persona-item-actions">
-                                            <button className="edit-btn" onClick={(e) => handleEdit(e, p)}>✏️</button>
-                                            <button className="delete-btn" onClick={(e) => handleDelete(e, p.name)}>🗑️</button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="persona-tooltip">{p.description}</div>
-                            </div>
-                        ))}
-                         <div className="create-persona-button">
-                             <div className="persona-menu-item" onClick={() => setIsEditing({ name: '', icon: '', systemInstruction: '', description: '', isCustom: true })}>
-                                <span className="icon">➕</span>
-                                <span>Create New Persona</span>
-                             </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            {isEditing && (
-                <CreatePersonaModal 
-                    persona={isEditing}
-                    onClose={() => setIsEditing(null)}
-                    onSave={handleSaveEdit}
+            
+            <SettingsModal 
+                isOpen={isSettingsOpen} 
+                onClose={() => setIsSettingsOpen(false)}
+                profile={currentUser}
+                onSave={() => {}}
+                onDeleteAllChats={() => setMessages([])}
+            />
+            
+            <CodeCanvas 
+                files={{}} 
+                isVisible={isCodeCanvasOpen} 
+                onClose={() => setIsCodeCanvasOpen(false)} 
+            />
+            
+            {generatedWebsiteData && (
+                <WebsitePreview 
+                    websiteData={generatedWebsiteData}
+                    onClose={() => setGeneratedWebsiteData(null)}
                 />
             )}
+
+            <input type="file" ref={liveFileInputRef} className="hidden" onChange={handleLiveFileUpload} />
+            <LiveConversationOverlay 
+                isOpen={showLiveOverlay}
+                onClose={endLiveConversation}
+                status={liveStatus}
+                volume={liveVolume}
+                liveContent={liveContent}
+                onUpload={() => liveFileInputRef.current?.click()}
+            />
+
         </div>
     );
 };
-
-const CreatePersonaModal: React.FC<{
-    persona: Persona,
-    onClose: () => void,
-    onSave: (persona: Persona) => void
-}> = ({ persona, onClose, onSave }) => {
-    const [formData, setFormData] = useState<Persona>(persona);
-
-    const handleSave = () => {
-        onSave(formData);
-        onClose();
-    };
-    
-    return (
-        <div className="modal-backdrop">
-            <div className="modal-content">
-                <h2>{persona.name ? 'Edit' : 'Create'} Persona</h2>
-                <div className="form-group">
-                    <label>Name</label>
-                    <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} disabled={!!persona.name} />
-                </div>
-                <div className="form-group">
-                    <label>Icon</label>
-                    <input type="text" value={formData.icon} onChange={(e) => setFormData({...formData, icon: e.target.value})} maxLength={2} />
-                </div>
-                <div className="form-group">
-                    <label>Description (for tooltip)</label>
-                    <input type="text" value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} />
-                </div>
-                <div className="form-group">
-                    <label>System Instruction</label>
-                    <textarea value={formData.systemInstruction} onChange={(e) => setFormData({...formData, systemInstruction: e.target.value})} />
-                </div>
-                 <div className="modal-footer">
-                    <button onClick={onClose} className="secondary">Cancel</button>
-                    <button onClick={handleSave} className="primary">Save</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const ActivePersonaIndicator: React.FC<{ persona: Persona, onClear: () => void }> = ({ persona, onClear }) => (
-    <div className="active-persona-indicator">
-        <span className="text-xl">{persona.icon}</span>
-        <span className="font-semibold">{persona.name}</span>
-        <button onClick={onClear}>&times;</button>
-    </div>
-);
-
-const AgentModeToggle: React.FC<{ isEnabled: boolean, onToggle: (enabled: boolean) => void }> = ({ isEnabled, onToggle }) => (
-    <div className="action-pill agent-toggle">
-        <span className={`font-semibold text-sm ${isEnabled ? 'text-amber-400' : ''}`}>Agent Mode</span>
-        <button className={`toggle-switch ${isEnabled ? 'on' : ''}`} onClick={() => onToggle(!isEnabled)}>
-            <div className="toggle-thumb"></div>
-        </button>
-    </div>
-);
-
-const SessionFileManager: React.FC<{ files: VirtualFile[], onOpenCodeCanvas: () => void }> = ({ files, onOpenCodeCanvas }) => {
-    if (files.length === 0) return null;
-    return (
-        <div className="action-pill" onClick={onOpenCodeCanvas}>
-            <span>Session Files ({files.length})</span>
-        </div>
-    )
-};
-
-// Fix: Add 'idle' to the status prop type to align with the state variable.
-const LiveConversationOverlay: React.FC<{ status: 'connecting' | 'connected' | 'error' | 'idle', onDisconnect: () => void }> = ({ status, onDisconnect }) => {
-    // Fix: Add 'idle' case to the statusText map.
-    const statusText = {
-        connecting: 'Connecting...',
-        connected: 'Live Conversation Started',
-        error: 'Connection failed. Please try again.',
-        idle: 'Disconnected',
-    }[status];
-
-    return (
-        <motion.div className="live-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="live-content">
-                <div className={`live-orb ${status === 'connected' ? 'connected' : ''}`}>
-                    <div className="live-orb-inner"></div>
-                </div>
-                <p className="live-status">{statusText}</p>
-                <button onClick={onDisconnect} className="live-disconnect-button">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 8l2-2m0 0l2 2m-2-2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2" /></svg>
-                    Disconnect
-                </button>
-            </div>
-        </motion.div>
-    );
-};
-
-const CodeHistoryPanel: React.FC<{ 
-    history: CodeExecutionHistoryItem[], 
-    isVisible: boolean, 
-    onClose: () => void,
-    onRunCode: (code: string) => void,
-}> = ({ history, isVisible, onClose, onRunCode }) => {
-    return (
-         <AnimatePresence>
-            {isVisible && (
-                <motion.div 
-                    className="code-history-panel"
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                >
-                    <div className="code-history-header">
-                        <h3 className="text-lg font-bold text-amber-400">Code History</h3>
-                        <motion.button whileTap={{scale: 0.9}} onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</motion.button>
-                    </div>
-                    <div className="code-history-list">
-                        {history.length === 0 ? (
-                            <p className="text-gray-500 text-center italic mt-4">No code has been executed in this session.</p>
-                        ) : (
-                            history.map(item => (
-                                <div key={item.id} className="code-history-item">
-                                    <div className="code-history-item-code">
-                                        <CodeBlock language="python" code={item.code} />
-                                    </div>
-                                    <div className="code-history-item-footer">
-                                        <span className="code-history-timestamp">{item.timestamp.toLocaleTimeString()}</span>
-                                        <div className="code-history-actions">
-                                            <button onClick={() => onRunCode(item.code)}>
-                                                <span>▶️</span> Run Again
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-    )
-};
-
 
 export default AikonChatPage;
