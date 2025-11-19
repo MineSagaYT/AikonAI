@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { NavigationProps, FileAttachment, Message, Source, Task, ChatListItem, MessageSender, Workflow, WorkflowStep, CanvasFiles, UserProfile, VirtualFile, StructuredToolOutput, Persona, PresentationData, WordData, ExcelData, CodeExecutionHistoryItem, InteractiveChartData } from '../../types';
-import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction } from '../../services/geminiService';
+import { streamMessageToChat, generateImage, editImage, fetchVideoFromUri, generatePlan, runWorkflowStep, performGoogleSearch, browseWebpage, summarizeDocument, generateSpeech, generatePresentationContent, generateWordContent, generateExcelContent, analyzeBrowsedContent, generateVideo, executePythonCode, aikonPersonaInstruction, classifyIntentAndSelectPersona, generateWebsiteCode } from '../../services/geminiService';
 import { fetchWeather } from '../../services/weatherService';
 import { GenerateVideosOperation, Content, GenerateContentResponse, GoogleGenAI, Modality, GroundingChunk, Blob as GenAI_Blob, LiveServerMessage } from '@google/genai';
 import { parseMarkdown, renderParagraph, createPptxFile, createDocxFile, createXlsxFile, createPdfFile } from '../../utils/markdown';
@@ -264,6 +264,7 @@ const ToolIcon: React.FC<{ toolName: string }> = ({ toolName }) => {
         'execute_python_code': '🐍',
         'create_powerpoint': '📊', 'create_word_document': '📝', 'create_excel_spreadsheet': '📈',
         'finish': '🏁', 'request_user_approval': '🤔',
+        'generate_website': '🌐',
     }[toolName] || '⚙️';
     return <span className="text-xl" title={toolName}>{icon}</span>;
 };
@@ -305,6 +306,104 @@ const PptIcon = () => (
 );
 
 
+// --- Website Preview Component ---
+
+const WebsitePreview: React.FC<{
+    htmlContent: string;
+    isVisible: boolean;
+    onClose: () => void;
+}> = ({ htmlContent, isVisible, onClose }) => {
+    const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
+
+    const handleDownload = () => {
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'website.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    return (
+        <AnimatePresence>
+            {isVisible && (
+                <motion.div
+                    className="fixed inset-0 z-[200] flex flex-col bg-gray-900"
+                    initial={{ opacity: 0, y: '100%' }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: '100%' }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                >
+                    {/* Toolbar */}
+                    <div className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700 shadow-md">
+                        <div className="flex items-center gap-4">
+                            <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                                <span className="text-amber-400">✨</span> Aikon Web Designer
+                            </h3>
+                            <div className="flex bg-gray-700 rounded-lg p-1">
+                                <button
+                                    onClick={() => setViewMode('desktop')}
+                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'desktop' ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Desktop
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('mobile')}
+                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'mobile' ? 'bg-gray-600 text-white shadow-sm' : 'text-gray-400 hover:text-white'}`}
+                                >
+                                    Mobile
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleDownload}
+                                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-sm transition-colors"
+                            >
+                                Download Code
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Viewport Area */}
+                    <div className="flex-grow bg-gray-900 flex items-center justify-center overflow-hidden relative">
+                        <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
+                             backgroundImage: 'radial-gradient(#444 1px, transparent 1px)',
+                             backgroundSize: '20px 20px'
+                        }}></div>
+                        
+                        <motion.div
+                            layout
+                            className={`bg-white transition-all duration-500 ease-in-out shadow-2xl overflow-hidden ${
+                                viewMode === 'mobile' 
+                                    ? 'w-[375px] h-[812px] rounded-[40px] border-[8px] border-gray-800' 
+                                    : 'w-full h-full'
+                            }`}
+                        >
+                            <iframe
+                                srcDoc={htmlContent}
+                                title="Generated Website"
+                                className="w-full h-full border-0"
+                                sandbox="allow-scripts" // Allow scripts for interactivity
+                            />
+                        </motion.div>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
+};
+
+
 // --- Main Page and Sub-components ---
 
 const MessageLogItem: React.FC<{
@@ -314,7 +413,8 @@ const MessageLogItem: React.FC<{
     onApproveWorkflow: (messageId: string) => void;
     onDenyWorkflow: (messageId: string) => void;
     theme: 'light' | 'dark';
-}> = memo(({ message, isLast, userProfile, onApproveWorkflow, onDenyWorkflow, theme }) => {
+    onViewWebsite: (html: string) => void; // New prop
+}> = memo(({ message, isLast, userProfile, onApproveWorkflow, onDenyWorkflow, theme, onViewWebsite }) => {
 
     const messageContentRef = useRef<HTMLDivElement>(null);
 
@@ -452,7 +552,13 @@ const MessageLogItem: React.FC<{
                         <div className="storyboard-grid">
                             {message.storyboardImages.map((img, index) => (
                                 <div key={index} className="storyboard-panel">
-                                    <img src={img.url} alt={img.prompt} />
+                                    {img.url === 'loading' ? (
+                                        <div className="skeleton-loader aspect-1-1"><span>Generating...</span></div>
+                                    ) : img.url === 'error' ? (
+                                        <div className="skeleton-loader aspect-1-1"><span>Failed to load</span></div>
+                                    ) : (
+                                        <img src={img.url} alt={img.prompt} />
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -509,6 +615,39 @@ const MessageLogItem: React.FC<{
                     {message.interactiveChartData && (
                         <InteractiveChart chartData={message.interactiveChartData} theme={theme} />
                     )}
+                    {/* Website Generation Output */}
+                    {message.generatedWebsite && (
+                        <div className="mt-3 bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
+                            <div className="p-4 bg-gradient-to-r from-gray-800 to-gray-900 flex justify-between items-center">
+                                <div>
+                                    <h4 className="text-white font-bold flex items-center gap-2">
+                                        <span className="text-xl">🌐</span> 
+                                        Website Generated
+                                    </h4>
+                                    <p className="text-xs text-gray-400 mt-0.5">Topic: {message.generatedWebsite.topic}</p>
+                                </div>
+                                {message.generatedWebsite.isLoading ? (
+                                    <div className="px-3 py-1 bg-amber-500/20 text-amber-400 text-xs rounded-full animate-pulse">
+                                        Coding...
+                                    </div>
+                                ) : (
+                                    <div className="px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
+                                        Ready
+                                    </div>
+                                )}
+                            </div>
+                            {!message.generatedWebsite.isLoading && (
+                                <div className="p-4 bg-gray-900/50">
+                                    <button 
+                                        onClick={() => onViewWebsite(message.generatedWebsite!.htmlContent)}
+                                        className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg transition-colors shadow-lg flex items-center justify-center gap-2"
+                                    >
+                                        <span>🚀</span> Launch Preview
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     
                     {message.sources && <SourceDisplay sources={message.sources} />}
                 </div>
@@ -555,7 +694,7 @@ const ChatComposer: React.FC<{
             const files = Array.from(e.target.files);
             const newAttachments: FileAttachment[] = [];
             
-            files.forEach(file => {
+            files.forEach((file: File) => {
                  if (attachments.length + newAttachments.length >= 5) {
                     alert("You can attach a maximum of 5 files.");
                     return;
@@ -832,6 +971,8 @@ const TypingIndicator: React.FC<{ persona: string, task: string | null }> = memo
                 return 'task-browsing';
             case 'workflow':
                 return 'task-workflow';
+            case 'generate_website':
+                return 'task-workflow'; // Reuse same animation
             default:
                 return '';
         }
@@ -851,7 +992,7 @@ const WelcomeScreen: React.FC<{ onActionClick: (prompt: string, files?: FileAtta
     const actions = [
         { text: "Explain quantum computing", icon: "🔬" },
         { text: "Draft a startup pitch deck", icon: "💡", agentOnly: true },
-        { text: "Create a travel itinerary for Japan", icon: "✈️" },
+        { text: "Make a portfolio website for me", icon: "🌐" },
         { text: "Write a Python script for web scraping", icon: "💻", agentOnly: true },
     ];
 
@@ -909,6 +1050,9 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     const { currentUser, logout, updateCurrentUser } = useAuth();
     const userProfile = currentUser; // Assuming currentUser is the UserProfile object
     const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+    
+    // New state for website preview
+    const [websitePreviewContent, setWebsitePreviewContent] = useState<string | null>(null);
 
     // Initial setup
     useEffect(() => {
@@ -947,7 +1091,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     }, [messages]);
 
-    const handleSendMessage = async (message: string, attachments: FileAttachment[]) => {
+    const handleSendMessage = async (message: string, attachments: FileAttachment[] = []) => {
         if (isSending) return;
 
         setIsSending(true);
@@ -973,6 +1117,17 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         setMessages(prev => [...prev, aiResponsePlaceholder]);
 
         try {
+            // Automatic Persona Switching Logic
+            let personaForThisTurn = activePersona;
+            if (activePersona.name === 'AikonAI' && !isAgentMode && message.trim().length > 0) {
+                const determinedPersonaName = await classifyIntentAndSelectPersona(message);
+                const newPersona = [...PERSONAS, ...customPersonas].find(p => p.name === determinedPersonaName);
+                if (newPersona && newPersona.name !== 'AikonAI') {
+                    personaForThisTurn = newPersona;
+                    setActivePersona(newPersona); // Update state for UI indication
+                }
+            }
+            
             const { stream, historyWithUserMessage } = await streamMessageToChat(
                 chatHistory,
                 message,
@@ -980,7 +1135,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 location,
                 userProfile,
                 undefined, // No chat continuation for now
-                activePersona.systemInstruction,
+                personaForThisTurn.systemInstruction,
                 isAgentMode
             );
             
@@ -988,45 +1143,65 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             
             let fullResponseText = '';
             let toolCallObject: any = null;
-            
+            let isBufferingForToolCall = false;
+            let streamedText = '';
+
             for await (const chunk of stream) {
-                 const chunkText = chunk.text;
+                const chunkText = chunk.text;
+                if (!chunkText) continue;
 
-                if (chunkText) {
-                    // Check for JSON tool calls at the start of the stream
-                    const trimmedChunk = chunkText.trim();
-                    if (trimmedChunk.startsWith('{') && trimmedChunk.endsWith('}')) {
-                        try {
-                            const parsed = JSON.parse(trimmedChunk);
-                            if (parsed.tool_call) {
-                                toolCallObject = parsed;
-                                // We have a tool call, break the loop to process it.
-                                break;
-                            }
-                        } catch (e) {
-                            // Not a valid JSON, treat as regular text
-                        }
-                    }
+                fullResponseText += chunkText;
 
-                    fullResponseText += chunkText;
+                // Once we detect a potential tool call (by finding a '{'), stop streaming to the UI and buffer everything.
+                if (!isBufferingForToolCall && fullResponseText.includes('{')) {
+                    isBufferingForToolCall = true;
+                }
+
+                if (!isBufferingForToolCall) {
+                    streamedText = fullResponseText;
                     setMessages(prev =>
                         prev.map(m =>
                             m.id === aiResponsePlaceholder.id
-                                ? { ...m, text: fullResponseText, segments: parseMarkdown(fullResponseText) }
+                                ? { ...m, text: streamedText, segments: parseMarkdown(streamedText) }
                                 : m
                         )
                     );
                 }
             }
+
+            // After the stream has finished, process the full response
+            if (isBufferingForToolCall) {
+                try {
+                    const startIndex = fullResponseText.indexOf('{');
+                    const endIndex = fullResponseText.lastIndexOf('}');
+                    if (startIndex !== -1 && endIndex > startIndex) {
+                        const jsonString = fullResponseText.substring(startIndex, endIndex + 1);
+                        const parsed = JSON.parse(jsonString);
+                        if (parsed.tool_call) {
+                            toolCallObject = parsed;
+                            const textBeforeToolCall = fullResponseText.substring(0, startIndex).trim();
+                            setMessages(prev =>
+                                prev.map(m =>
+                                    m.id === aiResponsePlaceholder.id
+                                        ? { ...m, text: textBeforeToolCall, segments: parseMarkdown(textBeforeToolCall), status: 'sent' }
+                                        : m
+                                )
+                            );
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Could not parse potential tool call from buffer. Treating response as text.", e);
+                    toolCallObject = null;
+                }
+            }
             
-            // After stream is complete, process potential tool call
             if (toolCallObject) {
-                 await handleToolCall(toolCallObject, aiResponsePlaceholder.id, attachments);
+                await handleToolCall(toolCallObject, aiResponsePlaceholder.id, attachments);
             } else {
-                 // Finalize the AI message if it wasn't a tool call
-                 const finalHistory = [...historyWithUserMessage, { role: 'model', parts: [{ text: fullResponseText }] }];
-                 setChatHistory(finalHistory);
-                 setMessages(prev =>
+                // If no tool call was found (or if parsing failed), render the full text.
+                const finalHistory = [...historyWithUserMessage, { role: 'model', parts: [{ text: fullResponseText }] }];
+                setChatHistory(finalHistory);
+                setMessages(prev =>
                     prev.map(m =>
                         m.id === aiResponsePlaceholder.id
                             ? { ...m, text: fullResponseText, segments: parseMarkdown(fullResponseText), status: 'sent' }
@@ -1145,6 +1320,28 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                         updatedMessage.text = "Sorry, I couldn't generate the speech.";
                     }
                     break;
+                case 'create_storyboard':
+                    const prompts: string[] = args.prompts || [];
+                    if (prompts.length === 0) {
+                        updatedMessage.text = "I need some prompts to create a storyboard.";
+                        break;
+                    }
+                    // Show placeholders
+                    updatedMessage.storyboardImages = prompts.map(p => ({ prompt: p, url: 'loading' }));
+                    updatedMessage.text = `Understood! I'll create a storyboard for you.`;
+                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
+
+                    // Generate images
+                    const imageUrls = await Promise.all(
+                        prompts.map(p => generateImage(p, '1:1'))
+                    );
+                    
+                    updatedMessage.storyboardImages = prompts.map((p, i) => ({
+                        prompt: p,
+                        url: imageUrls[i] || 'error',
+                    }));
+                    updatedMessage.text = `Here is the storyboard for "${prompts[0]}"...`;
+                    break;
                  case 'create_powerpoint':
                     const pptData = await generatePresentationContent(args.topic, args.num_slides || 5);
                     if ('error' in pptData) {
@@ -1239,8 +1436,22 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     updatedMessage.interactiveChartData = args.chart_config;
                     updatedMessage.text = 'Here is the interactive chart you requested.';
                     break;
+                 case 'generate_website':
+                    // Initial state: Loading
+                    updatedMessage.generatedWebsite = { topic: args.topic, htmlContent: '', isLoading: true };
+                    updatedMessage.text = `Designing a ${args.style} website for "${args.topic}"...`;
+                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...updatedMessage, status: 'sent'} : m));
+                    
+                    // Call the new service
+                    const websiteHtml = await generateWebsiteCode(args.topic, args.style, args.features || []);
+                    
+                    // Final state: Ready
+                    updatedMessage.generatedWebsite = { topic: args.topic, htmlContent: websiteHtml, isLoading: false };
+                    updatedMessage.text = `I've created a ${args.style} website for "${args.topic}". Click 'Launch Preview' to see it!`;
+                    break;
                 default:
-                    updatedMessage = { text: `Unknown tool: ${tool_call}` };
+                    updatedMessage = { text: `It seems there was a misunderstanding and I tried to use a tool I don't have: \`${tool_call}\`. Could you please rephrase your request?` };
+                    break;
             }
         } catch (e) {
             console.error(`Error handling tool ${tool_call}:`, e);
@@ -1568,6 +1779,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                             onApproveWorkflow={handleApproveWorkflow}
                             onDenyWorkflow={handleDenyWorkflow}
                             theme={theme}
+                            onViewWebsite={(html) => setWebsitePreviewContent(html)}
                         />
                     ))
                 )}
@@ -1582,7 +1794,8 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                     persona={activePersona.name} 
                                     task={
                                         messages[messages.length-1].workflow ? 'workflow' :
-                                        messages[messages.length-1].generatedImage ? 'generate_image' : null
+                                        messages[messages.length-1].generatedImage ? 'generate_image' : 
+                                        messages[messages.length-1].generatedWebsite ? 'generate_website' : null
                                     } 
                                 />
                             </div>
@@ -1649,6 +1862,13 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     <LiveConversationOverlay 
                         status={liveStatus} 
                         onDisconnect={stopLiveConversation} 
+                    />
+                )}
+                {websitePreviewContent && (
+                    <WebsitePreview
+                        htmlContent={websitePreviewContent}
+                        isVisible={!!websitePreviewContent}
+                        onClose={() => setWebsitePreviewContent(null)}
                     />
                 )}
             </AnimatePresence>

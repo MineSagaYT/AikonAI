@@ -128,6 +128,11 @@ export interface Message {
         dataUrl: string;
     };
     interactiveChartData?: InteractiveChartData;
+    generatedWebsite?: {
+        topic: string;
+        htmlContent: string;
+        isLoading?: boolean;
+    };
 }
 
 

@@ -190,6 +190,46 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     </ParallaxCard>
                 </motion.div>
             </motion.section>
+            
+            <motion.section 
+                id="testimonials" 
+                className="py-16 md:py-24"
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.2 }}
+            >
+                <motion.h3 variants={itemVariants} className="text-4xl font-bold text-center mb-16 hero-gradient tracking-wide">WHAT OUR CLIENTS SAY</motion.h3>
+                <div className="grid md:grid-cols-3 gap-8">
+                    <motion.div variants={itemVariants} className="flex">
+                        <ParallaxCard className="p-8 h-full flex flex-col">
+                            <p className="text-gray-300 italic mb-6 text-lg flex-grow">"Working with Aikon Studios was a game-changer. Their AI-driven insights helped us optimize our entire workflow, resulting in a 40% increase in efficiency."</p>
+                            <div className="mt-auto pt-4 border-t border-gray-700">
+                                <p className="font-bold text-white text-lg">Rohan Mehta</p>
+                                <p className="text-sm text-amber-400">CEO, Innovatech Solutions</p>
+                            </div>
+                        </ParallaxCard>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="flex">
+                        <ParallaxCard className="p-8 h-full flex flex-col">
+                            <p className="text-gray-300 italic mb-6 text-lg flex-grow">"The AikonAI assistant is incredibly powerful and intuitive. It has become an indispensable tool for our creative team, automating tedious tasks and sparking new ideas."</p>
+                            <div className="mt-auto pt-4 border-t border-gray-700">
+                                <p className="font-bold text-white text-lg">Priya Sharma</p>
+                                <p className="text-sm text-amber-400">Creative Director, Digital Canvas</p>
+                            </div>
+                        </ParallaxCard>
+                    </motion.div>
+                    <motion.div variants={itemVariants} className="flex">
+                        <ParallaxCard className="p-8 h-full flex flex-col">
+                            <p className="text-gray-300 italic mb-6 text-lg flex-grow">"Aditya's team delivered a robust, scalable application ahead of schedule. Their professionalism and technical expertise are second to none."</p>
+                            <div className="mt-auto pt-4 border-t border-gray-700">
+                                <p className="font-bold text-white text-lg">Sameer Khan</p>
+                                <p className="text-sm text-amber-400">CTO, NextGen Logistics</p>
+                            </div>
+                        </ParallaxCard>
+                    </motion.div>
+                </div>
+            </motion.section>
 
              <motion.section
                 id="contact"

@@ -154,7 +154,7 @@ export const executePythonCode = async (code: string, files: VirtualFile[]): Pro
         // Check for plotting
         if (code.includes('matplotlib') || code.includes('plt.show()') || code.includes('plt.savefig(')) {
             // Return a placeholder plot image
-            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37P7d/e//+T+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f0ff27/9v79n9u/vX/+Z/dv79//uf3b+/d/bv/2/v2f27+9//7f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
+            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37P7d/e//+T+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f0ff27/9v79/9u/vX/+Z/dv79//uf3b+/d/bv/2/v2f27+9//7f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
             return `[PLOT_GENERATED]\n${placeholderPlot}`;
         }
 
@@ -264,6 +264,10 @@ For any of the tools below, you MUST ONLY respond with the corresponding JSON ob
 **12. Interactive Data Visualization:**
    - **Create Chart:** \`{"tool_call": "create_interactive_chart", "chart_config": { "type": "bar", "data": {"labels": [...], "datasets": [{ "label": "...", "data": [...] }]}, "options": {...} }}\`
    - Use this tool when a user asks to plot or visualize data (e.g., from an uploaded file or described data). The \`chart_config\` object MUST be a valid JSON configuration for the Chart.js library v4. Ensure the chart is visually appealing with appropriate colors and labels.
+
+**13. Web Designer (Generate Website):**
+    - **Generate Website:** \`{"tool_call": "generate_website", "topic": "The topic or purpose of the website (e.g., portfolio, e-commerce)", "style": "visual style (e.g., modern, minimalist, retro)", "features": ["feature 1", "feature 2"]}\`
+    - Use this tool when a user explicitly asks to "make a website" or "create a web page".
 `;
 
 export const streamMessageToChat = async (
@@ -616,6 +620,42 @@ Do not include any introductory text or markdown formatting. Just the raw JSON.`
     }
 };
 
+export const generateWebsiteCode = async (topic: string, style: string, features: string[]): Promise<string> => {
+    const systemPrompt = `You are an expert web developer and UI/UX designer. Your task is to create a STUNNING, fully functional, single-page website based on the user's request.
+
+**CRITICAL REQUIREMENTS:**
+1. **Single File:** Output the entire website (HTML, CSS, JS) in a SINGLE string. CSS must be in <style> tags, JS in <script> tags.
+2. **Modern Styling:** You MUST use Tailwind CSS via CDN for styling. The design should be modern, responsive, and visually impressive.
+   - CDN Link: <script src="https://cdn.tailwindcss.com"></script>
+3. **Icons:** Use FontAwesome for icons.
+   - CDN Link: <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+4. **Images:** Use high-quality placeholder images from Unsplash Source. URL format: https://source.unsplash.com/random/800x600/?{keyword}
+5. **Interactivity:** If the user asks for a game (like Tic Tac Toe) or dynamic feature (like a shopping cart), write the full JavaScript logic to make it work perfectly.
+6. **Output:** Return ONLY the raw HTML code. Do not wrap it in markdown code blocks (like \`\`\`html). Just the raw code string.`;
+
+    try {
+        const ai = getAiInstance();
+        const userQuery = `Create a ${style} website for: "${topic}". Features: ${features.join(', ')}. Make it look amazing.`;
+        
+        const response = await ai.models.generateContent({
+            model: proModel,
+            contents: userQuery,
+            config: {
+                systemInstruction: systemPrompt,
+            }
+        });
+        
+        let code = response.text || '';
+        // Clean up markdown if the model accidentally adds it despite instructions
+        code = code.replace(/^```html/, '').replace(/^```/, '').replace(/```$/, '');
+        return code.trim();
+
+    } catch (error) {
+        console.error("Error generating website code:", error);
+        return `<html><body><h1>Error generating website</h1><p>${String(error)}</p></body></html>`;
+    }
+};
+
 
 // --- AUTONOMOUS AGENT / WORKFLOW FUNCTIONS ---
 
@@ -718,5 +758,50 @@ Based on the context, decide the single next action to take and respond with the
     } catch (error) {
         console.error("Error running workflow step:", error);
         return { error: "An unexpected error occurred while trying to determine the next step." };
+    }
+};
+
+export const classifyIntentAndSelectPersona = async (prompt: string): Promise<string> => {
+    const systemPrompt = `You are an intelligent routing agent. Your task is to analyze the user's prompt and determine which specialized persona is best suited to handle the request.
+
+Respond with ONLY the string name of the persona (e.g., "Study Buddy" or "Legal Document Reviewer").
+If no special persona is needed, respond with "AikonAI".
+
+Here are the available personas and their specialties:
+
+- **AikonAI**: Default, general-purpose assistant. For casual conversation, simple questions, and tasks not covered by others.
+- **Legal Document Reviewer**: For analyzing legal texts, contracts, agreements. Use if the prompt includes legal jargon, requests a review of a legal document, or mentions terms like "contract", "agreement", "policy".
+- **Study Buddy**: For explaining complex educational or academic topics. Use if the user asks to "explain", "teach me about", asks about a concept, or wants a breakdown of a subject.
+- **Writing Assistant**: For improving, proofreading, or rewriting text. Use if the user provides a block of text and asks for edits or suggestions.
+- **Fitness Advice**: For questions about exercise, nutrition, and health.
+- **Personal Finance Assistant**: For questions about budgeting, saving, and analyzing financial data (especially if a file is attached).
+- **Developer Sandbox**: For requests involving writing or executing code, managing files, or other programming-related tasks.
+
+Analyze the following prompt and return the single best persona name.`;
+
+    try {
+        const ai = getAiInstance();
+        const response = await ai.models.generateContent({
+            model: defaultModel,
+            contents: prompt,
+            config: {
+                systemInstruction: systemPrompt,
+                temperature: 0,
+            },
+        });
+
+        const personaName = response.text?.trim().replace(/"/g, ''); // Remove quotes if model adds them
+
+        const validPersonas = ["AikonAI", "Legal Document Reviewer", "Study Buddy", "Writing Assistant", "Fitness Advice", "Personal Finance Assistant", "Developer Sandbox"];
+        if (personaName && validPersonas.includes(personaName)) {
+            return personaName;
+        }
+        
+        console.warn(`Persona classification returned an invalid name: "${personaName}". Defaulting to AikonAI.`);
+        return "AikonAI";
+
+    } catch (error) {
+        console.error("Error classifying intent:", error);
+        return "AikonAI"; // Default on error
     }
 };
