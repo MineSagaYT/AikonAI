@@ -39,9 +39,10 @@ const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) =>
             codeRef.current.textContent = currentCode;
             if (typeof hljs !== 'undefined') {
                 try {
+                    codeRef.current.removeAttribute('data-highlighted');
                     hljs.highlightElement(codeRef.current);
                 } catch(e) {
-                    console.error("Highlight.js error:", e);
+                    console.warn("Highlight.js warning:", e instanceof Error ? e.message : String(e));
                 }
             }
         }

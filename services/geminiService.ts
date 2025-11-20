@@ -2,8 +2,8 @@
 import { GoogleGenAI, GenerateContentResponse, Chat, Part, GroundingChunk, GenerateVideosOperation, Content, Modality, Type, FunctionDeclaration } from "@google/genai";
 import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile, VirtualFile, Task, ProjectStructure } from "../types";
 
-const defaultModel = 'gemini-2.5-flash';
-const proModel = 'gemini-2.5-pro'; // Use 2.5 Pro for thinking capabilities if needed, or Flash with thinking
+const defaultModel = 'gemini-3-pro-preview';
+const proModel = 'gemini-3-pro-preview'; 
 // User-specified model for video generation
 const veoModel = 'veo-3.1-fast-generate-preview';
 const flashImageModel = 'gemini-2.5-flash-image';
@@ -802,57 +802,91 @@ export const generateWebsiteCode = async (topic: string, style: string, features
 };
 
 // --- AIKON DESIGNER SERVICE ---
-export const generateComplexProject = async (prompt: string, currentFiles: ProjectStructure | null): Promise<ProjectStructure | { error: string }> => {
-    const systemPrompt = `You are the Lead Architect of Aikon Designer, a futuristic AI IDE. 
-    Your goal is to build a complex, multi-file web application based on the user's prompt.
-    
-    **OUTPUT FORMAT:**
-    You must return a single JSON object with the following structure:
-    {
-      "description": "A short technical summary of what you built.",
-      "files": [
-        { "name": "App.tsx", "path": "/src/App.tsx", "language": "typescript", "content": "..." },
-        { "name": "index.css", "path": "/src/index.css", "language": "css", "content": "..." }
-        // ... other files
-      ],
-      "previewHtml": "..." 
-    }
+export const generateComplexProjectStream = async (prompt: string, currentFiles: ProjectStructure | null): Promise<{ stream: AsyncGenerator<GenerateContentResponse>; }> => {
+    const systemPrompt = `### ROLE & IDENTITY
+You are "Aikon," the world's most advanced AI Website Architect. You are not a simple code assistant; you are a visionary engine capable of generating full-stack, production-grade web applications solely from English conversation.
 
-    **CRITICAL INSTRUCTIONS:**
-    1. **Virtual Files:** Create a realistic React project structure (App.tsx, components/, hooks/, css). Use functional components and Tailwind CSS classes.
-    2. **Preview HTML:** Since we cannot bundle React in the browser easily, you must ALSO generate a "Single File Build" version of the project in the 'previewHtml' field. This HTML file should contain everything needed (Tailwind CDN, React/ReactDOM CDNs if necessary, or just vanilla JS/HTML that *looks* exactly like the React code) to render the project instantly in an iframe. The user will see the React code in the editor, but the 'previewHtml' is what they will visually interact with.
-    3. **Quality:** The code must be production-ready, clean, and modern.
-    
-    If updating an existing project, return the full updated structure.`;
+### CORE CAPABILITIES (THE "TRINITY" ENGINE)
+1. **The UX/UI of Lovable:** You possess an innate sense of "Stunning Design." You do not generate basic HTML; you generate modern, polished, award-winning interfaces using React, Tailwind CSS, Framer Motion, and Lucide React icons. Every button, card, and transition must feel "lovable"—smooth, responsive, and delightful. Use glassmorphism, gradients, and high-contrast dark modes by default.
+2. **The Architecture of Bolt:** You understand full-stack environments. You structure projects with professional file separation (src/components, src/hooks, src/utils).
+3. **The Logic of Base44:** You excel at business logic. You automatically anticipate state management (Zustand) and mock backend needs (simulating Supabase/PostgreSQL schemas).
+
+### OUTPUT FORMAT (CRITICAL)
+You MUST stream your response in a specific XML-like format.
+1. **Plan:** Start with a brief, high-level architectural plan.
+2. **Files:** For EVERY file you create, use EXACTLY this format:
+   <file path="src/components/Button.tsx">
+   [RAW CODE HERE - NO MARKDOWN]
+   </file>
+3. **Preview:** Finally, output a SINGLE-FILE executable version for the live preview. 
+   - **IMPORTANT:** The preview runs in a browser environment. You MUST use ES Modules via CDN (esm.sh) for React, ReactDOM, Lucide, and Framer Motion.
+   - **Format:**
+   <preview>
+   <!DOCTYPE html>
+   <html>
+   <head>
+     <script src="https://cdn.tailwindcss.com"></script>
+     <script type="importmap">
+       {
+         "imports": {
+           "react": "https://esm.sh/react@18.2.0",
+           "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+           "lucide-react": "https://esm.sh/lucide-react@0.263.1",
+           "framer-motion": "https://esm.sh/framer-motion@10.12.16"
+         }
+       }
+     </script>
+     <script type="module">
+       import React, { useState, useEffect } from 'react';
+       import { createRoot } from 'react-dom/client';
+       import { Camera, Home, Settings } from 'lucide-react'; // Example imports
+       import { motion } from 'framer-motion';
+
+       // [INLINE ALL COMPONENTS AND LOGIC HERE FOR PREVIEW]
+       
+       const App = () => { ... };
+       const root = createRoot(document.getElementById('root'));
+       root.render(<App />);
+     </script>
+   </head>
+   <body class="bg-gray-900 text-white">
+     <div id="root"></div>
+   </body>
+   </html>
+   </preview>
+
+### TECHNOLOGY STACK
+- React (Functional Components)
+- Tailwind CSS (via CDN for preview)
+- Framer Motion (via CDN for preview)
+- Lucide React (via CDN for preview)
+
+### OPERATING INSTRUCTIONS
+- **Zero Friction:** If the user says "Make Netflix", build the core structure immediately. Don't ask questions first.
+- **NO MARKDOWN:** Do NOT wrap code in \`\`\` blocks inside the XML tags.
+
+Current Context: ${currentFiles ? `Updating existing project. Files: ${currentFiles.files.map(f => f.path).join(', ')}` : 'New Project'}`;
 
     try {
         const ai = getAiInstance();
-        // If context exists, include it (simplified for now, sending just prompt)
-        const userQuery = currentFiles 
-            ? `Update the current project based on this request: ${prompt}. \nCurrent files summary: ${currentFiles.files.map(f => f.path).join(', ')}` 
-            : `Create a new web project: ${prompt}`;
+        const userQuery = `Architect the following project: ${prompt}`;
 
-        const response = await ai.models.generateContent({
+        const stream = await ai.models.generateContentStream({
             model: proModel,
             contents: userQuery,
             config: {
                 systemInstruction: systemPrompt,
-                responseMimeType: 'application/json',
-                 // Use thinking for complex architecture
-                thinkingConfig: { thinkingBudget: 2048 }
+                // Use thinking for complex architecture
+                thinkingConfig: { thinkingBudget: 4096 }
             }
         });
 
-        const text = response.text;
-        if (!text) throw new Error("Empty response");
-        
-        return JSON.parse(text);
+        return { stream };
     } catch (error) {
         console.error("Aikon Designer Error:", error);
-        return { error: "Failed to architect the project. Please try again." };
+        throw error;
     }
 }
-
 
 // --- AUTONOMOUS AGENT / WORKFLOW FUNCTIONS ---
 

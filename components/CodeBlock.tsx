@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -17,9 +18,12 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, filename }) => {
         if (codeRef.current) {
             if (typeof hljs !== 'undefined') {
                 try {
+                    // Clear the highlighted state to ensure re-highlighting works if content changed
+                    codeRef.current.removeAttribute('data-highlighted');
                     hljs.highlightElement(codeRef.current);
                 } catch (e) {
-                    console.error("Highlight.js error:", e);
+                    // Log only the string message to avoid "Converting circular structure to JSON" errors
+                    console.warn("Highlight.js warning:", e instanceof Error ? e.message : String(e));
                 }
             }
         }
