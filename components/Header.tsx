@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Page, NavigationProps } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 // REMOVED: import longLogo from '../long_logo.jpeg';
@@ -50,6 +50,15 @@ interface HeaderProps extends NavigationProps {
 
 const Header: React.FC<HeaderProps> = ({ navigateTo, activePage }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isScrolled, setIsScrolled] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 20);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     const handleNavigation = (e: React.MouseEvent<HTMLAnchorElement>, page: Page) => {
         e.preventDefault();
@@ -79,7 +88,11 @@ const Header: React.FC<HeaderProps> = ({ navigateTo, activePage }) => {
             initial={{ y: -100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="p-4 md:p-6 shadow-2xl sticky top-0 z-50 bg-black/80 backdrop-blur-md border-b border-gray-800 w-full"
+            className={`fixed top-0 z-50 w-full transition-all duration-300 px-4 md:px-6 ${
+                isScrolled 
+                ? 'py-3 bg-black/80 backdrop-blur-md shadow-2xl border-b border-gray-800' 
+                : 'py-6 bg-transparent shadow-none border-transparent'
+            }`}
         >
             <div className="flex justify-between items-center mx-auto max-w-7xl">
                 <motion.a 
@@ -124,7 +137,7 @@ const Header: React.FC<HeaderProps> = ({ navigateTo, activePage }) => {
             <AnimatePresence>
                 {isMobileMenuOpen && (
                     <motion.div
-                        className="mobile-nav-overlay"
+                        className="fixed inset-0 bg-black/95 z-40 flex flex-col items-center justify-center gap-8 text-2xl font-bold backdrop-blur-xl"
                         variants={mobileMenuVariants}
                         initial="hidden"
                         animate="visible"
@@ -135,8 +148,9 @@ const Header: React.FC<HeaderProps> = ({ navigateTo, activePage }) => {
                                 key={item.page}
                                 href="#"
                                 onClick={(e) => handleNavigation(e, item.page as Page)}
-                                className={activePage === item.page ? 'active' : ''}
+                                className={`${activePage === item.page ? 'text-amber-400' : 'text-white'} tracking-widest`}
                                 variants={mobileLinkVariants}
+                                whileTap={{ scale: 0.9 }}
                             >
                                 {item.label}
                             </motion.a>
