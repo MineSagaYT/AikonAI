@@ -49,7 +49,7 @@ const playSound = (src: string, volume: number = 0.5) => {
 // Haptic Feedback Helper
 const triggerHaptic = () => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(15); // Light tap
+        navigator.vibrate(10); // Lighter, sharper tap for professional feel
     }
 };
 
@@ -108,38 +108,38 @@ function createBlob(data: Float32Array): GenAI_Blob {
 const DEFAULT_PERSONAS: Persona[] = [
     {
         name: 'Legal Document Reviewer',
-        icon: '📖',
-        description: 'Analyzes legal documents for key clauses, risks, and inconsistencies with formal, objective language.',
+        icon: '⚖️',
+        description: 'Analyzes legal documents for key clauses, risks, and inconsistencies.',
         systemInstruction: `You are an expert legal document reviewer specializing in INDIAN law. Your role is to carefully read any legal text provided and provide analysis, citations, and practical guidance. Always advise consulting a licensed attorney.`
     },
     {
         name: 'Study Buddy',
         icon: '🎓',
-        description: 'Explains complex topics using fun, cartoon-style images like a helpful friend.',
+        description: 'Explains complex topics utilizing visual aids and simple analogies.',
         systemInstruction: `You are 'Study Buddy', a friendly and fun AI tutor. Explain topics by generating simple, cartoon-style images. If a topic is better explained with text, ask the user first. For visual explanations, use the 'create_storyboard' tool.`
     },
     {
         name: 'Writing Assistant',
-        icon: '📝',
-        description: 'A supportive assistant to help brainstorm, outline, and improve writing.',
+        icon: '✍️',
+        description: 'Professional editor for refining syntax, tone, and clarity.',
         systemInstruction: `You are an expert writing assistant. Analyze text for clarity, conciseness, and flow. Rewrite it to be more effective and provide a summary of improvements.`
     },
     {
         name: 'Fitness Advice',
-        icon: '🍎',
-        description: 'A motivational fitness coach providing safe, evidence-based fitness and nutrition advice.',
+        icon: '💪',
+        description: 'Evidence-based fitness and nutrition guidance.',
         systemInstruction: `You are a certified fitness and nutrition coach. Provide personalized workout plans and dietary advice. Always include a disclaimer to consult a doctor before starting any new regimen.`
     },
     {
-        name: 'Personal Finance Assistant',
-        icon: '💰',
-        description: 'Helps with budgeting, saving strategies, and basic financial literacy.',
+        name: 'Personal Finance',
+        icon: '📊',
+        description: 'Assistance with budgeting, saving strategies, and financial literacy.',
         systemInstruction: `You are a personal finance assistant. Help users create budgets, understand financial concepts, and save money. Do not provide investment advice or specific stock recommendations.`
     },
     {
-        name: 'Developer Sandbox',
+        name: 'Developer Console',
         icon: '💻',
-        description: 'An environment for coding, file management, and technical problem solving.',
+        description: 'Python execution environment and file manipulation.',
         systemInstruction: `You are an expert software developer. You can write and execute Python code, manage files, and help with debugging. Use the code execution tool frequently.`
     }
 ];
@@ -200,33 +200,37 @@ const ActionLaunchCard: React.FC<{
 
     if (status === 'done') {
          return (
-            <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-4 my-2 flex items-center gap-3">
+            <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3 my-2 flex items-center gap-3">
                 <div className="bg-green-500 text-black rounded-full p-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                 </div>
-                <span className="text-green-200 font-medium text-sm">Action Launched</span>
-                <button onClick={performAction} className="text-xs underline text-green-400 ml-auto">Launch Again</button>
+                <span className="text-green-200 font-medium text-xs font-mono uppercase tracking-wider">Action Executed</span>
             </div>
          );
     }
 
     return (
-        <div className="bg-amber-900/20 border border-amber-500/50 rounded-xl p-4 my-2">
-            <div className="flex items-center justify-between mb-3">
-                <span className="text-amber-400 font-bold uppercase text-xs tracking-wider">Action Required</span>
-                {status === 'launching' && <span className="text-xs text-amber-200 animate-pulse">Launching...</span>}
+        <div className="bg-amber-900/10 border border-amber-500/30 rounded-lg p-4 my-2 backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-2">
+                <span className="text-amber-500/80 font-bold uppercase text-[10px] tracking-widest">System Action</span>
+                {status === 'launching' && <span className="text-[10px] text-amber-200 animate-pulse font-mono">EXECUTING...</span>}
             </div>
-            <h4 className="text-lg font-bold text-white mb-1 capitalize">{action.replace('_', ' ')}: {target}</h4>
-            {query && <p className="text-sm text-gray-400 mb-4">"{query}"</p>}
+            <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-amber-500/20 rounded-md flex items-center justify-center text-amber-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                </div>
+                <div>
+                    <h4 className="text-sm font-bold text-white capitalize leading-tight">{action.replace('_', ' ')}</h4>
+                    <p className="text-xs text-gray-400">{target} {query ? `• ${query}` : ''}</p>
+                </div>
+            </div>
             
             <button 
                 onClick={performAction}
-                className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg shadow-lg shadow-amber-500/20 transition-all transform active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs uppercase tracking-wider rounded transition-all transform active:scale-[0.98] shadow-lg shadow-amber-900/20"
             >
-                {status === 'launching' ? 'Launching...' : `Tap to Confirm ${action === 'call' ? 'Call' : 'Launch'}`}
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                {status === 'launching' ? 'Launching...' : 'Confirm Execution'}
             </button>
-            <p className="text-[10px] text-gray-500 mt-2 text-center">If action didn't start automatically, tap the button above.</p>
         </div>
     );
 }
@@ -259,7 +263,7 @@ const MobileMenu: React.FC<{
             <div className={`mobile-command-center ${isOpen ? 'open' : ''}`}>
                 <div className="mobile-cc-handle" onClick={onClose}></div>
                 
-                <h3 className="text-white font-bold text-lg mb-4 pl-1">Quick Actions</h3>
+                <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-4 pl-1">System Controls</h3>
                 <div className="mobile-grid">
                      <div className={`mobile-action-btn ${isAgentMode ? 'active' : ''}`} onClick={() => { triggerHaptic(); toggleAgentMode(); }}>
                          <div className="icon-box">🤖</div>
@@ -279,15 +283,15 @@ const MobileMenu: React.FC<{
                      </div>
                 </div>
 
-                <h3 className="text-white font-bold text-lg mb-4 pl-1">Select Persona</h3>
+                <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-4 pl-1">Active Persona</h3>
                 <div className="overflow-x-auto pb-4 flex gap-3 scrollbar-none">
                     {personas.map(p => (
                         <button 
                             key={p.name}
                             onClick={() => { triggerHaptic(); onSelectPersona(p); onClose(); }}
-                            className={`flex flex-col items-center p-3 rounded-2xl min-w-[80px] transition-all border ${activePersona.name === p.name ? 'bg-white/10 border-amber-400/50' : 'bg-transparent border-transparent'}`}
+                            className={`flex flex-col items-center p-3 rounded-xl min-w-[80px] transition-all border ${activePersona.name === p.name ? 'bg-amber-500/10 border-amber-500/50' : 'bg-white/5 border-transparent'}`}
                         >
-                             <span className="text-3xl mb-2">{p.icon}</span>
+                             <span className="text-2xl mb-2">{p.icon}</span>
                              <span className={`text-[10px] font-medium text-center leading-tight ${activePersona.name === p.name ? 'text-amber-400' : 'text-gray-500'}`}>{p.name}</span>
                         </button>
                     ))}
@@ -324,7 +328,7 @@ const MessageLogItem: React.FC<{
             transition={{ duration: 0.3 }}
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => setShowActions(false)}
-            onClick={() => setShowActions(!showActions)} // Toggle actions on click for mobile
+            onClick={() => setShowActions(!showActions)}
         >
             <div className="message-bubble-wrapper">
                 {!isUser && (
@@ -332,14 +336,14 @@ const MessageLogItem: React.FC<{
                          <img src="/short_logo.jpeg" alt="Aikon" />
                     </div>
                 )}
-                <div className="relative group w-full max-w-[85%]">
+                <div className="relative group w-full max-w-[90%] sm:max-w-[85%]">
                     <div className={`message-content-wrapper ${msg.status === 'streaming' ? 'streaming' : ''}`}>
                         {isUser && msg.attachments && msg.attachments.length > 0 && (
                              <div className="user-attachments-container mb-3">
                                 {msg.attachments.map((file, idx) => (
                                     <div key={idx} className="relative">
                                         {file.mimeType.startsWith('image/') ? (
-                                            <img src={file.base64} alt={file.name} />
+                                            <img src={`data:${file.mimeType};base64,${file.base64}`} alt={file.name} />
                                         ) : (
                                             <div className="file-attachment-chip">
                                                 <span>📎 {file.name}</span>
@@ -351,10 +355,11 @@ const MessageLogItem: React.FC<{
                         )}
 
                         <div className="message-content">
-                            {/* Thinking Indicator for AI */}
+                            {/* Thinking Indicator */}
                             {!isUser && msg.text === '' && msg.status === 'streaming' && (
-                                <div className="flex items-center gap-2 text-gray-400 italic text-sm mb-2 animate-pulse">
-                                    <span>Thinking...</span>
+                                <div className="flex items-center gap-2 text-gray-500 font-mono text-xs mb-2">
+                                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+                                    <span>COMPUTING...</span>
                                 </div>
                             )}
 
@@ -362,15 +367,14 @@ const MessageLogItem: React.FC<{
                                 <div className="mb-4">
                                     {msg.generatedImage.isLoading ? (
                                         <div className={`skeleton-loader aspect-${msg.generatedImage.aspectRatio?.replace(':', '-') || '1-1'}`}>
-                                            <span>Generating Image...</span>
+                                            <span>Rendering Graphics...</span>
                                         </div>
                                     ) : msg.generatedImage.url ? (
-                                        <img src={msg.generatedImage.url} alt={msg.generatedImage.prompt} className="rounded-lg w-full max-w-md shadow-lg" />
+                                        <img src={msg.generatedImage.url} alt={msg.generatedImage.prompt} className="rounded border border-white/10 w-full max-w-md shadow-2xl" />
                                     ) : null}
                                 </div>
                             )}
                             
-                            {/* Real World Action Launcher */}
                             {msg.actionData && (
                                 <ActionLaunchCard 
                                     action={msg.actionData.action} 
@@ -382,15 +386,15 @@ const MessageLogItem: React.FC<{
                              {msg.editedImage && (
                                 <div className="mb-4 flex gap-2">
                                     <div className="w-1/2">
-                                        <p className="text-xs text-gray-500 mb-1">Original</p>
-                                        <img src={msg.editedImage.beforeUrl} alt="Original" className="rounded-lg w-full shadow-md opacity-60" />
+                                        <p className="text-[10px] uppercase text-gray-500 mb-1 font-bold">Original</p>
+                                        <img src={msg.editedImage.beforeUrl} alt="Original" className="rounded border border-white/5 w-full opacity-60 grayscale hover:grayscale-0 transition-all" />
                                     </div>
                                     <div className="w-1/2">
-                                         <p className="text-xs text-gray-500 mb-1">Edited</p>
+                                         <p className="text-[10px] uppercase text-amber-500 mb-1 font-bold">Enhanced</p>
                                          {msg.editedImage.isLoading ? (
-                                            <div className="skeleton-loader aspect-1-1"><span>Editing...</span></div>
+                                            <div className="skeleton-loader aspect-1-1"><span>Processing...</span></div>
                                          ) : msg.editedImage.afterUrl ? (
-                                            <img src={msg.editedImage.afterUrl} alt="Edited" className="rounded-lg w-full shadow-lg" />
+                                            <img src={msg.editedImage.afterUrl} alt="Edited" className="rounded border border-amber-500/30 w-full shadow-lg" />
                                          ) : null}
                                     </div>
                                 </div>
@@ -399,11 +403,11 @@ const MessageLogItem: React.FC<{
                             {msg.generatedVideo && (
                                 <div className="mb-4">
                                     {msg.generatedVideo.status === 'generating' ? (
-                                        <div className="skeleton-loader aspect-16-9"><span>Creating Video...</span></div>
+                                        <div className="skeleton-loader aspect-16-9"><span>Generating Video Frame...</span></div>
                                     ) : msg.generatedVideo.url ? (
-                                        <video src={msg.generatedVideo.url} controls className="rounded-lg w-full max-w-md shadow-lg" />
+                                        <video src={msg.generatedVideo.url} controls className="rounded w-full max-w-md shadow-lg border border-white/10" />
                                     ) : (
-                                         <div className="p-4 bg-red-900/20 text-red-400 rounded-lg text-sm">Video generation failed.</div>
+                                         <div className="p-4 bg-red-900/20 text-red-400 rounded border border-red-500/20 text-xs font-mono">GENERATION_FAILED</div>
                                     )}
                                 </div>
                             )}
@@ -415,13 +419,13 @@ const MessageLogItem: React.FC<{
                             )}
                             
                             {msg.storyboardImages && (
-                                <div className="storyboard-grid">
+                                <div className="storyboard-grid grid grid-cols-2 gap-2">
                                     {msg.storyboardImages.map((panel, idx) => (
-                                        <div key={idx} className="storyboard-panel">
+                                        <div key={idx} className="aspect-square bg-black/20 rounded overflow-hidden border border-white/5">
                                             {panel.url ? (
-                                                 <img src={panel.url} alt={`Panel ${idx + 1}`} />
+                                                 <img src={panel.url} alt={`Panel ${idx + 1}`} className="w-full h-full object-cover" />
                                             ) : (
-                                                <div className="skeleton-loader aspect-1-1 h-full"><span>Panel {idx+1}</span></div>
+                                                <div className="skeleton-loader h-full"><span>Panel {idx+1}</span></div>
                                             )}
                                         </div>
                                     ))}
@@ -432,14 +436,14 @@ const MessageLogItem: React.FC<{
                                 msg.segments.map((segment, idx) => (
                                     <React.Fragment key={idx}>
                                         {segment.type === 'paragraph' ? (
-                                            <div dangerouslySetInnerHTML={{ __html: renderParagraph(segment.content) }} />
+                                            <div className="text-balance" dangerouslySetInnerHTML={{ __html: renderParagraph(segment.content) }} />
                                         ) : (
                                             <CodeBlock code={segment.content} language={segment.language} filename={segment.filename} />
                                         )}
                                     </React.Fragment>
                                 ))
                             ) : (
-                                <div dangerouslySetInnerHTML={{ __html: renderParagraph(msg.text) }} />
+                                <div className="text-balance" dangerouslySetInnerHTML={{ __html: renderParagraph(msg.text) }} />
                             )}
 
                             {msg.workflow && (
@@ -449,25 +453,30 @@ const MessageLogItem: React.FC<{
                             )}
                             
                             {msg.interactiveChartData && (
-                                <div className="mt-4 bg-white/5 p-2 rounded-xl border border-white/10">
+                                <div className="mt-4 bg-[#18181b] p-4 rounded-lg border border-white/5">
                                     <InteractiveChart chartData={msg.interactiveChartData} theme="dark" />
                                 </div>
                             )}
 
                             {msg.generatedFile && (
-                                <div className="mt-2">
+                                <div className="mt-4">
                                     {msg.generatedFile.type === 'pptx' && <PptPreviewCard fileData={msg.generatedFile} />}
                                     {(msg.generatedFile.type === 'docx' || msg.generatedFile.type === 'pdf' || msg.generatedFile.type === 'xlsx') && (
-                                        <div className="file-generated-output">
-                                             <span>{msg.generatedFile.type?.toUpperCase()}</span>
-                                             <p>Generated: <strong>{msg.generatedFile.filename}</strong></p>
+                                        <div className="flex items-center justify-between bg-[#18181b] p-3 rounded border border-white/10">
+                                             <div className="flex items-center gap-3">
+                                                 <div className="bg-blue-600/20 text-blue-400 p-2 rounded text-xs font-bold uppercase">{msg.generatedFile.type}</div>
+                                                 <div>
+                                                     <p className="text-xs text-gray-400 uppercase tracking-wider">Document Generated</p>
+                                                     <p className="text-sm text-white font-medium truncate max-w-[150px]">{msg.generatedFile.filename}</p>
+                                                 </div>
+                                             </div>
                                              <button 
                                                 onClick={() => {
                                                     if(msg.generatedFile?.type === 'docx') createDocxFile(msg.generatedFile.data as WordData);
                                                     else if(msg.generatedFile?.type === 'pdf') createPdfFile(msg.generatedFile.data as WordData);
                                                     else createXlsxFile(msg.generatedFile!.data as ExcelData);
                                                 }}
-                                                className="text-xs bg-amber-500 text-black px-2 py-1 rounded font-bold hover:bg-amber-400"
+                                                className="text-xs bg-white text-black px-3 py-1.5 rounded font-bold hover:bg-gray-200"
                                             >
                                                 Download
                                              </button>
@@ -477,55 +486,56 @@ const MessageLogItem: React.FC<{
                             )}
                             
                              {msg.generatedWebsite && (
-                                <div className="mt-4 bg-[#1e1e1e] rounded-lg border border-gray-700 p-4">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h4 className="text-amber-400 font-bold flex items-center gap-2">
-                                            <span className="text-xl">🌐</span> Website Generated
-                                        </h4>
+                                <div className="mt-4 bg-[#121212] rounded border border-gray-800 p-0 overflow-hidden">
+                                    <div className="bg-[#18181b] px-4 py-2 border-b border-gray-800 flex justify-between items-center">
+                                        <h4 className="text-gray-400 font-bold text-xs uppercase tracking-widest">Web Preview</h4>
                                         {msg.generatedWebsite.isLoading ? (
-                                            <span className="text-xs text-gray-400 animate-pulse">Building...</span>
+                                            <span className="text-[10px] text-amber-500 animate-pulse">COMPILING...</span>
                                         ) : (
-                                            <span className="text-xs text-green-400">Ready</span>
+                                            <span className="text-[10px] text-green-500">READY</span>
                                         )}
                                     </div>
-                                    <p className="text-sm text-gray-300 mb-3">Topic: {msg.generatedWebsite.topic}</p>
-                                    {!msg.generatedWebsite.isLoading && (
-                                        <button 
-                                            className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-md font-semibold text-sm transition-colors"
-                                            onClick={() => {
-                                                const event = new CustomEvent('openWebsitePreview', { detail: msg.generatedWebsite });
-                                                window.dispatchEvent(event);
-                                            }}
-                                        >
-                                            Preview & Download
-                                        </button>
-                                    )}
+                                    <div className="p-6 flex flex-col items-center text-center">
+                                        <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mb-3">
+                                            <span className="text-2xl">🌐</span>
+                                        </div>
+                                        <p className="text-white font-medium mb-1">Website Generated</p>
+                                        <p className="text-xs text-gray-500 mb-4">{msg.generatedWebsite.topic}</p>
+                                        
+                                        {!msg.generatedWebsite.isLoading && (
+                                            <button 
+                                                className="px-4 py-2 bg-white text-black rounded font-bold text-xs hover:bg-gray-200 transition-colors"
+                                                onClick={() => {
+                                                    const event = new CustomEvent('openWebsitePreview', { detail: msg.generatedWebsite });
+                                                    window.dispatchEvent(event);
+                                                }}
+                                            >
+                                                Launch Preview
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
                             {msg.generatedQRCode && (
-                                <div className="mt-4 qr-code-output">
-                                    <img src={msg.generatedQRCode.dataUrl} alt="QR Code" />
-                                    <p>{msg.generatedQRCode.text}</p>
+                                <div className="mt-4 bg-white p-2 rounded w-fit mx-auto">
+                                    <img src={msg.generatedQRCode.dataUrl} alt="QR Code" className="w-32 h-32" />
+                                    <p className="text-center text-black text-[10px] mt-1 font-mono">{msg.generatedQRCode.text}</p>
                                 </div>
                             )}
                             
                              {msg.codeExecutionResult && (
-                                <div className="code-execution-result">
-                                    <div className="code-execution-header">Python Execution Output</div>
-                                    <div className="code-execution-output">
+                                <div className="mt-4 rounded border border-white/10 overflow-hidden">
+                                    <div className="bg-[#18181b] px-3 py-1.5 border-b border-white/10 flex justify-between items-center">
+                                        <span className="text-[10px] text-gray-500 font-mono uppercase">Output Console</span>
+                                    </div>
+                                    <div className="bg-[#09090b] p-3 font-mono text-xs text-green-400 overflow-x-auto">
                                         {msg.codeExecutionResult.output.includes('[PLOT_GENERATED]') ? (
-                                            <img src={msg.codeExecutionResult.output.replace('[PLOT_GENERATED]\n', '')} alt="Generated Plot" />
+                                            <img src={msg.codeExecutionResult.output.replace('[PLOT_GENERATED]\n', '')} alt="Generated Plot" className="rounded" />
                                         ) : (
                                             msg.codeExecutionResult.output
                                         )}
                                     </div>
-                                </div>
-                            )}
-                            
-                            {msg.audioUrl && (
-                                <div className="mt-2">
-                                    <audio src={msg.audioUrl} controls className="w-full h-8" />
                                 </div>
                             )}
                         </div>
@@ -536,27 +546,23 @@ const MessageLogItem: React.FC<{
                         <AnimatePresence>
                             {showActions && (
                                 <motion.div 
-                                    className="absolute -bottom-6 left-0 flex gap-2"
+                                    className="absolute -bottom-5 left-0 flex gap-2"
                                     initial={{ opacity: 0, y: -5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
                                 >
                                     <button 
                                         onClick={handleCopyClick}
-                                        className="text-xs text-gray-500 hover:text-white flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full backdrop-blur-md"
+                                        className="text-[10px] text-gray-500 hover:text-white bg-[#18181b] border border-[#27272a] px-2 py-0.5 rounded flex items-center gap-1 transition-colors"
                                     >
-                                        {copied ? (
-                                            <span>✓ Copied</span>
-                                        ) : (
-                                            <span>Copy</span>
-                                        )}
+                                        {copied ? 'Copied' : 'Copy'}
                                     </button>
                                     {isLastAiMessage && (
                                         <button 
                                             onClick={() => { triggerHaptic(); onRegenerate(); }}
-                                            className="text-xs text-gray-500 hover:text-white flex items-center gap-1 bg-black/50 px-2 py-1 rounded-full backdrop-blur-md"
+                                            className="text-[10px] text-gray-500 hover:text-white bg-[#18181b] border border-[#27272a] px-2 py-0.5 rounded flex items-center gap-1 transition-colors"
                                         >
-                                            Re-generate
+                                            Regenerate
                                         </button>
                                     )}
                                 </motion.div>
@@ -566,7 +572,7 @@ const MessageLogItem: React.FC<{
                 </div>
                 {isUser && (
                     <div className="message-avatar user-avatar">
-                        {userProfile?.photoURL ? <img src={userProfile.photoURL} alt="User" /> : (userProfile?.displayName?.[0] || 'U')}
+                        {userProfile?.photoURL ? <img src={userProfile.photoURL} alt="User" /> : <div className="w-full h-full flex items-center justify-center font-bold text-gray-400">{userProfile?.displayName?.[0] || 'U'}</div>}
                     </div>
                 )}
             </div>
@@ -628,15 +634,15 @@ const ChatComposer: React.FC<{
                         <div className="composer-file-preview-inner">
                              <div className="composer-multi-file-container">
                                 {files.map((file, idx) => (
-                                    <div key={idx} className="composer-file-thumb">
+                                    <div key={idx} className="composer-file-thumb group">
                                          {file.mimeType.startsWith('image/') ? (
                                             <img src={`data:${file.mimeType};base64,${file.base64}`} alt={file.name} />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-700 text-xs text-center p-1 break-words text-white">
+                                            <div className="w-full h-full flex items-center justify-center bg-[#27272a] text-[10px] text-gray-400 font-mono">
                                                 {file.name.split('.').pop()?.toUpperCase()}
                                             </div>
                                         )}
-                                        <button onClick={() => removeFile(idx)} className="remove-attachment-btn">×</button>
+                                        <button onClick={() => removeFile(idx)} className="remove-attachment-btn group-hover:opacity-100">×</button>
                                     </div>
                                 ))}
                              </div>
@@ -652,7 +658,7 @@ const ChatComposer: React.FC<{
                     onClick={() => fileInputRef.current?.click()}
                     title="Attach files"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                 </button>
                 
                 <textarea
@@ -671,21 +677,21 @@ const ChatComposer: React.FC<{
                     title={isRecording ? "Stop Recording" : "Start Dictation"}
                 >
                      {isRecording ? (
-                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
                      ) : (
-                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
                      )}
                 </button>
 
                 <button 
-                    className="composer-icon-button composer-send-button"
+                    className="composer-icon-button composer-send-button flex items-center justify-center"
                     onClick={onSend}
                     disabled={(!input.trim() && files.length === 0) || isLoading}
                 >
                     {isLoading ? (
-                        <span className="animate-spin h-5 w-5 border-2 border-current border-t-transparent rounded-full" />
+                        <span className="animate-spin h-4 w-4 border-2 border-black border-t-transparent rounded-full" />
                     ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     )}
                 </button>
             </div>
@@ -699,37 +705,41 @@ const WorkflowBubble: React.FC<{ workflow: Workflow }> = ({ workflow }) => {
     return (
         <div className="workflow-container">
             <div className="flex justify-between items-center cursor-pointer" onClick={() => setExpanded(!expanded)}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <div className="typing-indicator task-workflow"><span></span></div>
-                    <h4 className="font-bold text-white">Autonomous Agent Workflow</h4>
+                    <div>
+                         <h4 className="font-bold text-white text-sm uppercase tracking-wider">Autonomous Agent</h4>
+                         <p className="text-xs text-gray-500 font-mono">ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
+                    </div>
                 </div>
-                 <span className="text-xs text-gray-500">{expanded ? 'Hide' : 'Show'} Details</span>
+                 <span className="text-[10px] text-gray-500 uppercase tracking-widest border border-gray-700 px-2 py-1 rounded">{expanded ? 'Minimize' : 'Expand'}</span>
             </div>
-            <p className="text-sm text-gray-400 mt-1">Goal: {workflow.goal}</p>
             
             {expanded && (
-                <div className="mt-4 space-y-3">
-                    <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Execution Plan</h5>
-                    {workflow.steps.map((step, idx) => (
-                        <div key={idx} className="text-sm border-l-2 border-gray-700 pl-3 py-1">
-                            <div className="flex items-center gap-2 mb-1">
-                                <StepIcon status={step.status} />
-                                <span className="text-xs font-bold text-gray-300">Step {idx + 1}</span>
-                                <StatusPill status={step.status} />
-                            </div>
-                            <p className="text-gray-400">{step.summary}</p>
-                            {step.tool_output && (
-                                <div className="workflow-step-tool-output">
-                                    <details>
-                                        <summary>View Output</summary>
-                                        <div className="output-content">
-                                            {JSON.stringify(step.tool_output, null, 2)}
-                                        </div>
-                                    </details>
+                <div className="mt-4 space-y-4 pt-4 border-t border-gray-700">
+                    <div>
+                        <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Objective</h5>
+                        <p className="text-sm text-gray-300">{workflow.goal}</p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Execution Log</h5>
+                        {workflow.steps.map((step, idx) => (
+                            <div key={idx} className="text-sm pl-3 py-1 border-l-2 border-gray-800 relative">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <StepIcon status={step.status} />
+                                    <span className="text-xs font-mono text-gray-400">STEP {String(idx + 1).padStart(2, '0')}</span>
+                                    <StatusPill status={step.status} />
                                 </div>
-                            )}
-                        </div>
-                    ))}
+                                <p className="text-gray-300 text-xs">{step.summary}</p>
+                                {step.tool_output && (
+                                    <div className="mt-1 text-[10px] font-mono text-gray-600 truncate bg-black/30 p-1 rounded">
+                                        Output: {JSON.stringify(step.tool_output).substring(0, 60)}...
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>
@@ -738,56 +748,34 @@ const WorkflowBubble: React.FC<{ workflow: Workflow }> = ({ workflow }) => {
 
 const StatusPill: React.FC<{ status: string }> = ({ status }) => {
     const colors: {[key:string]: string} = {
-        'pending': 'bg-gray-700 text-gray-300',
-        'running': 'bg-amber-500/20 text-amber-400 animate-pulse',
-        'completed': 'bg-green-500/20 text-green-400',
-        'error': 'bg-red-500/20 text-red-400'
+        'pending': 'bg-gray-800 text-gray-500',
+        'running': 'bg-amber-900/20 text-amber-500 border-amber-500/20 animate-pulse',
+        'completed': 'bg-green-900/20 text-green-500 border-green-500/20',
+        'error': 'bg-red-900/20 text-red-500 border-red-500/20'
     };
-    return <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider ${colors[status] || colors.pending}`}>{status}</span>
-};
-
-const ToolIcon: React.FC<{ name: string }> = ({ name }) => {
-    if (name.includes('search')) return <span>🔍</span>;
-    if (name.includes('write')) return <span>✍️</span>;
-    if (name.includes('create')) return <span>📄</span>;
-    return <span>🛠️</span>;
+    return <span className={`text-[9px] px-2 py-0.5 rounded-full uppercase tracking-widest border border-transparent ${colors[status] || colors.pending}`}>{status}</span>
 };
 
 const StepIcon: React.FC<{ status: string }> = ({ status }) => {
-    if (status === 'completed') return <span className="text-green-500">✓</span>;
-    if (status === 'error') return <span className="text-red-500">✕</span>;
-    if (status === 'running') return <span className="text-amber-500">➜</span>;
-    return <span className="text-gray-600">○</span>;
+    if (status === 'completed') return <span className="text-green-500 text-[10px]">●</span>;
+    if (status === 'error') return <span className="text-red-500 text-[10px]">●</span>;
+    if (status === 'running') return <span className="text-amber-500 text-[10px]">●</span>;
+    return <span className="text-gray-700 text-[10px]">○</span>;
 };
 
 const PptPreviewCard: React.FC<{ fileData: any }> = ({ fileData }) => {
-    const [isHovered, setIsHovered] = useState(false);
-    
     return (
-        <div 
-            className="ppt-preview-card"
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
-            <div className="ppt-preview-image-container">
-                {fileData.previewImageUrl ? (
-                    <img src={fileData.previewImageUrl} alt="Slide Preview" className="ppt-preview-image" />
-                ) : (
-                    <div className="ppt-preview-no-image">
-                        <div className="flex flex-col items-center gap-2">
-                            <PptIcon size={24} />
-                            <span className="text-xs">Preview Unavailable</span>
-                        </div>
-                    </div>
-                )}
+        <div className="ppt-preview-card">
+            <div className="ppt-preview-image-container flex items-center justify-center bg-[#C43E1C]/10">
+                <div className="text-center">
+                    <PptIcon size={48} />
+                </div>
             </div>
             <div className="ppt-preview-content">
                 <div className="ppt-preview-header">
-                    <PptIcon size={16} />
-                    <span>POWERPOINT PRESENTATION</span>
+                    <span>PRESENTATION DECK</span>
                 </div>
-                <h3 className="ppt-preview-title">{fileData.filename}</h3>
-                <p className="text-xs text-gray-500 mt-1">Generated by AikonAI</p>
+                <h3 className="ppt-preview-title truncate">{fileData.filename}</h3>
             </div>
             <div className="ppt-preview-footer">
                  <button 
@@ -802,7 +790,7 @@ const PptPreviewCard: React.FC<{ fileData: any }> = ({ fileData }) => {
 };
 
 const PptIcon = ({ size = 24 }: { size?: number }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#fca5a5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M8 13h8"></path><path d="M8 17h8"></path><path d="M10 9h4"></path></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#C43E1C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M12 18v-6"></path><path d="M8 12h8"></path></svg>
 );
 
 const WebsitePreview: React.FC<{ websiteData: any, onClose: () => void }> = ({ websiteData, onClose }) => {
@@ -819,24 +807,30 @@ const WebsitePreview: React.FC<{ websiteData: any, onClose: () => void }> = ({ w
     };
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col">
-            <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-center px-4 relative">
-                <div className="absolute left-4 flex items-center gap-4">
-                    <h3 className="text-white font-bold">Website Preview</h3>
-                    <div className="flex bg-zinc-800 rounded-md p-1">
-                        <button onClick={() => setViewMode('desktop')} className={`p-1 rounded ${viewMode === 'desktop' ? 'bg-zinc-600 text-white' : 'text-gray-400'}`}>🖥️</button>
-                        <button onClick={() => setViewMode('mobile')} className={`p-1 rounded ${viewMode === 'mobile' ? 'bg-zinc-600 text-white' : 'text-gray-400'}`}>📱</button>
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+            <div className="h-14 bg-[#09090b] border-b border-white/10 flex items-center justify-between px-4">
+                <div className="flex items-center gap-4">
+                    <div className="flex gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    </div>
+                    <div className="h-6 w-px bg-white/10 mx-2"></div>
+                    <div className="flex bg-[#18181b] rounded-md p-0.5 border border-white/5">
+                        <button onClick={() => setViewMode('desktop')} className={`px-3 py-1 rounded text-xs font-medium transition-all ${viewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-gray-500'}`}>Desktop</button>
+                        <button onClick={() => setViewMode('mobile')} className={`px-3 py-1 rounded text-xs font-medium transition-all ${viewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-gray-500'}`}>Mobile</button>
                     </div>
                 </div>
-                <div className="flex gap-2 absolute right-4">
-                    <button onClick={downloadHtml} className="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-500">Download HTML</button>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">&times;</button>
+                <div className="flex gap-3">
+                    <button onClick={downloadHtml} className="text-xs font-bold text-gray-300 hover:text-white transition-colors">DOWNLOAD CODE</button>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">&times;</button>
                 </div>
             </div>
-            <div className="flex-grow bg-zinc-800 flex items-center justify-center p-4 overflow-hidden">
+            <div className="flex-grow bg-[#0c0c0c] flex items-center justify-center p-4 overflow-hidden relative">
+                <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#333 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
                 <motion.div 
-                    className="bg-white h-full shadow-2xl transition-all duration-300"
-                    style={{ width: viewMode === 'mobile' ? '375px' : '100%', maxWidth: viewMode === 'mobile' ? '375px' : '1200px' }}
+                    className="bg-white h-full shadow-2xl transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] rounded-lg overflow-hidden border border-white/10"
+                    style={{ width: viewMode === 'mobile' ? '375px' : '100%', maxWidth: viewMode === 'mobile' ? '375px' : '1400px' }}
                 >
                     <iframe 
                         srcDoc={websiteData.htmlContent}
@@ -870,138 +864,139 @@ const LiveConversationOverlay: React.FC<{
 
     return (
         <div className="live-overlay">
-            <div className="live-content w-full h-full relative">
-                {/* Close Button */}
-                <button onClick={onClose} className="absolute top-6 right-6 z-50 text-white/50 hover:text-white bg-black/20 p-2 rounded-full backdrop-blur-md transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            {/* Header Info */}
+            <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-50">
+                <div>
+                    <h2 className="text-white font-bold text-2xl tracking-tight">AIKON LIVE</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`}></div>
+                        <p className="text-xs text-gray-400 font-mono uppercase tracking-widest">
+                            {status === 'connecting' && "ESTABLISHING UPLINK..."}
+                            {status === 'connected' && "CHANNEL SECURE • 24kHz"}
+                            {status === 'error' && "CONNECTION FAILED"}
+                        </p>
+                    </div>
+                </div>
+                <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
+            </div>
 
-                {/* Main Centered Orb */}
-                <div className="flex flex-col items-center justify-center h-full pb-20 relative">
-                    <div className={`live-orb ${status === 'connected' ? 'connected' : ''} z-10`}>
+            {/* Main Visual Content Area */}
+            <div className="flex-grow flex flex-col items-center justify-center relative z-10">
+                
+                {/* The Orb / Visualizer */}
+                <div className="relative mb-12">
+                    <div className={`live-orb ${status === 'connected' ? 'connected' : ''}`}>
                         <div 
                             className="live-orb-inner" 
                             style={{ 
-                                transform: `scale(${1 + volume})`,
-                                transition: 'transform 0.05s ease-out' // Faster reaction for volume
+                                transform: `scale(${0.8 + (volume * 0.2)})`,
+                                opacity: 0.5 + (volume * 0.5),
+                                transition: 'transform 0.05s ease-out, opacity 0.05s ease-out'
                             }}
                         />
+                         {/* Rings */}
+                        <div className="absolute inset-0 border border-white/5 rounded-full scale-110"></div>
+                        <div className="absolute inset-0 border border-white/5 rounded-full scale-125 opacity-50"></div>
                     </div>
-                    
-                    <p className="live-status mt-8 z-10 text-amber-200/80 font-medium tracking-wider uppercase text-xs">
-                        {status === 'connecting' && "Connecting to Aikon..."}
-                        {status === 'connected' && "Listening..."}
-                        {status === 'error' && "Connection Error"}
-                    </p>
-
-                    {/* Visual Stage for Content (Images, Weather, etc.) */}
-                    <AnimatePresence>
-                        {liveContent && (
-                            <motion.div 
-                                className="mt-8 max-w-lg w-full px-4 z-20 absolute top-[60%] md:top-[55%]"
-                                initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: 20, scale: 0.9 }}
-                            >
-                                <div className="bg-black/60 backdrop-blur-xl rounded-2xl p-4 border border-white/10 shadow-2xl max-h-[40vh] overflow-y-auto">
-                                    {liveContent.type === 'weather' && (
-                                        <div className="flex justify-center">
-                                            <WeatherCard data={liveContent.data} />
-                                        </div>
-                                    )}
-                                    {liveContent.type === 'image' && (
-                                        <div className="flex flex-col items-center">
-                                            <img src={liveContent.data.url} alt="Generated" className="rounded-lg w-full max-h-64 object-contain shadow-lg mb-2" />
-                                            <p className="text-xs text-gray-400 italic text-center">{liveContent.data.prompt}</p>
-                                        </div>
-                                    )}
-                                    {liveContent.type === 'website' && (
-                                        <div className="text-center">
-                                            <div className="bg-zinc-800 rounded-lg p-4 mb-3">
-                                                <span className="text-4xl">🌐</span>
-                                            </div>
-                                            <h4 className="text-white font-bold">Website Ready</h4>
-                                            <p className="text-sm text-gray-400 mb-4">Topic: {liveContent.data.topic}</p>
-                                            <button 
-                                                onClick={() => {
-                                                    const event = new CustomEvent('openWebsitePreview', { detail: liveContent.data });
-                                                    window.dispatchEvent(event);
-                                                }}
-                                                className="bg-amber-500 text-black px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-400 w-full"
-                                            >
-                                                View Website
-                                            </button>
-                                        </div>
-                                    )}
-                                     {liveContent.type === 'text' && (
-                                        <div className="text-center">
-                                            <div className="bg-zinc-800 rounded-lg p-3 mb-2 inline-block">
-                                                <span className="text-2xl">🚀</span>
-                                            </div>
-                                            <p className="text-white font-semibold">{liveContent.data}</p>
-                                        </div>
-                                    )}
-                                    {liveContent.type === 'search_result' && (
-                                        <div className="text-left">
-                                            <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2">
-                                                <span className="text-xl">🔍</span>
-                                                <h4 className="text-white font-bold text-sm">Search Results</h4>
-                                            </div>
-                                            <p className="text-gray-300 text-sm leading-relaxed mb-3 max-h-32 overflow-y-auto">
-                                                {liveContent.data.text}
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {liveContent.data.sources.slice(0, 3).map((src: any, idx: number) => (
-                                                    <a key={idx} href={src.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-amber-400 truncate max-w-[100px]">
-                                                        {src.title}
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {liveContent.type === 'code' && (
-                                        <div className="text-left">
-                                            <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2">
-                                                <span className="text-xl">💻</span>
-                                                <h4 className="text-white font-bold text-sm">Python Output</h4>
-                                            </div>
-                                            <pre className="text-xs text-green-400 bg-black/50 p-2 rounded font-mono overflow-x-auto">
-                                                {liveContent.data.output}
-                                            </pre>
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
                 </div>
 
-                {/* Bottom Toolbar */}
-                <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 z-50">
-                    <AnimatePresence>
-                        {isUploadRequested && (
-                            <motion.button 
-                                initial={{ scale: 0, y: 20 }}
-                                animate={{ scale: 1, y: 0 }}
-                                exit={{ scale: 0, y: 20 }}
-                                onClick={onUpload}
-                                className="absolute bottom-20 px-6 py-3 bg-amber-500 text-black font-bold rounded-full shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-bounce flex items-center gap-2"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                                Tap to Upload Image
-                            </motion.button>
-                        )}
-                    </AnimatePresence>
-                    
-                    <motion.button 
-                        onClick={onClose} 
-                        className="px-8 py-4 bg-red-600 rounded-full text-white font-bold hover:bg-red-500 transition-colors shadow-lg flex items-center gap-2"
-                        whileTap={{ scale: 0.95 }}
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>
-                        End Call
-                    </motion.button>
-                </div>
+                {/* Dynamic Content Display */}
+                <AnimatePresence>
+                    {liveContent && (
+                        <motion.div 
+                            className="absolute bottom-32 w-full max-w-md px-4"
+                            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                        >
+                            <div className="bg-[#121212]/90 backdrop-blur-xl rounded-xl p-5 border border-white/10 shadow-2xl shadow-black/50">
+                                {liveContent.type === 'weather' && (
+                                    <div className="flex justify-center transform scale-90">
+                                        <WeatherCard data={liveContent.data} />
+                                    </div>
+                                )}
+                                {liveContent.type === 'image' && (
+                                    <div className="flex flex-col items-center">
+                                        <img src={liveContent.data.url} alt="Generated" className="rounded border border-white/10 w-full shadow-lg mb-3" />
+                                        <p className="text-[10px] text-gray-500 uppercase tracking-widest text-center">{liveContent.data.prompt}</p>
+                                    </div>
+                                )}
+                                {liveContent.type === 'website' && (
+                                    <div className="text-center">
+                                        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3 border border-white/10">
+                                            <span className="text-2xl">🌐</span>
+                                        </div>
+                                        <h4 className="text-white font-bold text-sm uppercase tracking-wide mb-1">Website Ready</h4>
+                                        <p className="text-xs text-gray-400 mb-4">{liveContent.data.topic}</p>
+                                        <button 
+                                            onClick={() => {
+                                                const event = new CustomEvent('openWebsitePreview', { detail: liveContent.data });
+                                                window.dispatchEvent(event);
+                                            }}
+                                            className="bg-white text-black px-6 py-2 rounded font-bold text-xs hover:bg-gray-200 w-full uppercase tracking-widest"
+                                        >
+                                            Launch Interface
+                                        </button>
+                                    </div>
+                                )}
+                                 {liveContent.type === 'text' && (
+                                    <div className="text-center py-2">
+                                        <p className="text-amber-400 font-mono text-sm animate-pulse">{liveContent.data}</p>
+                                    </div>
+                                )}
+                                {liveContent.type === 'search_result' && (
+                                    <div className="text-left">
+                                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
+                                            <span className="text-lg">🔍</span>
+                                            <h4 className="text-white font-bold text-xs uppercase tracking-widest">Intelligence Found</h4>
+                                        </div>
+                                        <p className="text-gray-300 text-xs leading-relaxed mb-3 line-clamp-4 font-mono">
+                                            {liveContent.data.text}
+                                        </p>
+                                    </div>
+                                )}
+                                {liveContent.type === 'code' && (
+                                    <div className="text-left">
+                                        <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2">
+                                            <span className="text-lg">💻</span>
+                                            <h4 className="text-white font-bold text-xs uppercase tracking-widest">Execution Output</h4>
+                                        </div>
+                                        <pre className="text-[10px] text-green-400 bg-black/50 p-3 rounded font-mono overflow-x-auto border border-white/5">
+                                            {liveContent.data.output}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Bottom Controls */}
+            <div className="absolute bottom-0 left-0 right-0 p-8 flex flex-col items-center justify-end z-50 bg-gradient-to-t from-black via-black/80 to-transparent h-48">
+                 <AnimatePresence>
+                    {isUploadRequested && (
+                        <motion.button 
+                            initial={{ scale: 0, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0, y: 20 }}
+                            onClick={onUpload}
+                            className="mb-6 px-6 py-3 bg-amber-500 text-black font-bold text-xs uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(245,158,11,0.4)] flex items-center gap-2 animate-bounce"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                            Upload Image Source
+                        </motion.button>
+                    )}
+                </AnimatePresence>
+                
+                <button 
+                    onClick={onClose} 
+                    className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-red-500 hover:scale-105 transition-all"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/></svg>
+                </button>
             </div>
         </div>
     );
@@ -1364,8 +1359,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     };
 
     const executeSystemAction = (action: string, target: string, query: string = '') => {
-        let message = `Okay, I'm setting that up for you. Please confirm below.`;
-        // Just return the text message. The message rendering component handles the ActionLauncher display via actionData.
+        let message = `Action setup confirmed. Please verify execution below.`;
         return message;
     };
 
@@ -1373,14 +1367,14 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         // Image Gen
         if (tool.tool_call === 'generate_image') {
              const imgData = await generateImage(tool.prompt);
-             setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Here is your image:", generatedImage: { prompt: tool.prompt, url: imgData || undefined, isLoading: false } } : m));
+             setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Rendering complete:", generatedImage: { prompt: tool.prompt, url: imgData || undefined, isLoading: false } } : m));
         }
         // Website Gen
         else if (tool.tool_call === 'generate_website') {
              const html = await generateWebsiteCode(tool.topic, tool.style, tool.features);
              setMessages(prev => prev.map(m => m.id === msgId ? { 
                  ...m, 
-                 text: "I've designed the website for you.", 
+                 text: "Interface construction complete.", 
                  generatedWebsite: { topic: tool.topic, htmlContent: html, isLoading: false }
              } : m));
         }
@@ -1390,7 +1384,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
              const images = await Promise.all(prompts.map((p: string) => generateImage(p)));
              setMessages(prev => prev.map(m => m.id === msgId ? {
                  ...m,
-                 text: "Here is your storyboard:",
+                 text: "Storyboard sequence generated:",
                  storyboardImages: images.map((url, i) => ({ prompt: prompts[i], url: url || '' }))
              } : m));
         }
@@ -1399,7 +1393,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
              const result = await executePythonCode(tool.code, sessionFiles);
              setMessages(prev => prev.map(m => m.id === msgId ? {
                  ...m,
-                 text: "Code executed.",
+                 text: "Execution successful.",
                  codeExecutionResult: { code: tool.code, output: result }
              } : m));
              setCodeHistory(prev => [...prev, { id: Date.now().toString(), code: tool.code, timestamp: new Date() }]);
@@ -1421,7 +1415,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             } else {
                 setMessages(prev => prev.map(m => m.id === msgId ? {
                     ...m,
-                    text: `Current weather in ${tool.city}`,
+                    text: `Atmospheric data for ${tool.city}`,
                     weatherData: weather
                 } : m));
             }
@@ -1432,7 +1426,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
              if('error' in data) {
                  setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: data.error } : m));
              } else {
-                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Here is your presentation.", generatedFile: { type: 'pptx', filename: `${tool.topic.replace(/ /g, '_')}.pptx`, message: "Presentation Ready", data: data } } : m));
+                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Presentation deck assembled.", generatedFile: { type: 'pptx', filename: `${tool.topic.replace(/ /g, '_')}.pptx`, message: "Presentation Ready", data: data } } : m));
              }
         }
         else if (tool.tool_call === 'create_word_document' || tool.tool_call === 'create_pdf_document') {
@@ -1441,7 +1435,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                  setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: data.error } : m));
              } else {
                  const type = tool.tool_call === 'create_word_document' ? 'docx' : 'pdf';
-                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Here is your document.", generatedFile: { type: type, filename: `${tool.topic.replace(/ /g, '_')}.${type}`, message: "Document Ready", data: data } } : m));
+                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Document compiled.", generatedFile: { type: type, filename: `${tool.topic.replace(/ /g, '_')}.${type}`, message: "Document Ready", data: data } } : m));
              }
         }
          else if (tool.tool_call === 'create_excel_spreadsheet') {
@@ -1449,7 +1443,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
              if('error' in data) {
                  setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: data.error } : m));
              } else {
-                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Here is your spreadsheet.", generatedFile: { type: 'xlsx', filename: `${tool.filename || 'spreadsheet'}.xlsx`, message: "Spreadsheet Ready", data: { filename: tool.filename, ...data } } } : m));
+                 setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Data structured in spreadsheet.", generatedFile: { type: 'xlsx', filename: `${tool.filename || 'spreadsheet'}.xlsx`, message: "Spreadsheet Ready", data: { filename: tool.filename, ...data } } } : m));
              }
         }
 
@@ -1583,7 +1577,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                  // Execute function (Visual only for now in overlay)
                                  if (fc.name === 'generate_image') {
                                       const prompt = fc.args['prompt'] as string;
-                                      setLiveContent({ type: 'text', data: "Generating Image..." });
+                                      setLiveContent({ type: 'text', data: "Rendering Image..." });
                                       const img = await generateImage(prompt);
                                       if (img) setLiveContent({ type: 'image', data: { url: img, prompt: prompt } });
                                       sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Image displayed to user" } } }));
@@ -1596,7 +1590,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                  }
                                  else if (fc.name === 'google_search') {
                                      const query = fc.args['query'] as string;
-                                     setLiveContent({ type: 'text', data: "Searching Google..." });
+                                     setLiveContent({ type: 'text', data: "Querying Google Index..." });
                                      const searchRes = await performGoogleSearch(query);
                                      setLiveContent({ type: 'search_result', data: searchRes });
                                      // Send a summary back to the model so it can talk about it
@@ -1610,7 +1604,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                  }
                                  else if (fc.name === 'execute_python_code') {
                                      const code = fc.args['code'] as string;
-                                     setLiveContent({ type: 'text', data: "Running Python..." });
+                                     setLiveContent({ type: 'text', data: "Executing Script..." });
                                      const output = await executePythonCode(code);
                                      setLiveContent({ type: 'code', data: { code: code, output: output } });
                                      sessionPromiseRef.current?.then(s => s.sendToolResponse({ 
@@ -1621,13 +1615,13 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                      // Show upload button
                                      setIsUploadRequested(true);
                                      setPendingUploadRequestId(fc.id);
-                                     setLiveContent({ type: 'text', data: "Waiting for upload..." });
+                                     setLiveContent({ type: 'text', data: "Awaiting visual input..." });
                                      // We do NOT send a response yet. We wait for the user to upload.
                                  }
                                  else if (fc.name === 'edit_image') {
                                       if (uploadedLiveImage) {
                                           const instruction = fc.args['instruction'] as string;
-                                          setLiveContent({ type: 'text', data: "Editing Image..." });
+                                          setLiveContent({ type: 'text', data: "Applying modifications..." });
                                           const result = await editImage(uploadedLiveImage, instruction);
                                           if (result) setLiveContent({ type: 'image', data: { url: result, prompt: instruction } });
                                           sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Image edited and displayed" } } }));
@@ -1662,21 +1656,21 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                  config: {
                     responseModalities: [Modality.AUDIO],
                     speechConfig: {
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } // UPDATED TO CHARON (MALE)
                     },
                     systemInstruction: `${aikonPersonaInstruction}
 
 **LIVE VOICE MODE SPECIFIC INSTRUCTIONS:**
-You are currently in a real-time voice conversation with the user.
-1. **Conciseness:** Keep your spoken responses relatively short and conversational. Avoid long monologues unless asked.
-2. **Tools:** You have access to tools. Use them proactively as described below.
+You are currently in a real-time voice conversation.
+1. **Conciseness:** Keep spoken responses short, punchy, and professional.
+2. **Tone:** Confident, intelligent, helpful. Like a senior engineer or strategist.
+3. **Tools:** Use tools proactively.
 
 IMPORTANT RULES FOR LIVE MODE:
-1. VISUALS: If the user asks for something visual (image, weather, website), use the corresponding tool immediately.
+1. VISUALS: If the user asks for something visual, use the corresponding tool immediately.
 2. SEARCH: If asked for current events or facts, use 'google_search'.
-3. EDITING: If the user wants to edit an image, FIRST call 'request_image_upload' to get the file. Once they upload it, you will receive a confirmation, THEN call 'edit_image'.
+3. EDITING: If the user wants to edit an image, FIRST call 'request_image_upload'.
 4. CODE: If asked for math or logic, use 'execute_python_code'.
-5. Be conversational but proactive with tools.
 `,
                     tools: [{ functionDeclarations: getLiveFunctionDeclarations() }]
                  }
@@ -1771,7 +1765,7 @@ IMPORTANT RULES FOR LIVE MODE:
                  });
 
                  // Give feedback
-                 setLiveContent({ type: 'text', data: "Image Uploaded" });
+                 setLiveContent({ type: 'text', data: "Source Image Received" });
              };
              reader.readAsDataURL(file);
         }
@@ -1781,22 +1775,24 @@ IMPORTANT RULES FOR LIVE MODE:
     const renderDesktopHeader = () => (
          <header className="chat-header">
                 <div className="flex items-center gap-3">
-                    <img src="/long_logo.jpeg" alt="Aikon Logo" className="chat-header-logo rounded-md" />
+                    <img src="/long_logo.jpeg" alt="Aikon Logo" className="chat-header-logo rounded" />
                     <div className="hidden md:block">
-                        <h1 className="font-bold text-white text-lg tracking-tight">AIKON STUDIO</h1>
-                        <p className="text-xs text-gray-500">Engineered by Aditya Jain</p>
+                        <h1 className="font-bold text-white text-sm tracking-wide uppercase">Aikon Studio</h1>
                     </div>
                 </div>
                 <div className="chat-header-actions">
                      <div className="agent-toggle">
-                        <span className={`text-xs font-bold mr-2 ${isAgentMode ? 'text-amber-400' : 'text-gray-500'}`}>Agent Mode</span>
+                        <span className={`text-xs font-bold mr-2 ${isAgentMode ? 'text-amber-500' : 'text-gray-500'}`}>AGENT</span>
                         <button className={`toggle-switch ${isAgentMode ? 'on' : ''}`} onClick={() => { triggerHaptic(); setIsAgentMode(!isAgentMode); }}>
                             <div className="toggle-thumb" />
                         </button>
                     </div>
-                    <button onClick={startLiveConversation} className="text-amber-400 border border-amber-400 hover:bg-amber-400 hover:text-black px-3 py-1 rounded-full flex items-center gap-1 transition-all" title="Start Voice Call"><span>🎙️</span> Call</button>
+                    <button onClick={startLiveConversation} className="text-amber-400 border border-amber-400/50 hover:bg-amber-500/10 hover:border-amber-400 flex items-center gap-2 transition-all" title="Start Voice Call">
+                        <span className="animate-pulse">●</span> Voice Link
+                    </button>
+                    <div className="h-4 w-px bg-white/10 mx-2"></div>
                     <button onClick={() => setIsDarkMode(!isDarkMode)} className="theme-toggle-button" title="Toggle Theme">{isDarkMode ? '☀️' : '🌙'}</button>
-                    <button onClick={() => setIsCodeCanvasOpen(true)} title="Code Canvas"><span className="mr-1">💻</span> Code</button>
+                    <button onClick={() => setIsCodeCanvasOpen(true)} title="Code Canvas">Code</button>
                     <button onClick={() => setIsSettingsOpen(true)}>Settings</button>
                     <button onClick={() => navigateTo('home')}>Exit</button>
                 </div>
@@ -1806,19 +1802,19 @@ IMPORTANT RULES FOR LIVE MODE:
     const renderMobileHeader = () => (
          <header className="chat-header mobile">
              <div className="flex items-center gap-3">
-                <img src="/short_logo.jpeg" alt="Logo" className="w-8 h-8 rounded-full shadow-md" />
+                <img src="/short_logo.jpeg" alt="Logo" className="w-8 h-8 rounded shadow-md" />
                 {activePersona.name !== 'AikonAI' && (
-                    <div className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                    <div className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded">
                         <span className="text-xs">{activePersona.icon}</span>
-                        <span className="text-[10px] font-bold text-white uppercase">{activePersona.name}</span>
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wide">{activePersona.name}</span>
                     </div>
                 )}
              </div>
              <div className="flex gap-2">
-                 <button onClick={() => { triggerHaptic(); startLiveConversation(); }} className="w-9 h-9 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/50">
+                 <button onClick={() => { triggerHaptic(); startLiveConversation(); }} className="w-9 h-9 rounded bg-amber-500/10 text-amber-500 flex items-center justify-center border border-amber-500/50 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
                      🎙️
                  </button>
-                 <button onClick={() => { triggerHaptic(); setIsMobileMenuOpen(true); }} className="w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center border border-white/10">
+                 <button onClick={() => { triggerHaptic(); setIsMobileMenuOpen(true); }} className="w-9 h-9 rounded bg-white/5 text-white flex items-center justify-center border border-white/10">
                      ☰
                  </button>
              </div>
@@ -1832,16 +1828,19 @@ IMPORTANT RULES FOR LIVE MODE:
             <div ref={chatContainerRef} className="message-log-container">
                 {messages.length === 0 && (
                     <div className="chat-welcome-screen">
-                        <img src="/short_logo.jpeg" alt="Aikon" className="welcome-logo rounded-2xl shadow-2xl" />
-                        <h2 className="welcome-title">How can I help?</h2>
+                        <div className="relative">
+                             <div className="absolute inset-0 bg-amber-500 blur-3xl opacity-10"></div>
+                             <img src="/short_logo.jpeg" alt="Aikon" className="welcome-logo rounded-2xl shadow-2xl relative z-10" />
+                        </div>
+                        <h2 className="welcome-title mt-6">System Ready.</h2>
                          {currentUser && (
-                            <p className="text-gray-400 mt-4 text-lg">Welcome back, {currentUser.displayName || currentUser.aboutYou}.</p>
+                            <p className="text-gray-500 mt-2 text-sm uppercase tracking-widest">User: {currentUser.displayName || currentUser.aboutYou}</p>
                         )}
-                        <div className="welcome-actions">
-                            <button className="action-pill" onClick={() => { setInput("Explain quantum computing"); handleSendMessage(); }}><span>⚛️</span> Explain quantum computing</button>
-                            <button className="action-pill" onClick={() => { setInput("Write a python script to parse CSV"); handleSendMessage(); }}><span>🐍</span> Write a python script</button>
-                            <button className="action-pill" onClick={() => { setInput("Create a marketing plan for a coffee shop"); handleSendMessage(); }}><span>☕</span> Create marketing plan</button>
-                            <button className="action-pill" onClick={startLiveConversation}><span>🎙️</span> Start Voice Call</button>
+                        <div className="welcome-actions mt-8">
+                            <button className="action-pill" onClick={() => { setInput("Analyze the latest trends in AI"); handleSendMessage(); }}><span>📈</span> Market Analysis</button>
+                            <button className="action-pill" onClick={() => { setInput("Generate a python script for data processing"); handleSendMessage(); }}><span>🐍</span> Python Scripting</button>
+                            <button className="action-pill" onClick={() => { setInput("Draft a project proposal for a new app"); handleSendMessage(); }}><span>📄</span> Draft Proposal</button>
+                            <button className="action-pill border-amber-500/50 text-amber-400" onClick={startLiveConversation}><span>🎙️</span> Initiate Voice Uplink</button>
                         </div>
                     </div>
                 )}
@@ -1867,19 +1866,19 @@ IMPORTANT RULES FOR LIVE MODE:
                     <div className="chat-actions-inner">
                         <div className="persona-menu-container relative">
                             <button className="active-persona-indicator" onClick={() => setShowPersonaMenu(!showPersonaMenu)}>
-                                <span>{activePersona.icon}</span>
-                                <span className="font-bold">{activePersona.name}</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transition-transform ${showPersonaMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                <span className="text-lg">{activePersona.icon}</span>
+                                <span className="font-bold text-sm">{activePersona.name}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 transition-transform ${showPersonaMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </button>
                             <AnimatePresence>
                                 {showPersonaMenu && (
                                     <motion.div className="persona-menu" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
                                         {allPersonas.map(persona => (
                                             <div key={persona.name} className={`persona-menu-item ${activePersona.name === persona.name ? 'selected' : ''}`} onClick={() => { setActivePersona(persona); setShowPersonaMenu(false); }}>
-                                                 <div className="persona-tooltip-wrapper w-full flex items-center gap-2">
+                                                 <div className="persona-tooltip-wrapper w-full flex items-center gap-3">
                                                     <span className="icon">{persona.icon}</span>
-                                                    <span>{persona.name}</span>
-                                                    {persona.isCustom && <span className="text-[10px] bg-zinc-700 text-gray-300 px-1 rounded">Custom</span>}
+                                                    <span className="text-sm font-medium">{persona.name}</span>
+                                                    {persona.isCustom && <span className="text-[9px] uppercase bg-white/10 px-1.5 rounded text-gray-400">Custom</span>}
                                                 </div>
                                             </div>
                                         ))}
