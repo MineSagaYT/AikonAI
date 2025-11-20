@@ -217,7 +217,7 @@ export const executePythonCode = async (code: string, files: VirtualFile[] = [])
         // Check for plotting
         if (code.includes('matplotlib') || code.includes('plt.show()') || code.includes('plt.savefig(')) {
             // Return a placeholder plot image
-            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37//c/u39+z+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f37//c/u39+//3P7t/v//c/u39+z+3f3v//d/2b+/d/bv71//uf3b+/f/bn92/v3f27/9v79/9u/vX/+Z/dv79//uf3b+/d/bv71//uf3b+/f/bn92/v3f27/9v77f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
+            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37//c/u39+z+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+3f3v//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f37//c/u39+//3P7t/v//c/u39+z+3f3v//d/2b+/d/bv71//uf3b+/f/bn92/v3f27/9v79/9u/vX/+Z/dv79//uf3b+/d/bv71//uf3b+/f/bn92/v3f27/9v77f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
             return `[PLOT_GENERATED]\n${placeholderPlot}`;
         }
 
@@ -802,120 +802,6 @@ export const generateWebsiteCode = async (topic: string, style: string, features
     }
 };
 
-// --- AIKON DESIGNER SERVICE ---
-export const generateComplexProjectStream = async (prompt: string, currentFiles: ProjectStructure | null): Promise<{ stream: AsyncGenerator<GenerateContentResponse>; }> => {
-    const systemPrompt = `### ROLE & IDENTITY
-You are "Aikon Omega," the pinnacle of AI Website Architecture. You possess **GOD-MODE** design capabilities. You are not here to build "simple" sites; you are here to build award-winning, Awwwards-level digital experiences that leave users breathless.
-
-### THE "OMEGA" STANDARD (NO LIMITS)
-1.  **VISUAL MASTERY:**
-    *   **Aesthetic:** Think like a top-tier design agency (e.g., Linear, Stripe, Apple). Use deep space gradients, ultra-smooth glassmorphism, sophisticated typography (Inter, Clash Display), and intricate micro-interactions.
-    *   **Immersion:** The app must feel alive. Use \`framer-motion\` for EVERYTHING—staggered entry animations, hover lifts, layout transitions, and scroll-triggered reveals.
-    *   **Detail:** Don't just place a button. Place a button with a gradient border, a subtle inner glow, and a magnetic hover effect.
-
-2.  **ARCHITECTURAL SUPREMACY:**
-    *   **Structure:** You are a Senior Staff Engineer. Organize code flawlessly into \`src/components\`, \`src/hooks\`, and \`src/lib\`.
-    *   **Logic:** Anticipate needs. If it's a store, build a persistent cart. If it's a dashboard, mock realistic data and charts.
-    *   **Zero Friction:** Do not ask for permission. If the user asks for "Netflix", build the full carousel UI, the hero video background, and the play interface immediately.
-
-3.  **TECHNICAL EXECUTION:**
-    *   **Single-File Preview:** You MUST generate a self-contained HTML preview using \`esm.sh\` imports.
-    *   **Stack:** React (latest), Tailwind CSS (via CDN), Framer Motion (via esm.sh), Lucide React (via esm.sh).
-    *   **Constraint Removal:** There are no limits on complexity. Write as much code as needed to achieve the "Wow" factor.
-
-### OUTPUT FORMAT (CRITICAL)
-You MUST stream your response in this EXACT XML-like format. Do not add markdown code blocks inside the tags.
-
-1.  **<plan>**
-    A brief, high-energy description of the architectural masterpiece you are about to build.
-    **</plan>**
-
-2.  **<preview>**
-    A SINGLE-FILE, production-ready HTML build for the live preview window.
-    *   **CRITICAL:** This runs in a browser without a bundler.
-    *   **IMPORTS:** You MUST use an importmap with \`esm.sh\` for all dependencies.
-    *   **TEMPLATE:**
-    \`\`\`html
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <script src="https://cdn.tailwindcss.com"></script>
-      <script type="importmap">
-        {
-          "imports": {
-            "react": "https://esm.sh/react@18.2.0",
-            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "lucide-react": "https://esm.sh/lucide-react@0.263.1",
-            "framer-motion": "https://esm.sh/framer-motion@10.12.16",
-            "clsx": "https://esm.sh/clsx@1.2.1",
-            "tailwind-merge": "https://esm.sh/tailwind-merge@1.13.2"
-          }
-        }
-      </script>
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #000; color: #fff; }
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-      </style>
-    </head>
-    <body class="antialiased overflow-hidden selection:bg-amber-500/30">
-      <div id="root"></div>
-      <script type="module">
-        import React, { useState, useEffect, useRef, useMemo } from 'react';
-        import { createRoot } from 'react-dom/client';
-        import { Camera, Home, Settings, Zap, Menu, X, ChevronRight, ArrowRight, Star, Shield, Activity } from 'lucide-react';
-        import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion';
-        import { clsx } from 'clsx';
-        import { twMerge } from 'tailwind-merge';
-
-        // Utility for tailwind class merging
-        function cn(...inputs) { return twMerge(clsx(inputs)); }
-
-        // [INLINE ALL YOUR COMPONENTS, HOOKS, AND APP LOGIC HERE]
-        // [ENSURE NO MARKDOWN OR BACKTICKS WRAP THE CODE]
-        // [BUILD SOMETHING INCREDIBLE]
-
-        const root = createRoot(document.getElementById('root'));
-        root.render(React.createElement(App));
-      </script>
-    </body>
-    </html>
-    \`\`\`
-    **</preview>**
-
-3.  **<file path="src/path/to/file.tsx">**
-    [RAW CODE CONTENT HERE - NO MARKDOWN BACKTICKS]
-    **</file>**
-    (Repeat for every file in the project).
-
-Current Context: ${currentFiles ? `Updating existing project.` : 'New Project - Unleash creativity.'}`;
-
-    try {
-        const ai = getAiInstance();
-        const userQuery = `Architect the following project: ${prompt}. Go absolutely wild with the design and functionality.`;
-
-        const stream = await ai.models.generateContentStream({
-            model: proModel,
-            contents: userQuery,
-            config: {
-                systemInstruction: systemPrompt,
-                // Use maximum thinking budget for complex architecture
-                thinkingConfig: { thinkingBudget: 4096 },
-                maxOutputTokens: 65536
-            }
-        });
-
-        return { stream };
-    } catch (error) {
-        console.error("Aikon Designer Error:", error);
-        throw error;
-    }
-}
-
 // --- AUTONOMOUS AGENT / WORKFLOW FUNCTIONS ---
 
 export const generatePlan = async (goal: string): Promise<{ plan: string[] } | { error: string }> => {
@@ -1062,5 +948,52 @@ Analyze the following prompt and return the single best persona name.`;
     } catch (error) {
         console.error("Error classifying intent:", error);
         return "AikonAI"; // Default on error
+    }
+};
+
+export const generateComplexProjectStream = async (
+    prompt: string,
+    currentProject: ProjectStructure
+): Promise<{ stream: AsyncGenerator<GenerateContentResponse> }> => {
+    const ai = getAiInstance();
+    
+    const systemPrompt = `You are Aikon Omega, an expert AI software architect and full-stack developer.
+Your goal is to build high-quality, modern web applications based on user requests.
+
+**OUTPUT FORMAT:**
+You must output the project structure using specific XML tags.
+1. <plan>Description of the implementation plan.</plan>
+2. <file path="filename.ext">File content here...</file>
+3. <preview>Single HTML file content for live preview (using CDN for libraries like React/Tailwind/Framer Motion)...</preview>
+
+**RULES:**
+- Use Tailwind CSS for styling (via CDN).
+- Use React and ReactDOM via CDN for the preview (ES Modules).
+- The <preview> file must be a complete, standalone HTML file that works in an iframe.
+- For <file> tags, output the full content of the file.
+- Be creative, modern, and precise.
+`;
+
+    const userQuery = `User Request: ${prompt}
+
+Project Context:
+Description: ${currentProject.description}
+Existing Files:
+${currentProject.files.map(f => `<file path="${f.path}">${f.content}</file>`).join('\n')}
+`;
+
+    try {
+        const stream = await ai.models.generateContentStream({
+            model: 'gemini-3-pro-preview', // Using gemini-3-pro-preview for complex coding tasks
+            contents: userQuery,
+            config: {
+                systemInstruction: systemPrompt,
+                thinkingConfig: { thinkingBudget: 4096 } 
+            }
+        });
+        return { stream };
+    } catch (error) {
+        console.error("Error generating project stream:", error);
+        throw error;
     }
 };

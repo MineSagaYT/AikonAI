@@ -15,7 +15,7 @@ declare global {
 }
 
 
-export type Page = 'home' | 'projects' | 'chat' | 'faq' | 'designer';
+export type Page = 'home' | 'projects' | 'chat' | 'faq';
 
 export interface FileAttachment {
     name: string;
@@ -26,20 +26,6 @@ export interface FileAttachment {
 export interface VirtualFile {
     name: string;
     content: string; // For text files; for binary, could be base64
-}
-
-// New types for Aikon Designer
-export interface ProjectFile {
-    name: string;
-    path: string;
-    content: string;
-    language: string;
-}
-
-export interface ProjectStructure {
-    files: ProjectFile[];
-    previewHtml: string; // The "compiled" version for immediate preview
-    description: string;
 }
 
 export type CanvasFiles = { [filename: string]: string };
@@ -222,4 +208,17 @@ export interface CodeExecutionHistoryItem {
     id: string;
     code: string;
     timestamp: Date;
+}
+
+export interface ProjectFile {
+    name: string;
+    path: string;
+    content: string;
+    language: string;
+}
+
+export interface ProjectStructure {
+    description: string;
+    files: ProjectFile[];
+    previewHtml: string;
 }
