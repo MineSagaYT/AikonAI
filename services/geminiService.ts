@@ -837,8 +837,13 @@ export const generateWebsiteCode = async (topic: string, style: string, features
 
 export const generateQRCode = async (text: string): Promise<string> => {
     try {
-        // Using the global QRCode library from CDN
-        return await QRCode.toDataURL(text);
+        // Access QRCode from window to avoid ReferenceError
+        const qr = (window as any).QRCode;
+        if (qr) {
+            return await qr.toDataURL(text);
+        }
+        console.error("QRCode library not loaded");
+        return '';
     } catch (e) {
         console.error("QR Code generation error:", e);
         return '';
