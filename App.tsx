@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -8,6 +7,7 @@ import ProjectsPage from './components/pages/ProjectsPage';
 import AikonChatPage from './components/pages/AikonChatPage';
 import LoginPage from './components/pages/LoginPage';
 import FAQPage from './components/pages/FAQPage';
+import AikonDesignerPage from './components/pages/AikonDesignerPage';
 import { Page } from './types';
 import { useAuth } from './context/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -34,10 +34,13 @@ const App: React.FC = () => {
         return <LoginPage />;
     }
     
+    // Special full-screen pages that don't use standard layout
     if (activePage === 'chat') {
         return <AikonChatPage navigateTo={navigateTo} />;
     }
-
+    if (activePage === 'designer') {
+        return <AikonDesignerPage navigateTo={navigateTo} />;
+    }
 
     const renderPage = () => {
         switch (activePage) {

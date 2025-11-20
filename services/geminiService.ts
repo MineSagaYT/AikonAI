@@ -1,8 +1,9 @@
+
 import { GoogleGenAI, GenerateContentResponse, Chat, Part, GroundingChunk, GenerateVideosOperation, Content, Modality, Type, FunctionDeclaration } from "@google/genai";
-import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile, VirtualFile, Task } from "../types";
+import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile, VirtualFile, Task, ProjectStructure } from "../types";
 
 const defaultModel = 'gemini-2.5-flash';
-const proModel = 'gemini-2.5-pro';
+const proModel = 'gemini-2.5-pro'; // Use 2.5 Pro for thinking capabilities if needed, or Flash with thinking
 // User-specified model for video generation
 const veoModel = 'veo-3.1-fast-generate-preview';
 const flashImageModel = 'gemini-2.5-flash-image';
@@ -216,7 +217,7 @@ export const executePythonCode = async (code: string, files: VirtualFile[] = [])
         // Check for plotting
         if (code.includes('matplotlib') || code.includes('plt.show()') || code.includes('plt.savefig(')) {
             // Return a placeholder plot image
-            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37/7c/u39+z+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f37/7c/u39+//3P7t/v//c/u39+z+3f3v//d/2b+/d/bv71//uf3b+/f/bn92/v3f27/9v79/9u/vX/+Z/dv79//uf3b+/d/bv71//uf3b+/f/bn92/v3f27/9v77f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
+            const placeholderPlot = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAMAAAAJbSJIAAAAM1BMVEX///8AAABERESIiIhISEiysrJTU1Pi4uLu7u7MzMy/v79+fn7v7+/o6Ohvb2/a2tpQUFAAAAA04hCTAAABGklEQVR4nO3cwQ2DQBBE0WujbcA0/1dJ2gQGUhbA+1prAAAAAAAAAAAAAAAAAAAAAAAAAAAA/Ktd33/e1r2v5586v76r+36eK3v/d3a+P9K7Xp8/99V7X395/3t3vT/3s/vK/v1/d356//7nf3L/9s/t396//3P7t/fP/9z+7f37//c/u39+z+3f3v//c/u39+//3P7t/g8/t397//7P7d/eP/+z+7f37//c/u39+z+3f3v//k/t397//3P7t/fv/9z+7f37//c/u39+//3P7t/v//c/u39+z+3f3v//d/2b+/d/bv71//uf3b+/f/bn92/v3f27/9v79/9u/vX/+Z/dv79//uf3b+/d/bv71//uf3b+/f/bn92/v3f27/9v77f5l/fr+57f897fQIAAAAAAAAAAAAAAAAAAAAAAAAAAACA33sDFrsC0iikq9EAAAAASUVORK5CYII=';
             return `[PLOT_GENERATED]\n${placeholderPlot}`;
         }
 
@@ -370,6 +371,8 @@ export const streamMessageToChat = async (
         config: {
             systemInstruction: finalSystemInstruction,
             tools: [{ googleSearch: {} }], // Enable native Google Search by default for standard chat
+            // Thinking Config (Budget of 1024 tokens to add basic reasoning without being too slow)
+            thinkingConfig: { thinkingBudget: 1024 } 
         }
     };
     
@@ -407,7 +410,10 @@ export const streamMessageToChat = async (
                 },
             });
         }
-        modelConfig.model = proModel; // Switch to Pro model for multimodal input
+        // Pro model usually better for images, also supports thinking but with higher budget usually.
+        modelConfig.model = proModel; 
+        // Increase budget for Pro model
+        modelConfig.config.thinkingConfig = { thinkingBudget: 2048 };
     }
     
     if (location) {
@@ -786,7 +792,7 @@ export const generateWebsiteCode = async (topic: string, style: string, features
         
         let code = response.text || '';
         // Clean up markdown if the model accidentally adds it despite instructions
-        code = code.replace(/^```html/, '').replace(/^```/, '').replace(/```$/, '');
+        code = code.replace(/```html/g, '').replace(/```/g, '');
         return code.trim();
 
     } catch (error) {
@@ -794,6 +800,58 @@ export const generateWebsiteCode = async (topic: string, style: string, features
         return `<html><body><h1>Error generating website</h1><p>${String(error)}</p></body></html>`;
     }
 };
+
+// --- AIKON DESIGNER SERVICE ---
+export const generateComplexProject = async (prompt: string, currentFiles: ProjectStructure | null): Promise<ProjectStructure | { error: string }> => {
+    const systemPrompt = `You are the Lead Architect of Aikon Designer, a futuristic AI IDE. 
+    Your goal is to build a complex, multi-file web application based on the user's prompt.
+    
+    **OUTPUT FORMAT:**
+    You must return a single JSON object with the following structure:
+    {
+      "description": "A short technical summary of what you built.",
+      "files": [
+        { "name": "App.tsx", "path": "/src/App.tsx", "language": "typescript", "content": "..." },
+        { "name": "index.css", "path": "/src/index.css", "language": "css", "content": "..." }
+        // ... other files
+      ],
+      "previewHtml": "..." 
+    }
+
+    **CRITICAL INSTRUCTIONS:**
+    1. **Virtual Files:** Create a realistic React project structure (App.tsx, components/, hooks/, css). Use functional components and Tailwind CSS classes.
+    2. **Preview HTML:** Since we cannot bundle React in the browser easily, you must ALSO generate a "Single File Build" version of the project in the 'previewHtml' field. This HTML file should contain everything needed (Tailwind CDN, React/ReactDOM CDNs if necessary, or just vanilla JS/HTML that *looks* exactly like the React code) to render the project instantly in an iframe. The user will see the React code in the editor, but the 'previewHtml' is what they will visually interact with.
+    3. **Quality:** The code must be production-ready, clean, and modern.
+    
+    If updating an existing project, return the full updated structure.`;
+
+    try {
+        const ai = getAiInstance();
+        // If context exists, include it (simplified for now, sending just prompt)
+        const userQuery = currentFiles 
+            ? `Update the current project based on this request: ${prompt}. \nCurrent files summary: ${currentFiles.files.map(f => f.path).join(', ')}` 
+            : `Create a new web project: ${prompt}`;
+
+        const response = await ai.models.generateContent({
+            model: proModel,
+            contents: userQuery,
+            config: {
+                systemInstruction: systemPrompt,
+                responseMimeType: 'application/json',
+                 // Use thinking for complex architecture
+                thinkingConfig: { thinkingBudget: 2048 }
+            }
+        });
+
+        const text = response.text;
+        if (!text) throw new Error("Empty response");
+        
+        return JSON.parse(text);
+    } catch (error) {
+        console.error("Aikon Designer Error:", error);
+        return { error: "Failed to architect the project. Please try again." };
+    }
+}
 
 
 // --- AUTONOMOUS AGENT / WORKFLOW FUNCTIONS ---

@@ -1,3 +1,4 @@
+
 import { Chat } from '@google/genai';
 
 // Declare global variables from CDN scripts to make TypeScript aware of them
@@ -14,7 +15,7 @@ declare global {
 }
 
 
-export type Page = 'home' | 'projects' | 'chat' | 'faq';
+export type Page = 'home' | 'projects' | 'chat' | 'faq' | 'designer';
 
 export interface FileAttachment {
     name: string;
@@ -25,6 +26,20 @@ export interface FileAttachment {
 export interface VirtualFile {
     name: string;
     content: string; // For text files; for binary, could be base64
+}
+
+// New types for Aikon Designer
+export interface ProjectFile {
+    name: string;
+    path: string;
+    content: string;
+    language: string;
+}
+
+export interface ProjectStructure {
+    files: ProjectFile[];
+    previewHtml: string; // The "compiled" version for immediate preview
+    description: string;
 }
 
 export type CanvasFiles = { [filename: string]: string };
@@ -155,6 +170,14 @@ export interface ChatListItem {
     createdAt: { seconds: number; nanoseconds: number; };
 }
 
+export interface Persona {
+    name: string;
+    icon: string;
+    systemInstruction: string;
+    description: string;
+    isCustom?: boolean;
+}
+
 export interface UserProfile {
     uid: string; // Will now be the username
     displayName: string | null;
@@ -164,14 +187,7 @@ export interface UserProfile {
     aboutYou?: string; // How the AI should refer to the user
     onboardingCompleted?: boolean;
     pin: string;
-}
-
-export interface Persona {
-    name: string;
-    icon: string;
-    systemInstruction: string;
-    description: string;
-    isCustom?: boolean;
+    customPersonas?: Persona[];
 }
 
 // Data structures for file generation

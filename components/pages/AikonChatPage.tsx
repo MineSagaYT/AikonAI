@@ -97,7 +97,7 @@ function createBlob(data: Float32Array): GenAI_Blob {
   };
 }
 
-const PERSONAS: Persona[] = [
+const DEFAULT_PERSONAS: Persona[] = [
     {
         name: 'Legal Document Reviewer',
         icon: '📖',
@@ -136,6 +136,93 @@ const PERSONAS: Persona[] = [
     }
 ];
 
+// --- ACTION LAUNCHER COMPONENT ---
+const ActionLaunchCard: React.FC<{ 
+    action: string; 
+    target: string; 
+    query?: string;
+}> = ({ action, target, query }) => {
+    const [status, setStatus] = useState<'idle' | 'launching' | 'done'>('idle');
+
+    const performAction = () => {
+        setStatus('launching');
+        setTimeout(() => {
+            try {
+                if (action === 'call') {
+                    const number = CONTACTS[target] || (target.match(/^\d+$/) ? target : null);
+                    if (number) {
+                        window.location.href = `tel:${number}`;
+                    } else {
+                        alert(`Could not find number for ${target}`);
+                    }
+                } else if (action === 'open_app') {
+                    const appName = target.toLowerCase();
+                    if (appName.includes('youtube')) {
+                        const url = query ? `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}` : 'https://www.youtube.com';
+                        window.open(url, '_blank');
+                    } else if (appName.includes('spotify')) {
+                        const url = query ? `https://open.spotify.com/search/${encodeURIComponent(query)}` : 'https://open.spotify.com';
+                        window.open(url, '_blank');
+                    } else if (appName.includes('google')) {
+                        const url = `https://www.google.com/search?q=${encodeURIComponent(query || target)}`;
+                        window.open(url, '_blank');
+                    } else if (appName.includes('instagram')) {
+                         const url = `https://www.instagram.com/${query?.replace('@', '') || ''}`;
+                         window.open(url, '_blank');
+                    } else {
+                         window.open(`https://www.google.com/search?q=${encodeURIComponent(target + ' ' + (query||''))}`, '_blank');
+                    }
+                } else if (action === 'navigation') {
+                     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank');
+                } else if (action === 'email') {
+                     window.open(`mailto:${target}?subject=${encodeURIComponent(query || '')}`, '_blank');
+                }
+            } catch (e) {
+                console.error("Launch failed", e);
+            }
+            setStatus('done');
+        }, 500);
+    };
+
+    // Try auto-launch ONCE on mount
+    useEffect(() => {
+        performAction();
+    }, []);
+
+    if (status === 'done') {
+         return (
+            <div className="bg-green-900/30 border border-green-500/50 rounded-xl p-4 my-2 flex items-center gap-3">
+                <div className="bg-green-500 text-black rounded-full p-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                </div>
+                <span className="text-green-200 font-medium text-sm">Action Launched</span>
+                <button onClick={performAction} className="text-xs underline text-green-400 ml-auto">Launch Again</button>
+            </div>
+         );
+    }
+
+    return (
+        <div className="bg-amber-900/20 border border-amber-500/50 rounded-xl p-4 my-2">
+            <div className="flex items-center justify-between mb-3">
+                <span className="text-amber-400 font-bold uppercase text-xs tracking-wider">Action Required</span>
+                {status === 'launching' && <span className="text-xs text-amber-200 animate-pulse">Launching...</span>}
+            </div>
+            <h4 className="text-lg font-bold text-white mb-1 capitalize">{action.replace('_', ' ')}: {target}</h4>
+            {query && <p className="text-sm text-gray-400 mb-4">"{query}"</p>}
+            
+            <button 
+                onClick={performAction}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg shadow-lg shadow-amber-500/20 transition-all transform active:scale-95 flex items-center justify-center gap-2"
+            >
+                {status === 'launching' ? 'Launching...' : `Tap to Confirm ${action === 'call' ? 'Call' : 'Launch'}`}
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+            </button>
+            <p className="text-[10px] text-gray-500 mt-2 text-center">If action didn't start automatically, tap the button above.</p>
+        </div>
+    );
+}
+
+
 // --- SUB-COMPONENTS MOVED OUTSIDE ---
 
 const MessageLogItem: React.FC<{
@@ -170,7 +257,7 @@ const MessageLogItem: React.FC<{
                          <img src="/short_logo.jpeg" alt="Aikon" />
                     </div>
                 )}
-                <div className="relative group">
+                <div className="relative group w-full max-w-[85%]">
                     <div className={`message-content-wrapper ${msg.status === 'streaming' ? 'streaming' : ''}`}>
                         {isUser && msg.attachments && msg.attachments.length > 0 && (
                              <div className="user-attachments-container mb-3">
@@ -190,6 +277,13 @@ const MessageLogItem: React.FC<{
                         )}
 
                         <div className="message-content">
+                            {/* Thinking Indicator for AI */}
+                            {!isUser && msg.text === '' && msg.status === 'streaming' && (
+                                <div className="flex items-center gap-2 text-gray-400 italic text-sm mb-2 animate-pulse">
+                                    <span>Thinking...</span>
+                                </div>
+                            )}
+
                              {msg.generatedImage && (
                                 <div className="mb-4">
                                     {msg.generatedImage.isLoading ? (
@@ -200,6 +294,15 @@ const MessageLogItem: React.FC<{
                                         <img src={msg.generatedImage.url} alt={msg.generatedImage.prompt} className="rounded-lg w-full max-w-md shadow-lg" />
                                     ) : null}
                                 </div>
+                            )}
+                            
+                            {/* Real World Action Launcher */}
+                            {msg.actionData && (
+                                <ActionLaunchCard 
+                                    action={msg.actionData.action} 
+                                    target={msg.actionData.target} 
+                                    query={msg.actionData.query} 
+                                />
                             )}
 
                              {msg.editedImage && (
@@ -554,7 +657,7 @@ const WorkflowBubble: React.FC<{ workflow: Workflow }> = ({ workflow }) => {
                         <div key={idx} className="text-sm border-l-2 border-gray-700 pl-3 py-1">
                             <div className="flex items-center gap-2 mb-1">
                                 <StepIcon status={step.status} />
-                                <span className={step.status === 'running' ? 'text-amber-400 font-bold' : 'text-gray-300'}>
+                                <span className="text-xs font-bold text-gray-300">
                                     Step {idx + 1}
                                 </span>
                                 <StatusPill status={step.status} />
@@ -656,18 +759,6 @@ const PptIcon = ({ size = 24 }: { size?: number }) => (
 
 const WebsitePreview: React.FC<{ websiteData: any, onClose: () => void }> = ({ websiteData, onClose }) => {
     const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
-    const iframeRef = useRef<HTMLIFrameElement>(null);
-
-    useEffect(() => {
-        if (iframeRef.current && websiteData.htmlContent) {
-            const doc = iframeRef.current.contentWindow?.document;
-            if (doc) {
-                doc.open();
-                doc.write(websiteData.htmlContent);
-                doc.close();
-            }
-        }
-    }, [websiteData]);
 
     const downloadHtml = () => {
         const blob = new Blob([websiteData.htmlContent], { type: 'text/html' });
@@ -699,7 +790,12 @@ const WebsitePreview: React.FC<{ websiteData: any, onClose: () => void }> = ({ w
                     className="bg-white h-full shadow-2xl transition-all duration-300"
                     style={{ width: viewMode === 'mobile' ? '375px' : '100%', maxWidth: viewMode === 'mobile' ? '375px' : '1200px' }}
                 >
-                    <iframe ref={iframeRef} className="w-full h-full border-0" title="Preview" sandbox="allow-scripts" />
+                    <iframe 
+                        srcDoc={websiteData.htmlContent}
+                        className="w-full h-full border-0" 
+                        title="Preview" 
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups" 
+                    />
                 </motion.div>
             </div>
         </div>
@@ -873,13 +969,13 @@ const CodeHistoryPanel: React.FC<{ history: CodeExecutionHistoryItem[] }> = ({ h
 // --- MAIN PAGE COMPONENT ---
 
 const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
-    const { currentUser } = useAuth();
+    const { currentUser, updateCurrentUser } = useAuth(); // Added updateCurrentUser
     const [input, setInput] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
     const [files, setFiles] = useState<FileAttachment[]>([]);
     const [isAgentMode, setIsAgentMode] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [activePersona, setActivePersona] = useState<Persona>(PERSONAS[0]); // Default to first (Legal Reviewer, purely as placeholder) but logic sets to AikonAI usually
+    const [activePersona, setActivePersona] = useState<Persona>(DEFAULT_PERSONAS[0]);
     const [showPersonaMenu, setShowPersonaMenu] = useState(false);
     const [activeWorkflow, setActiveWorkflow] = useState<Workflow | null>(null);
     const [sessionFiles, setSessionFiles] = useState<VirtualFile[]>([]);
@@ -904,6 +1000,9 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     const audioQueueRef = useRef<AudioBuffer[]>([]);
     const isPlayingRef = useRef(false);
     const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+    // Combine Default + Custom Personas
+    const allPersonas = [...DEFAULT_PERSONAS, ...(currentUser?.customPersonas || [])];
 
     // Manage Body Classes for Theme
     useEffect(() => {
@@ -1024,7 +1123,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
              // Only try to switch if in default mode
              const detectedPersonaName = await classifyIntentAndSelectPersona(input);
              if (detectedPersonaName !== 'AikonAI') {
-                 const newPersona = PERSONAS.find(p => p.name === detectedPersonaName);
+                 const newPersona = allPersonas.find(p => p.name === detectedPersonaName);
                  if (newPersona) {
                      setActivePersona(newPersona);
                      // Add a system note that persona switched
@@ -1241,11 +1340,13 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
         // 5. System / Real World Actions
         else if (tool.tool_call === 'perform_real_world_action') {
-            const feedbackMsg = executeSystemAction(tool.action, tool.target, tool.query);
+            // Instead of just executing, we update the message to include action data
+            // The UI (MessageLogItem) will then render the ActionLaunchCard
             setMessages(prev => prev.map(m => m.id === msgId ? {
                 ...m,
-                text: feedbackMsg,
-                status: 'sent'
+                text: `Ready to ${tool.action} ${tool.target}.`,
+                status: 'sent',
+                actionData: { action: tool.action, target: tool.target, query: tool.query }
             } : m));
         }
         // Fallback
@@ -1608,7 +1709,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: 10 }}
                                 >
-                                    {PERSONAS.map(persona => (
+                                    {allPersonas.map(persona => (
                                         <div 
                                             key={persona.name} 
                                             className={`persona-menu-item ${activePersona.name === persona.name ? 'selected' : ''}`}
@@ -1617,6 +1718,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                              <div className="persona-tooltip-wrapper w-full flex items-center gap-2">
                                                 <span className="icon">{persona.icon}</span>
                                                 <span>{persona.name}</span>
+                                                {persona.isCustom && <span className="text-[10px] bg-zinc-700 text-gray-300 px-1 rounded">Custom</span>}
                                                 <div className="persona-tooltip">{persona.description}</div>
                                             </div>
                                         </div>
@@ -1642,7 +1744,7 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 isOpen={isSettingsOpen} 
                 onClose={() => setIsSettingsOpen(false)}
                 profile={currentUser}
-                onSave={() => {}}
+                onSave={updateCurrentUser}
                 onDeleteAllChats={() => setMessages([])}
             />
             
