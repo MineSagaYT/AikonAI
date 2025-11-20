@@ -1,6 +1,15 @@
+
 import React, { useState } from 'react';
 import { NavigationProps } from '../../types';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const MotionMain = motion.main as any;
+const MotionH2 = motion.h2 as any;
+const MotionP = motion.p as any;
+const MotionSection = motion.section as any;
+const MotionDiv = motion.div as any;
+const MotionHeader = motion.header as any;
+const MotionButton = motion.button as any;
 
 const faqData = [
     {
@@ -35,29 +44,29 @@ const AccordionItem: React.FC<{
     onClick: () => void;
 }> = ({ item, isOpen, onClick }) => {
     return (
-        <motion.div
+        <MotionDiv
             layout
             className="border-b border-gray-800"
             initial={{ borderRadius: 8 }}
         >
-            <motion.header
+            <MotionHeader
                 className="flex justify-between items-center p-6 cursor-pointer"
                 onClick={onClick}
                 initial={false}
             >
                 <h4 className="text-xl font-semibold text-white">{item.question}</h4>
-                <motion.div
+                <MotionDiv
                     animate={{ rotate: isOpen ? 90 : 0 }}
                     transition={{ duration: 0.3, ease: 'easeOut' }}
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
-                </motion.div>
-            </motion.header>
+                </MotionDiv>
+            </MotionHeader>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.section
+                    <MotionSection
                         key="content"
                         initial={{ opacity: 0, height: 0 }}
                         animate={{
@@ -75,10 +84,10 @@ const AccordionItem: React.FC<{
                         <div className="px-6 pb-6 text-gray-400 text-lg leading-relaxed">
                             {item.answer}
                         </div>
-                    </motion.section>
+                    </MotionSection>
                 )}
             </AnimatePresence>
-        </motion.div>
+        </MotionDiv>
     );
 };
 
@@ -97,7 +106,7 @@ const FAQPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     };
 
-    const itemVariants: Variants = {
+    const itemVariants: any = {
         hidden: { y: 20, opacity: 0 },
         visible: {
             y: 0,
@@ -107,22 +116,22 @@ const FAQPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     };
 
     return (
-        <motion.main
+        <MotionMain
             className="max-w-4xl mx-auto p-4 md:p-8 relative z-10"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
         >
             <section className="text-center py-16 md:py-24">
-                <motion.h2 variants={itemVariants} className="text-5xl md:text-7xl font-black leading-tight tracking-tighter">
+                <MotionH2 variants={itemVariants} className="text-5xl md:text-7xl font-black leading-tight tracking-tighter">
                     <span className="hero-gradient">Frequently Asked</span> Questions
-                </motion.h2>
-                <motion.p variants={itemVariants} className="text-xl md:text-2xl text-gray-400 max-w-4xl mx-auto pt-4 mb-16">
+                </MotionH2>
+                <MotionP variants={itemVariants} className="text-xl md:text-2xl text-gray-400 max-w-4xl mx-auto pt-4 mb-16">
                     Have questions? We've got answers. Here are some of the most common inquiries about Aikon Studios and our work.
-                </motion.p>
+                </MotionP>
             </section>
 
-            <motion.section variants={itemVariants} className="bg-[#111111] rounded-2xl shadow-2xl ai-glow-border">
+            <MotionSection variants={itemVariants} className="bg-[#111111] rounded-2xl shadow-2xl ai-glow-border">
                 {faqData.map((item, index) => (
                     <AccordionItem
                         key={index}
@@ -131,10 +140,10 @@ const FAQPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                         onClick={() => handleToggle(index)}
                     />
                 ))}
-            </motion.section>
+            </MotionSection>
             
-             <motion.div variants={itemVariants} className="text-center mt-16">
-                <motion.button 
+             <MotionDiv variants={itemVariants} className="text-center mt-16">
+                <MotionButton 
                     onClick={() => navigateTo('home')} 
                     className="text-lg text-gray-400 hover:text-amber-400 transition-colors duration-300 tracking-wider flex items-center justify-center mx-auto space-x-2"
                     whileHover={{ scale: 1.05, x: -4 }}
@@ -142,10 +151,10 @@ const FAQPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
                     <span>Back to Home</span>
-                </motion.button>
-            </motion.div>
+                </MotionButton>
+            </MotionDiv>
 
-        </motion.main>
+        </MotionMain>
     );
 };
 

@@ -1,6 +1,10 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { motion } from 'framer-motion';
+
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
 
 const LoginPage: React.FC = () => {
     const { login } = useAuth();
@@ -42,7 +46,7 @@ const LoginPage: React.FC = () => {
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-black">
-            <motion.div 
+            <MotionDiv 
                 className="w-full max-w-sm bg-[#18181b] p-8 rounded-2xl shadow-2xl border border-[#27272a] text-center"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -88,7 +92,7 @@ const LoginPage: React.FC = () => {
                         </div>
                     </div>
 
-                    <motion.button
+                    <MotionButton
                         type="submit"
                         disabled={isSubmitDisabled}
                         className="w-full flex items-center justify-center py-3 px-4 text-black font-bold rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed cta-button-animated"
@@ -103,12 +107,12 @@ const LoginPage: React.FC = () => {
                         ) : (
                             'Login / Register'
                         )}
-                    </motion.button>
+                    </MotionButton>
                 </form>
                 
                 {error && <p className="text-red-400 mt-4 text-sm">{error}</p>}
                 {successMessage && <p className="text-green-400 mt-4 text-sm">{successMessage}</p>}
-            </motion.div>
+            </MotionDiv>
         </div>
     );
 };

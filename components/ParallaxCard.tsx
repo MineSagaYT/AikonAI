@@ -1,3 +1,4 @@
+
 import React, { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 
@@ -8,16 +9,18 @@ interface ParallaxCardProps {
     style?: React.CSSProperties;
 }
 
+const MotionDiv = motion.div as any;
+
 const ParallaxCard: React.FC<ParallaxCardProps> = ({ children, className = '', style }) => {
     return (
-        <motion.div
+        <MotionDiv
             className={`card-bg rounded-3xl transition-all duration-300 ${className}`}
             style={style}
             whileHover={{ y: -5, scale: 1.01, boxShadow: "0 20px 40px -5px rgba(0, 0, 0, 0.6)" }}
             initial={{ y: 0 }}
         >
             {children}
-        </motion.div>
+        </MotionDiv>
     );
 };
 

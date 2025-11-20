@@ -6,6 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 declare const hljs: any;
 
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
+
 // --- SUB-COMPONENTS FOR DESIGNER ---
 
 const FileIcon: React.FC<{ name: string }> = ({ name }) => {
@@ -37,7 +40,7 @@ const FileTreeItem: React.FC<{ file: ProjectFile, active: boolean, onClick: () =
     >
         <FileIcon name={file.name} />
         <span className="truncate font-mono tracking-tight relative z-10">{file.name}</span>
-        {active && <motion.div layoutId="activeFileGlow" className="absolute inset-0 bg-amber-500/5" />}
+        {active && <MotionDiv layoutId="activeFileGlow" className="absolute inset-0 bg-amber-500/5" />}
     </button>
 );
 
@@ -52,7 +55,7 @@ const BrowserFrame: React.FC<{ children: React.ReactNode, url?: string, onRefres
 
     return (
         <div className="flex flex-col h-full w-full items-center bg-[#0c0c0e] overflow-hidden relative">
-            <motion.div 
+            <MotionDiv 
                 className="flex flex-col h-full bg-white rounded-xl overflow-hidden shadow-2xl border border-white/10 transition-all duration-500 ease-in-out"
                 style={{ width: getWidth() }}
                 layout
@@ -78,7 +81,7 @@ const BrowserFrame: React.FC<{ children: React.ReactNode, url?: string, onRefres
                 <div className="flex-grow relative bg-white w-full">
                     {children}
                 </div>
-            </motion.div>
+            </MotionDiv>
         </div>
     );
 };
@@ -322,13 +325,13 @@ const AikonDesignerPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     <div className="flex-grow overflow-y-auto p-4 pb-32 space-y-6 scrollbar-none">
                         {chatHistory.length === 0 && (
                             <div className="mt-24 px-6 text-center">
-                                <motion.div 
+                                <MotionDiv 
                                     initial={{ opacity: 0, y: 20 }} 
                                     animate={{ opacity: 1, y: 0 }} 
                                     className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-600 rounded-3xl mx-auto mb-6 shadow-[0_0_60px_-10px_rgba(255,165,0,0.4)] flex items-center justify-center text-4xl text-black font-black"
                                 >
                                     Ω
-                                </motion.div>
+                                </MotionDiv>
                                 <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Aikon Omega</h2>
                                 <p className="text-sm text-gray-500 mb-8 leading-relaxed max-w-xs mx-auto">The world's most advanced AI architect. Capable of generating award-winning, full-stack web applications with zero friction.</p>
                                 <div className="space-y-2">
@@ -337,7 +340,7 @@ const AikonDesignerPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                         "Build a SaaS Dashboard with Charts", 
                                         "Design a futuristic 3D Landing Page"
                                     ].map((suggestion, i) => (
-                                        <motion.button 
+                                        <MotionButton 
                                             initial={{ opacity: 0, x: -20 }}
                                             animate={{ opacity: 1, x: 0 }}
                                             transition={{ delay: i * 0.1 }}
@@ -348,13 +351,13 @@ const AikonDesignerPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                             <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/5 to-amber-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                                             <span className="mr-2 opacity-50 group-hover:opacity-100 group-hover:text-amber-400">⚡</span>
                                             {suggestion}
-                                        </motion.button>
+                                        </MotionButton>
                                     ))}
                                 </div>
                             </div>
                         )}
                         {chatHistory.map((msg, idx) => (
-                            <motion.div 
+                            <MotionDiv 
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 key={idx} 
@@ -378,7 +381,7 @@ const AikonDesignerPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                         msg.text.split('\n').map((line, i) => <p key={i} className="mb-1">{line}</p>)
                                     )}
                                 </div>
-                            </motion.div>
+                            </MotionDiv>
                         ))}
                         <div ref={chatEndRef} />
                     </div>

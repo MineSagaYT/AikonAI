@@ -1,10 +1,15 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 import { WeatherData } from '../types';
 
+const MotionSvg = motion.svg as any;
+const MotionLine = motion.line as any;
+const MotionDiv = motion.div as any;
+
 // --- Animated SVG Icons ---
 const SunnyIcon = () => (
-    <motion.svg 
+    <MotionSvg 
         className="w-20 h-20 text-yellow-300 drop-shadow-lg" 
         viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
         animate={{ rotate: 360 }} 
@@ -15,11 +20,11 @@ const SunnyIcon = () => (
         <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
         <line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line>
         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-    </motion.svg>
+    </MotionSvg>
 );
 
 const NightClearIcon = () => (
-     <motion.svg 
+     <MotionSvg 
         className="w-20 h-20 text-slate-300 drop-shadow-lg" 
         viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
         initial={{ scale: 0.95, opacity: 0.9, rotate: -15 }}
@@ -27,39 +32,39 @@ const NightClearIcon = () => (
         transition={{ repeat: Infinity, repeatType: 'reverse', duration: 4, ease: 'easeInOut' }}
      >
         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-    </motion.svg>
+    </MotionSvg>
 );
 
 const CloudyIcon = () => (
     <div className="relative w-20 h-20">
-        <motion.svg 
+        <MotionSvg 
             className="absolute w-full h-full text-gray-300/80 drop-shadow-lg" 
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
             initial={{ x: -10 }} animate={{ x: 10 }} 
             transition={{ repeat: Infinity, repeatType: 'reverse', duration: 5, ease: 'easeInOut' }}
         >
             <path d="M18 10h-1.26A8.003 8.003 0 0 0 9 6a8.005 8.005 0 0 0-7.75 6.09"></path>
-        </motion.svg>
-        <motion.svg 
+        </MotionSvg>
+        <MotionSvg 
             className="absolute w-full h-full text-gray-200 drop-shadow-lg" 
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
             initial={{ x: 5, y: 5 }} animate={{ x: -5 }} 
             transition={{ repeat: Infinity, repeatType: 'reverse', duration: 6, ease: 'easeInOut' }}
         >
             <path d="M17.5 18H7a5 5 0 0 1 0-10h.2A8.005 8.005 0 0 1 15 6a8.003 8.003 0 0 1 7.26 6H22a4.5 4.5 0 0 1 0 9h-4.5"></path>
-        </motion.svg>
+        </MotionSvg>
     </div>
 );
 
 const RainyIcon = () => (
     <div className="relative w-20 h-20">
         <CloudyIcon />
-        <motion.svg 
+        <MotionSvg 
             className="absolute w-full h-full text-blue-300/80" 
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"
         >
             {[...Array(3)].map((_, i) => (
-                <motion.line 
+                <MotionLine 
                     key={i}
                     x1={8 + i * 4} y1="12" x2={6 + i * 4} y2="18"
                     initial={{ y: -5, opacity: 0 }} 
@@ -67,7 +72,7 @@ const RainyIcon = () => (
                     transition={{ repeat: Infinity, duration: 1.5, delay: i * 0.3 }} 
                 />
             ))}
-        </motion.svg>
+        </MotionSvg>
     </div>
 );
 
@@ -116,7 +121,7 @@ const WeatherCard: React.FC<{ data: WeatherData }> = ({ data }) => {
     const { gradient, Icon } = getWeatherStyle(data.icon);
     
     return (
-        <motion.div
+        <MotionDiv
             className={`w-full max-w-sm rounded-2xl p-6 text-white overflow-hidden relative shadow-2xl shadow-black/30 border border-white/10`}
             style={{
                 background: `linear-gradient(135deg, var(--tw-gradient-from), var(--tw-gradient-to))`,
@@ -143,7 +148,7 @@ const WeatherCard: React.FC<{ data: WeatherData }> = ({ data }) => {
                 <p className="text-6xl font-extrabold tracking-tighter">{data.temperature}</p>
                 <p className="text-lg font-medium capitalize text-right">{data.description}</p>
             </div>
-        </motion.div>
+        </MotionDiv>
     );
 };
 

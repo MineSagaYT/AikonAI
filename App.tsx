@@ -12,6 +12,8 @@ import { useAuth } from './context/AuthContext';
 import LoadingSpinner from './components/LoadingSpinner';
 import { AnimatePresence, motion } from 'framer-motion';
 
+const MotionDiv = motion.div as any;
+
 const App: React.FC = () => {
     const { currentUser, loading } = useAuth();
     const [activePage, setActivePage] = useState<Page>('home');
@@ -57,7 +59,7 @@ const App: React.FC = () => {
             <Header navigateTo={navigateTo} activePage={activePage} />
             <div id="app-container" className="flex-grow flex flex-col">
                 <AnimatePresence mode="wait">
-                    <motion.div
+                    <MotionDiv
                         key={activePage}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -66,7 +68,7 @@ const App: React.FC = () => {
                         className="flex-grow flex flex-col w-full"
                     >
                         {renderPage()}
-                    </motion.div>
+                    </MotionDiv>
                 </AnimatePresence>
             </div>
             <Footer />

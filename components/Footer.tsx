@@ -2,9 +2,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
+const MotionFooter = motion.footer as any;
+
 const Footer: React.FC = () => {
     return (
-        <motion.footer 
+        <MotionFooter 
             className="p-8 border-t border-white/5 text-center text-gray-600 text-xs bg-black"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -19,7 +21,7 @@ const Footer: React.FC = () => {
                     Founded in 2024 by Aditya Jain, merging Sanatana Dharma with advanced AI.
                 </div>
             </div>
-        </motion.footer>
+        </MotionFooter>
     );
 };
 

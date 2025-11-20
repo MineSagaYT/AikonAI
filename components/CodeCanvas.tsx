@@ -11,6 +11,9 @@ interface CodeCanvasProps {
     onClose: () => void;
 }
 
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
+
 const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) => {
     const fileKeys = Object.keys(files);
     const [activeFile, setActiveFile] = useState<string | null>(fileKeys.length > 0 ? fileKeys[0] : null);
@@ -85,16 +88,16 @@ const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) =>
     return (
         <AnimatePresence>
             {isVisible && (
-                <motion.div 
+                <MotionDiv 
                     className="code-canvas visible"
                     onClick={onClose}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                 >
-                    <motion.div 
+                    <MotionDiv 
                         className="code-canvas-container" 
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
                         initial={{ x: '100%' }}
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
@@ -102,7 +105,7 @@ const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) =>
                     >
                         <div className="code-canvas-header">
                             <h3 className="text-lg font-bold text-amber-400">Code Canvas</h3>
-                            <motion.button whileTap={{scale: 0.9}} onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</motion.button>
+                            <MotionButton whileTap={{scale: 0.9}} onClick={onClose} className="text-gray-400 hover:text-white text-2xl font-bold">&times;</MotionButton>
                         </div>
                         <div className="code-canvas-tabs">
                             {fileKeys.map(filename => (
@@ -113,7 +116,7 @@ const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) =>
                                 >
                                     {filename}
                                     {activeFile === filename && (
-                                        <motion.div className="active-tab-indicator" layoutId="activeTabIndicator" />
+                                        <MotionDiv className="active-tab-indicator" layoutId="activeTabIndicator" />
                                     )}
                                 </div>
                             ))}
@@ -144,15 +147,15 @@ const CodeCanvas: React.FC<CodeCanvasProps> = ({ files, isVisible, onClose }) =>
                             </div>
                         </div>
                         <div className="code-canvas-footer">
-                            <motion.button whileHover={{scale: 1.1}} whileTap={{scale: 0.9}} onClick={handleDownload} className="copy-button">
+                            <MotionButton whileHover={{scale: 1.1}} whileTap={{scale: 0.9}} onClick={handleDownload} className="copy-button">
                                 Download
-                            </motion.button>
-                            <motion.button whileHover={{scale: 1.1}} whileTap={{scale: 0.9}} onClick={handleCopy} className="copy-button">
+                            </MotionButton>
+                            <MotionButton whileHover={{scale: 1.1}} whileTap={{scale: 0.9}} onClick={handleCopy} className="copy-button">
                                 {isCopied ? 'Copied!' : 'Copy'}
-                            </motion.button>
+                            </MotionButton>
                         </div>
-                    </motion.div>
-                </motion.div>
+                    </MotionDiv>
+                </MotionDiv>
             )}
         </AnimatePresence>
     );

@@ -835,6 +835,16 @@ export const generateWebsiteCode = async (topic: string, style: string, features
     }
 };
 
+export const generateQRCode = async (text: string): Promise<string> => {
+    try {
+        // Using the global QRCode library from CDN
+        return await QRCode.toDataURL(text);
+    } catch (e) {
+        console.error("QR Code generation error:", e);
+        return '';
+    }
+}
+
 // --- AUTONOMOUS AGENT / WORKFLOW FUNCTIONS ---
 
 export const generatePlan = async (goal: string): Promise<{ plan: string[] } | { error: string }> => {

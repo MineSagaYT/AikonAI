@@ -10,6 +10,9 @@ const PersonaIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-
 
 type SettingsTab = 'Personalization' | 'Personas' | 'Data Controls';
 
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
+
 const SettingsItem: React.FC<{title: string; description?: string; children: React.ReactNode;}> = ({ title, description, children }) => (
     <div className="settings-item flex flex-col md:flex-row md:justify-between md:items-start py-4 border-b border-zinc-700/50 last:border-b-0">
         <div className="settings-item-label mb-3 md:mb-0 md:mr-6">
@@ -35,7 +38,7 @@ const NavItem: React.FC<{
     >
         {icon} <span>{children}</span>
         {activeTab === tabName && (
-            <motion.div className="active-nav-indicator" layoutId="activeSettingsTab" />
+            <MotionDiv className="active-nav-indicator" layoutId="activeSettingsTab" />
         )}
     </button>
 );
@@ -138,7 +141,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                             {/* Creation Form */}
                             <AnimatePresence>
                                 {isAddingPersona && (
-                                    <motion.div 
+                                    <MotionDiv 
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: 'auto', opacity: 1 }}
                                         exit={{ height: 0, opacity: 0 }}
@@ -174,7 +177,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                                         >
                                             Add Persona
                                         </button>
-                                    </motion.div>
+                                    </MotionDiv>
                                 )}
                             </AnimatePresence>
 
@@ -211,14 +214,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                      <div className="settings-section">
                         <h2 className="sr-only">Data Controls</h2>
                         <SettingsItem title="Clear current chat" description="Permanently clear all messages from your current session. This cannot be undone.">
-                            <motion.button 
+                            <MotionButton 
                                 className="danger" 
                                 onClick={onDeleteAllChats}
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                             >
                                 Clear chat
-                            </motion.button>
+                            </MotionButton>
                         </SettingsItem>
                     </div>
                 );
@@ -226,16 +229,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
     }
 
     return (
-        <motion.div 
+        <MotionDiv 
             className="modal-backdrop" 
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
         >
-            <motion.div 
+            <MotionDiv 
                 className="settings-modal-content modal-content" 
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
                 initial={{ y: 20, scale: 0.95 }}
                 animate={{ y: 0, scale: 1 }}
                 exit={{ y: 20, scale: 0.95 }}
@@ -271,12 +274,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                     {renderContent()}
                 </div>
                  <div className="settings-footer modal-footer">
-                    <motion.button onClick={onClose} className="secondary" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Cancel</motion.button>
-                    <motion.button onClick={handleSave} className="primary" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Save Changes</motion.button>
+                    <MotionButton onClick={onClose} className="secondary" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Cancel</MotionButton>
+                    <MotionButton onClick={handleSave} className="primary" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Save Changes</MotionButton>
                 </div>
-                <motion.button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold" whileTap={{ scale: 0.9 }}>&times;</motion.button>
-            </motion.div>
-        </motion.div>
+                <MotionButton onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold" whileTap={{ scale: 0.9 }}>&times;</MotionButton>
+            </MotionDiv>
+        </MotionDiv>
     );
 };
 

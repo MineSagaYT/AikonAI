@@ -3,7 +3,14 @@ import React, { useState } from 'react';
 import { NavigationProps } from '../../types';
 import { generateSimpleText, sendContactMessage } from '../../services/geminiService';
 import ParallaxCard from '../ParallaxCard';
-import { motion, Variants } from 'framer-motion';
+import { motion } from 'framer-motion';
+
+const MotionSection = motion.section as any;
+const MotionH2 = motion.h2 as any;
+const MotionP = motion.p as any;
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
+const MotionH3 = motion.h3 as any;
 
 const LoadingIcon: React.FC = () => (
     <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -78,7 +85,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     };
 
-    const itemVariants: Variants = {
+    const itemVariants: any = {
         hidden: { y: 20, opacity: 0 },
         visible: {
             y: 0,
@@ -89,7 +96,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
 
     return (
         <main className="max-w-7xl mx-auto p-6 md:p-10 relative z-10 pt-24">
-            <motion.section 
+            <MotionSection 
                 id="top" 
                 className="text-center py-16 md:py-24"
                 variants={containerVariants}
@@ -97,34 +104,34 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 animate="visible"
             >
                 <div className="space-y-8 max-w-4xl mx-auto">
-                    <motion.h2 variants={itemVariants} className="text-5xl md:text-7xl font-black leading-none tracking-tight text-white">
+                    <MotionH2 variants={itemVariants} className="text-5xl md:text-7xl font-black leading-none tracking-tight text-white">
                         Crafting the Future with <br /><span className="hero-gradient mt-2">Intelligent Design</span>
-                    </motion.h2>
-                    <motion.p variants={itemVariants} className="text-xl text-gray-400 pt-2 font-light">
+                    </MotionH2>
+                    <MotionP variants={itemVariants} className="text-xl text-gray-400 pt-2 font-light">
                         Aikon Studios connects the precision of Artificial Intelligence with ethical depth, delivering impactful next-generation solutions.
-                    </motion.p>
-                    <motion.div variants={itemVariants} className="pt-8 flex justify-center gap-4">
-                         <motion.button 
+                    </MotionP>
+                    <MotionDiv variants={itemVariants} className="pt-8 flex justify-center gap-4">
+                         <MotionButton 
                             onClick={() => navigateTo('projects')} 
                             className="px-8 py-3 bg-white text-black font-bold text-sm uppercase tracking-widest rounded hover:bg-gray-200 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                          >
                             View Projects
-                        </motion.button>
-                        <motion.button 
+                        </MotionButton>
+                        <MotionButton 
                             onClick={() => navigateTo('chat')} 
                             className="px-8 py-3 border border-white/20 text-white font-bold text-sm uppercase tracking-widest rounded hover:bg-white/10 transition-all"
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                          >
                             Launch Studio
-                        </motion.button>
-                    </motion.div>
+                        </MotionButton>
+                    </MotionDiv>
                 </div>
-            </motion.section>
+            </MotionSection>
 
-            <motion.section 
+            <MotionSection 
                 id="mission" 
                 className="py-16"
                 variants={containerVariants}
@@ -132,33 +139,33 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.2 }}
             >
-                <motion.h3 variants={itemVariants} className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] text-center mb-12">Our Mission & Expertise</motion.h3>
+                <MotionH3 variants={itemVariants} className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] text-center mb-12">Our Mission & Expertise</MotionH3>
                 <div className="grid md:grid-cols-3 gap-6">
-                    <motion.div variants={itemVariants}>
+                    <MotionDiv variants={itemVariants}>
                         <ParallaxCard className="p-8 h-full border border-amber-500/20 bg-amber-950/10 hover:border-amber-500/40">
                             <div className="text-3xl mb-4 text-amber-500">🧠</div>
                             <h4 className="text-xl font-bold mb-3 text-white">AI Development</h4>
                             <p className="text-sm text-gray-400 leading-relaxed">From conversational agents like <strong>AikonAI</strong> to complex reasoning engines, we build sophisticated models tailored for unique challenges.</p>
                         </ParallaxCard>
-                    </motion.div>
-                    <motion.div variants={itemVariants}>
+                    </MotionDiv>
+                    <MotionDiv variants={itemVariants}>
                         <ParallaxCard className="p-8 h-full border border-white/10 bg-white/5 hover:border-white/20">
                             <div className="text-3xl mb-4 text-white">💻</div>
                             <h4 className="text-xl font-bold mb-3 text-white">Full-Stack Software</h4>
                             <p className="text-sm text-gray-400 leading-relaxed">Developing robust, scalable web applications and systems, focusing on clean code, performance, and exceptional UX.</p>
                         </ParallaxCard>
-                    </motion.div>
-                    <motion.div variants={itemVariants}>
+                    </MotionDiv>
+                    <MotionDiv variants={itemVariants}>
                         <ParallaxCard className="p-8 h-full border border-purple-500/20 bg-purple-950/10 hover:border-purple-500/40">
                             <div className="text-3xl mb-4 text-purple-500">✨</div>
                             <h4 className="text-xl font-bold mb-3 text-white">Innovation with Purpose</h4>
                             <p className="text-sm text-gray-400 leading-relaxed" dangerouslySetInnerHTML={{ __html: missionStatement.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
                         </ParallaxCard>
-                    </motion.div>
+                    </MotionDiv>
                 </div>
-            </motion.section>
+            </MotionSection>
 
-            <motion.section 
+            <MotionSection 
                 id="founder" 
                 className="py-16"
                 variants={containerVariants}
@@ -166,7 +173,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.2 }}
             >
-                <motion.div variants={itemVariants}>
+                <MotionDiv variants={itemVariants}>
                     <ParallaxCard className="max-w-4xl mx-auto p-8 md:p-12 flex flex-col md:flex-row items-center gap-12 border border-white/10 bg-[#0c0c0c]">
                         <div className="flex-shrink-0 w-32 h-32 rounded-full bg-gradient-to-b from-gray-800 to-black flex items-center justify-center text-4xl font-black text-white border border-white/10 shadow-2xl">AJ</div>
                         <div className="text-center md:text-left flex-grow">
@@ -180,7 +187,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                     {founderQuote ? `"${founderQuote}"` : ''}
                                 </div>
                                 <div className="flex justify-center md:justify-start">
-                                    <motion.button 
+                                    <MotionButton 
                                         onClick={handleGenerateQuote} 
                                         disabled={isLoadingQuote} 
                                         className="text-xs text-gray-500 hover:text-white flex items-center gap-2 transition-colors"
@@ -188,15 +195,15 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                     >
                                         {isLoadingQuote ? <LoadingIcon /> : <span>✨</span>}
                                         <span>{isLoadingQuote ? 'Generating...' : 'Generate Quote'}</span>
-                                    </motion.button>
+                                    </MotionButton>
                                 </div>
                             </div>
                         </div>
                     </ParallaxCard>
-                </motion.div>
-            </motion.section>
+                </MotionDiv>
+            </MotionSection>
             
-             <motion.section
+             <MotionSection
                 id="contact"
                 className="py-16"
                 variants={containerVariants}
@@ -204,8 +211,8 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.2 }}
             >
-                <motion.h3 variants={itemVariants} className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] text-center mb-12">Contact Us</motion.h3>
-                <motion.div variants={itemVariants}>
+                <MotionH3 variants={itemVariants} className="text-xs font-bold text-gray-500 uppercase tracking-[0.2em] text-center mb-12">Contact Us</MotionH3>
+                <MotionDiv variants={itemVariants}>
                     <ParallaxCard className="max-w-2xl mx-auto p-8 md:p-12 border border-white/10 shadow-2xl">
                         <h4 className="text-2xl font-bold text-white mb-2 text-center">Start a Conversation</h4>
                         <p className="text-sm text-gray-500 mb-8 text-center">We're ready to build the extraordinary.</p>
@@ -251,7 +258,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                 ></textarea>
                             </div>
                             <div className="text-center pt-2">
-                                <motion.button
+                                <MotionButton
                                     type="submit"
                                     disabled={isSending}
                                     className="px-12 py-3 bg-white text-black font-bold text-xs uppercase tracking-widest rounded hover:bg-gray-200 transition-all w-full md:w-auto"
@@ -259,7 +266,7 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                     whileTap={{ scale: !isSending ? 0.98 : 1 }}
                                 >
                                     {isSending ? 'TRANSMITTING...' : 'SEND MESSAGE'}
-                                </motion.button>
+                                </MotionButton>
                             </div>
                         </form>
                          {formStatus && (
@@ -268,8 +275,8 @@ const HomePage: React.FC<NavigationProps> = ({ navigateTo }) => {
                             </div>
                         )}
                     </ParallaxCard>
-                </motion.div>
-            </motion.section>
+                </MotionDiv>
+            </MotionSection>
 
         </main>
     );

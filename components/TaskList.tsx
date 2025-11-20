@@ -8,6 +8,9 @@ interface TaskListProps {
     onTaskUpdate: (taskId: string, completed: boolean) => void;
 }
 
+const MotionUl = motion.ul as any;
+const MotionLi = motion.li as any;
+
 const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskUpdate }) => {
     if (!tasks || tasks.length === 0) {
         return <p className="text-gray-400 italic">You have no tasks.</p>;
@@ -32,14 +35,14 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskUpdate }) => {
     return (
         <div className="my-2 space-y-2">
             <h4 className="text-lg font-bold text-amber-400 border-b border-gray-700 pb-2 mb-3">Your To-Do List</h4>
-            <motion.ul 
+            <MotionUl 
                 className="space-y-2"
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
             >
                 {sortedTasks.map(task => (
-                    <motion.li 
+                    <MotionLi 
                         key={task.id} 
                         className="flex items-center"
                         variants={itemVariants}
@@ -58,9 +61,9 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onTaskUpdate }) => {
                         >
                             {task.description}
                         </label>
-                    </motion.li>
+                    </MotionLi>
                 ))}
-            </motion.ul>
+            </MotionUl>
         </div>
     );
 };

@@ -2,7 +2,13 @@
 import React, { useState } from 'react';
 import { NavigationProps } from '../../types';
 import ParallaxCard from '../ParallaxCard';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const MotionMain = motion.main as any;
+const MotionH2 = motion.h2 as any;
+const MotionP = motion.p as any;
+const MotionDiv = motion.div as any;
+const MotionButton = motion.button as any;
 
 // --- SVG Icons for Project Cards ---
 
@@ -45,7 +51,7 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         }
     };
 
-    const itemVariants: Variants = {
+    const itemVariants: any = {
         hidden: { y: 20, opacity: 0 },
         visible: {
             y: 0,
@@ -79,26 +85,26 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
 
 
     return (
-        <motion.main 
+        <MotionMain 
             className="max-w-7xl mx-auto p-4 md:p-8 relative z-10"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
         >
             <section className="text-center py-16 md:py-24">
-                <motion.h2 variants={itemVariants} className="text-5xl md:text-7xl font-black leading-tight tracking-tighter">
+                <MotionH2 variants={itemVariants} className="text-5xl md:text-7xl font-black leading-tight tracking-tighter">
                     Showcase of <span className="hero-gradient">AI Innovations</span>
-                </motion.h2>
-                <motion.p variants={itemVariants} className="text-xl md:text-2xl text-gray-400 max-w-4xl mx-auto pt-4 mb-16">
+                </MotionH2>
+                <MotionP variants={itemVariants} className="text-xl md:text-2xl text-gray-400 max-w-4xl mx-auto pt-4 mb-16">
                     Explore the core technologies and flagship projects that define Aikon Studios. Each system is designed for intelligence, adaptability, and real-world impact.
-                </motion.p>
+                </MotionP>
                 
-                <motion.div 
+                <MotionDiv 
                     className="grid md:grid-cols-2 gap-8 text-left"
                     variants={containerVariants}
                 >
                     {/* --- Project 1: AikonAI --- */}
-                    <motion.div variants={itemVariants}>
+                    <MotionDiv variants={itemVariants}>
                         <ParallaxCard depth={3} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full flex flex-col">
                             <AikonAIIcon />
                             <h3 className="text-3xl font-extrabold text-white mb-2">AikonAI</h3>
@@ -113,55 +119,55 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                             
                             <AnimatePresence>
                                 {isAikonAiExpanded && (
-                                    <motion.div
+                                    <MotionDiv
                                         initial={{ height: 0, opacity: 0, marginTop: 0 }}
                                         animate={{ height: 'auto', opacity: 1, marginTop: '1.5rem' }}
                                         exit={{ height: 0, opacity: 0, marginTop: 0 }}
                                         transition={{ duration: 0.4, ease: 'easeInOut' }}
                                         className="overflow-hidden"
                                     >
-                                        <motion.div 
+                                        <MotionDiv 
                                             className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 border-t border-gray-700 pt-6"
                                             variants={listVariants}
                                             initial="hidden"
                                             animate="visible"
                                         >
                                             {aikonFeatures.map(feature => (
-                                                <motion.div key={feature.title} variants={featureVariants} className="flex items-start space-x-3">
+                                                <MotionDiv key={feature.title} variants={featureVariants} className="flex items-start space-x-3">
                                                     <span className="text-xl mt-1 flex-shrink-0">{feature.icon}</span>
                                                     <div>
                                                         <h4 className="font-bold text-white">{feature.title}</h4>
                                                         <p className="text-gray-400 text-sm">{feature.description}</p>
                                                     </div>
-                                                </motion.div>
+                                                </MotionDiv>
                                             ))}
-                                        </motion.div>
-                                    </motion.div>
+                                        </MotionDiv>
+                                    </MotionDiv>
                                 )}
                             </AnimatePresence>
 
                             <div className="mt-auto pt-8 flex items-center flex-wrap gap-4">
-                                <motion.button 
+                                <MotionButton 
                                     onClick={() => navigateTo('chat')} 
                                     className="inline-block px-6 py-2 text-black font-bold text-base rounded-xl shadow-lg cta-button-animated tracking-wider"
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                 >
                                     Experience AikonAI →
-                                </motion.button>
-                                 <motion.button 
+                                </MotionButton>
+                                 <MotionButton 
                                     onClick={() => setIsAikonAiExpanded(!isAikonAiExpanded)} 
                                     className="text-amber-400 font-semibold text-sm hover:underline px-4 py-2"
                                     whileTap={{ scale: 0.95 }}
                                 >
                                     {isAikonAiExpanded ? 'Hide All Features' : 'View All Features'}
-                                </motion.button>
+                                </MotionButton>
                             </div>
                         </ParallaxCard>
-                    </motion.div>
+                    </MotionDiv>
 
                     {/* --- Project 4: Video Generation --- */}
-                    <motion.div variants={itemVariants}>
+                    <MotionDiv variants={itemVariants}>
                         <ParallaxCard depth={3} className="p-8 ai-glow-border hover:shadow-[0_0_50px_rgba(255,193,7,0.3)] h-full">
                             <VideoIcon />
                             <h3 className="text-3xl font-extrabold text-white mb-2">AI-Powered Video Generation</h3>
@@ -176,11 +182,11 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                                 Watch Demo (Soon)
                             </button>
                         </ParallaxCard>
-                    </motion.div>
-                </motion.div>
+                    </MotionDiv>
+                </MotionDiv>
             </section>
-            <motion.div variants={itemVariants} className="text-center mt-12">
-                <motion.button 
+            <MotionDiv variants={itemVariants} className="text-center mt-12">
+                <MotionButton 
                     onClick={() => navigateTo('home')} 
                     className="text-lg text-gray-400 hover:text-amber-400 transition-colors duration-300 tracking-wider flex items-center justify-center mx-auto space-x-2"
                     whileHover={{ scale: 1.05, x: -4 }}
@@ -188,9 +194,9 @@ const ProjectsPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
                     <span>Back to Home</span>
-                </motion.button>
-            </motion.div>
-        </motion.main>
+                </MotionButton>
+            </MotionDiv>
+        </MotionMain>
     );
 };
 
