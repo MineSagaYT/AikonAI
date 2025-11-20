@@ -28,6 +28,39 @@ export const getLiveFunctionDeclarations = (): FunctionDeclaration[] => {
             }
         },
         {
+            name: "request_image_upload",
+            description: "Call this tool when you need the user to upload an image for editing, analysis, or vision tasks. This will open a popup on the user's screen.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    reason: { type: Type.STRING, description: "The reason why you need the image (e.g., 'to edit it', 'to analyze the colors')." }
+                },
+                required: ["reason"]
+            }
+        },
+        {
+            name: "edit_image",
+            description: "Edits a previously uploaded image based on instructions. ONLY use this if an image has already been uploaded in the session.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    instruction: { type: Type.STRING, description: "Instructions on how to edit the image." }
+                },
+                required: ["instruction"]
+            }
+        },
+        {
+            name: "google_search",
+            description: "Performs a Google Search to find real-time information, news, or facts.",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    query: { type: Type.STRING, description: "The search query." }
+                },
+                required: ["query"]
+            }
+        },
+        {
             name: "generate_website",
             description: "Generates a single-page website (HTML/CSS/JS). Use this when the user asks to 'build a website', 'make a portfolio', 'create a web page', etc.",
             parameters: {
@@ -41,8 +74,8 @@ export const getLiveFunctionDeclarations = (): FunctionDeclaration[] => {
             }
         },
         {
-            name: "write_python_code",
-            description: "Writes and executes Python code. Use this for math, data analysis, or general coding tasks.",
+            name: "execute_python_code",
+            description: "Writes and executes Python code. Use this for math, data analysis, solving logic puzzles, or general coding tasks.",
             parameters: {
                 type: Type.OBJECT,
                 properties: {

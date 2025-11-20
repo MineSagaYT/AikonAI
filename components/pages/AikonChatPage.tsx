@@ -853,7 +853,7 @@ const WebsitePreview: React.FC<{ websiteData: any, onClose: () => void }> = ({ w
 // --- LIVE CONVERSATION COMPONENTS ---
 
 interface LiveVisualContent {
-    type: 'image' | 'weather' | 'website' | 'text';
+    type: 'image' | 'weather' | 'website' | 'text' | 'search_result' | 'code';
     data: any;
 }
 
@@ -863,8 +863,9 @@ const LiveConversationOverlay: React.FC<{
     status: 'connecting' | 'connected' | 'error' | 'idle';
     volume: number;
     liveContent: LiveVisualContent | null;
+    isUploadRequested: boolean;
     onUpload: () => void;
-}> = ({ isOpen, onClose, status, volume, liveContent, onUpload }) => {
+}> = ({ isOpen, onClose, status, volume, liveContent, isUploadRequested, onUpload }) => {
     if (!isOpen) return null;
 
     return (
@@ -876,8 +877,8 @@ const LiveConversationOverlay: React.FC<{
                 </button>
 
                 {/* Main Centered Orb */}
-                <div className="flex flex-col items-center justify-center h-full pb-20">
-                    <div className={`live-orb ${status === 'connected' ? 'connected' : ''}`}>
+                <div className="flex flex-col items-center justify-center h-full pb-20 relative">
+                    <div className={`live-orb ${status === 'connected' ? 'connected' : ''} z-10`}>
                         <div 
                             className="live-orb-inner" 
                             style={{ 
@@ -887,7 +888,7 @@ const LiveConversationOverlay: React.FC<{
                         />
                     </div>
                     
-                    <p className="live-status mt-8">
+                    <p className="live-status mt-8 z-10 text-amber-200/80 font-medium tracking-wider uppercase text-xs">
                         {status === 'connecting' && "Connecting to Aikon..."}
                         {status === 'connected' && "Listening..."}
                         {status === 'error' && "Connection Error"}
@@ -897,12 +898,12 @@ const LiveConversationOverlay: React.FC<{
                     <AnimatePresence>
                         {liveContent && (
                             <motion.div 
-                                className="mt-8 max-w-lg w-full px-4"
+                                className="mt-8 max-w-lg w-full px-4 z-20 absolute top-[60%] md:top-[55%]"
                                 initial={{ opacity: 0, y: 20, scale: 0.9 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 20, scale: 0.9 }}
                             >
-                                <div className="bg-black/40 backdrop-blur-xl rounded-2xl p-4 border border-white/10 shadow-2xl">
+                                <div className="bg-black/60 backdrop-blur-xl rounded-2xl p-4 border border-white/10 shadow-2xl max-h-[40vh] overflow-y-auto">
                                     {liveContent.type === 'weather' && (
                                         <div className="flex justify-center">
                                             <WeatherCard data={liveContent.data} />
@@ -911,7 +912,7 @@ const LiveConversationOverlay: React.FC<{
                                     {liveContent.type === 'image' && (
                                         <div className="flex flex-col items-center">
                                             <img src={liveContent.data.url} alt="Generated" className="rounded-lg w-full max-h-64 object-contain shadow-lg mb-2" />
-                                            <p className="text-xs text-gray-400 italic">{liveContent.data.prompt}</p>
+                                            <p className="text-xs text-gray-400 italic text-center">{liveContent.data.prompt}</p>
                                         </div>
                                     )}
                                     {liveContent.type === 'website' && (
@@ -940,6 +941,35 @@ const LiveConversationOverlay: React.FC<{
                                             <p className="text-white font-semibold">{liveContent.data}</p>
                                         </div>
                                     )}
+                                    {liveContent.type === 'search_result' && (
+                                        <div className="text-left">
+                                            <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2">
+                                                <span className="text-xl">🔍</span>
+                                                <h4 className="text-white font-bold text-sm">Search Results</h4>
+                                            </div>
+                                            <p className="text-gray-300 text-sm leading-relaxed mb-3 max-h-32 overflow-y-auto">
+                                                {liveContent.data.text}
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {liveContent.data.sources.slice(0, 3).map((src: any, idx: number) => (
+                                                    <a key={idx} href={src.uri} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-white/10 hover:bg-white/20 px-2 py-1 rounded text-amber-400 truncate max-w-[100px]">
+                                                        {src.title}
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {liveContent.type === 'code' && (
+                                        <div className="text-left">
+                                            <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-2">
+                                                <span className="text-xl">💻</span>
+                                                <h4 className="text-white font-bold text-sm">Python Output</h4>
+                                            </div>
+                                            <pre className="text-xs text-green-400 bg-black/50 p-2 rounded font-mono overflow-x-auto">
+                                                {liveContent.data.output}
+                                            </pre>
+                                        </div>
+                                    )}
                                 </div>
                             </motion.div>
                         )}
@@ -948,14 +978,20 @@ const LiveConversationOverlay: React.FC<{
 
                 {/* Bottom Toolbar */}
                 <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-4 z-50">
-                    <motion.button 
-                        onClick={onUpload}
-                        className="p-4 bg-zinc-800 rounded-full text-white hover:bg-zinc-700 transition-colors border border-zinc-700 shadow-lg"
-                        whileTap={{ scale: 0.95 }}
-                        title="Upload Image for Editing"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                    </motion.button>
+                    <AnimatePresence>
+                        {isUploadRequested && (
+                            <motion.button 
+                                initial={{ scale: 0, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0, y: 20 }}
+                                onClick={onUpload}
+                                className="absolute bottom-20 px-6 py-3 bg-amber-500 text-black font-bold rounded-full shadow-[0_0_20px_rgba(245,158,11,0.6)] animate-bounce flex items-center gap-2"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                Tap to Upload Image
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
                     
                     <motion.button 
                         onClick={onClose} 
@@ -1013,6 +1049,44 @@ const CodeHistoryPanel: React.FC<{ history: CodeExecutionHistoryItem[] }> = ({ h
     );
 }
 
+// Helper to extract and parse JSON more robustly
+const extractJsonFromText = (text: string): any | null => {
+    try {
+        // 1. Try finding a code block first
+        const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (codeBlockMatch) return JSON.parse(codeBlockMatch[1]);
+
+        // 2. Try finding the first '{' and last '}' for a complete object
+        const firstOpen = text.indexOf('{');
+        const lastClose = text.lastIndexOf('}');
+        if (firstOpen !== -1 && lastClose > firstOpen) {
+             const potentialJson = text.substring(firstOpen, lastClose + 1);
+             return JSON.parse(potentialJson);
+        }
+        
+        // 3. Try parsing the whole text if it looks like JSON
+        if (text.trim().startsWith('{')) {
+             return JSON.parse(text.trim());
+        }
+    } catch (e) {
+        // Parsing failed, fall through to repair attempts
+    }
+    
+    // 4. Repair attempt for truncated JSON (common with tool calls)
+    const firstOpen = text.indexOf('{');
+    if (firstOpen !== -1) {
+        const potentialJson = text.substring(firstOpen); // Take everything from first brace
+        // Try appending closing characters to fix truncated JSON
+        const closers = ['}', '"}', '"} }', '"]', '"] }', '"] } }'];
+        for (const closer of closers) {
+            try {
+                return JSON.parse(potentialJson + closer);
+            } catch (e) {}
+        }
+    }
+
+    return null;
+};
 
 // --- MAIN PAGE COMPONENT ---
 
@@ -1038,6 +1112,11 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
     const [generatedWebsiteData, setGeneratedWebsiteData] = useState<any>(null);
     const [isDarkMode, setIsDarkMode] = useState(true);
     
+    // State for Live Image Upload Request
+    const [isUploadRequested, setIsUploadRequested] = useState(false);
+    const [pendingUploadRequestId, setPendingUploadRequestId] = useState<string | null>(null);
+    const [uploadedLiveImage, setUploadedLiveImage] = useState<FileAttachment | null>(null);
+
     // Mobile specific state
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -1258,29 +1337,24 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     const chunkText = chunk.text || ''; 
                     fullText += chunkText;
                     
-                    if (fullText.trim().startsWith('{') && fullText.trim().endsWith('}')) {
-                         try {
-                             const toolCall = JSON.parse(fullText);
-                             if (toolCall.tool_call) {
-                                 await handleToolCall(toolCall, msgId);
-                                 return; 
-                             }
-                         } catch (e) {}
+                    // Attempt to detect JSON tool call during stream (for speed)
+                    const toolCall = extractJsonFromText(fullText);
+                    if (toolCall && toolCall.tool_call) {
+                        await handleToolCall(toolCall, msgId);
+                        return; 
                     }
+
                     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: fullText, segments: parseMarkdown(fullText) } : m));
                 }
                 
-                 if (fullText.includes('tool_call')) {
-                    try {
-                        const match = fullText.match(/\{[\s\S]*"tool_call"[\s\S]*\}/);
-                        if (match) {
-                            const toolCall = JSON.parse(match[0]);
-                            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Processing request...", segments: [] } : m));
-                            await handleToolCall(toolCall, msgId);
-                        }
-                    } catch (e) {}
+                // Post-stream check (more robust)
+                const finalToolCall = extractJsonFromText(fullText);
+                if (finalToolCall && finalToolCall.tool_call) {
+                     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Processing request...", segments: [] } : m));
+                     await handleToolCall(finalToolCall, msgId);
+                } else {
+                     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m));
                 }
-                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m));
             }
         } catch (error) {
             setMessages(prev => [...prev, { id: Date.now().toString(), text: "Sorry, something went wrong. Please try again.", sender: 'ai', timestamp: new Date(), status: 'sent' }]);
@@ -1428,6 +1502,10 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
         try {
             setShowLiveOverlay(true);
             setLiveStatus('connecting');
+            setLiveContent(null);
+            setIsUploadRequested(false);
+            setPendingUploadRequestId(null);
+            setUploadedLiveImage(null);
 
             // Ensure AudioContext is resumed (fix for "button not working")
             const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -1504,18 +1582,65 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                              for (const fc of msg.toolCall.functionCalls) {
                                  // Execute function (Visual only for now in overlay)
                                  if (fc.name === 'generate_image') {
-                                      const img = await generateImage(fc.args.prompt);
-                                      if (img) setLiveContent({ type: 'image', data: { url: img, prompt: fc.args.prompt } });
-                                      sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Image displayed" } } }));
+                                      const prompt = fc.args['prompt'] as string;
+                                      setLiveContent({ type: 'text', data: "Generating Image..." });
+                                      const img = await generateImage(prompt);
+                                      if (img) setLiveContent({ type: 'image', data: { url: img, prompt: prompt } });
+                                      sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Image displayed to user" } } }));
                                  } 
                                  else if (fc.name === 'get_weather') {
-                                     const weather = await fetchWeather(fc.args.city);
+                                     const city = fc.args['city'] as string;
+                                     const weather = await fetchWeather(city);
                                      if (!('error' in weather)) setLiveContent({ type: 'weather', data: weather });
-                                     sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Weather displayed" } } }));
+                                     sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Weather card displayed to user" } } }));
+                                 }
+                                 else if (fc.name === 'google_search') {
+                                     const query = fc.args['query'] as string;
+                                     setLiveContent({ type: 'text', data: "Searching Google..." });
+                                     const searchRes = await performGoogleSearch(query);
+                                     setLiveContent({ type: 'search_result', data: searchRes });
+                                     // Send a summary back to the model so it can talk about it
+                                     sessionPromiseRef.current?.then(s => s.sendToolResponse({ 
+                                         functionResponses: { 
+                                             name: fc.name, 
+                                             id: fc.id, 
+                                             response: { result: searchRes.text ? searchRes.text.substring(0, 500) : "No results found." } 
+                                         } 
+                                     }));
+                                 }
+                                 else if (fc.name === 'execute_python_code') {
+                                     const code = fc.args['code'] as string;
+                                     setLiveContent({ type: 'text', data: "Running Python..." });
+                                     const output = await executePythonCode(code);
+                                     setLiveContent({ type: 'code', data: { code: code, output: output } });
+                                     sessionPromiseRef.current?.then(s => s.sendToolResponse({ 
+                                         functionResponses: { name: fc.name, id: fc.id, response: { result: output } } 
+                                     }));
+                                 }
+                                 else if (fc.name === 'request_image_upload') {
+                                     // Show upload button
+                                     setIsUploadRequested(true);
+                                     setPendingUploadRequestId(fc.id);
+                                     setLiveContent({ type: 'text', data: "Waiting for upload..." });
+                                     // We do NOT send a response yet. We wait for the user to upload.
+                                 }
+                                 else if (fc.name === 'edit_image') {
+                                      if (uploadedLiveImage) {
+                                          const instruction = fc.args['instruction'] as string;
+                                          setLiveContent({ type: 'text', data: "Editing Image..." });
+                                          const result = await editImage(uploadedLiveImage, instruction);
+                                          if (result) setLiveContent({ type: 'image', data: { url: result, prompt: instruction } });
+                                          sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Image edited and displayed" } } }));
+                                      } else {
+                                          sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Error: No image uploaded yet." } } }));
+                                      }
                                  }
                                  else if (fc.name === 'generate_website') {
-                                     const html = await generateWebsiteCode(fc.args.topic, fc.args.style, fc.args.features);
-                                     setLiveContent({ type: 'website', data: { topic: fc.args.topic, htmlContent: html } });
+                                     const topic = fc.args['topic'] as string;
+                                     const style = fc.args['style'] as string;
+                                     const features = fc.args['features'] as string[];
+                                     const html = await generateWebsiteCode(topic, style, features);
+                                     setLiveContent({ type: 'website', data: { topic: topic, htmlContent: html } });
                                      sessionPromiseRef.current?.then(s => s.sendToolResponse({ functionResponses: { name: fc.name, id: fc.id, response: { result: "Website generated and displayed" } } }));
                                  }
                                  else {
@@ -1539,7 +1664,16 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
                     speechConfig: {
                         voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } }
                     },
-                    systemInstruction: activePersona.systemInstruction,
+                    systemInstruction: `You are AikonAI in Live Voice Mode. 
+                    You have access to powerful tools to generate visuals, search the web, code, and edit images.
+                    
+                    IMPORTANT RULES:
+                    1. VISUALS: If the user asks for something visual (image, weather, website), use the corresponding tool immediately.
+                    2. SEARCH: If asked for current events or facts, use 'google_search'.
+                    3. EDITING: If the user wants to edit an image, FIRST call 'request_image_upload' to get the file. Once they upload it, you will receive a confirmation, THEN call 'edit_image'.
+                    4. CODE: If asked for math or logic, use 'execute_python_code'.
+                    5. Be conversational but proactive with tools.
+                    `,
                     tools: [{ functionDeclarations: getLiveFunctionDeclarations() }]
                  }
             };
@@ -1608,14 +1742,32 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
              const reader = new FileReader();
              reader.onloadend = async () => {
                  const base64 = (reader.result as string).split(',')[1];
+                 
+                 // Store internally for 'edit_image' usage
+                 setUploadedLiveImage({ name: file.name, mimeType: file.type, base64: base64 });
+
                  sessionPromiseRef.current?.then(session => {
+                     // Send image to model context
                      session.sendRealtimeInput({ 
                          media: { mimeType: file.type, data: base64 } 
                      });
+                     
+                     // If this was requested via tool call, resolve that tool call now
+                     if (isUploadRequested && pendingUploadRequestId) {
+                         session.sendToolResponse({
+                             functionResponses: {
+                                 name: 'request_image_upload',
+                                 id: pendingUploadRequestId,
+                                 response: { result: "User has uploaded the image. You can now proceed with 'edit_image' or analysis." }
+                             }
+                         });
+                         setIsUploadRequested(false);
+                         setPendingUploadRequestId(null);
+                     }
                  });
+
                  // Give feedback
                  setLiveContent({ type: 'text', data: "Image Uploaded" });
-                 setTimeout(() => setLiveContent(null), 2000);
              };
              reader.readAsDataURL(file);
         }
@@ -1753,7 +1905,15 @@ const AikonChatPage: React.FC<NavigationProps> = ({ navigateTo }) => {
             {generatedWebsiteData && <WebsitePreview websiteData={generatedWebsiteData} onClose={() => setGeneratedWebsiteData(null)} />}
 
             <input type="file" ref={liveFileInputRef} className="hidden" onChange={handleLiveFileUpload} />
-            <LiveConversationOverlay isOpen={showLiveOverlay} onClose={endLiveConversation} status={liveStatus} volume={liveVolume} liveContent={liveContent} onUpload={() => liveFileInputRef.current?.click()} />
+            <LiveConversationOverlay 
+                isOpen={showLiveOverlay} 
+                onClose={endLiveConversation} 
+                status={liveStatus} 
+                volume={liveVolume} 
+                liveContent={liveContent} 
+                isUploadRequested={isUploadRequested}
+                onUpload={() => liveFileInputRef.current?.click()} 
+            />
 
             {/* Mobile Command Center Bottom Sheet */}
             <AnimatePresence>
