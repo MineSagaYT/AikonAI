@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -74,15 +73,10 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ code, language, filename }) => {
                                 )}
                             </MotionSvg>
                         </AnimatePresence>
-                        {isCopied ? 'Copied!' : 'Copy'}
                     </MotionButton>
                 </div>
             </div>
-            <pre>
-                <code ref={codeRef} className={`language-${language}`}>
-                    {code}
-                </code>
-            </pre>
+            <pre><code ref={codeRef} className={`hljs language-${language || 'plaintext'}`}>{code}</code></pre>
         </div>
     );
 };

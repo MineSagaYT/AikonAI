@@ -1,4 +1,3 @@
-
 import { WeatherData } from '../types';
 
 const OPENWEATHER_API_KEY = "c741f55c4f611454adfd929f35805d56";

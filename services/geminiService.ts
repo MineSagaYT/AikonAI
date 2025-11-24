@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Chat, Part, GroundingChunk, GenerateVideosOperation, Content, Modality, Type, FunctionDeclaration } from "@google/genai";
 import { FileAttachment, Source, WorkflowStep, StructuredToolOutput, PresentationData, WordData, ExcelData, UserProfile, VirtualFile, Task, ProjectStructure } from "../types";
 

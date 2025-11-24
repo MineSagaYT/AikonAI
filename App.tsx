@@ -1,80 +1,53 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import Header from './components/Header';
-import Footer from './components/Footer';
-import HomePage from './components/pages/HomePage';
-import ProjectsPage from './components/pages/ProjectsPage';
-import AikonChatPage from './components/pages/AikonChatPage';
-import LoginPage from './components/pages/LoginPage';
-import FAQPage from './components/pages/FAQPage';
-import { Page } from './types';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
-import LoadingSpinner from './components/LoadingSpinner';
+import LandingPage from './components/LandingPage';
+import AikonChatPage from './components/pages/AikonChatPage';
 import { AnimatePresence, motion } from 'framer-motion';
 
-const MotionDiv = motion.div as any;
-
 const App: React.FC = () => {
-    const { currentUser, loading } = useAuth();
-    const [activePage, setActivePage] = useState<Page>('home');
+    const [view, setView] = useState<'landing' | 'chat'>('landing');
+    const { login } = useAuth();
 
-    const navigateTo = useCallback((page: Page) => {
-        setActivePage(page);
-        window.scrollTo(0, 0);
-    }, []);
-    
     useEffect(() => {
-        document.body.classList.add('dark-theme-body');
+        // Auto-login guest for immediate access
+        login('Guest', '0000');
     }, []);
-    
-    if (loading) {
-        return <LoadingSpinner />;
-    }
 
-    if (!currentUser) {
-        return <LoginPage />;
-    }
-    
-    // Special full-screen pages that don't use standard layout
-    if (activePage === 'chat') {
-        return <AikonChatPage navigateTo={navigateTo} />;
-    }
-
-    const renderPage = () => {
-        switch (activePage) {
-            case 'home':
-                return <HomePage navigateTo={navigateTo} />;
-            case 'projects':
-                return <ProjectsPage navigateTo={navigateTo} />;
-            case 'faq':
-                return <FAQPage navigateTo={navigateTo} />;
-            default:
-                return <HomePage navigateTo={navigateTo} />;
-        }
+    const switchView = (newView: 'landing' | 'chat') => {
+        setView(newView);
+        window.scrollTo(0, 0);
     };
 
     return (
-        <div className="flex flex-col min-h-screen">
-            <div className="ai-core-bg"></div>
-            <Header navigateTo={navigateTo} activePage={activePage} />
-            <div id="app-container" className="flex-grow flex flex-col">
-                <AnimatePresence mode="wait">
-                    <MotionDiv
-                        key={activePage}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ type: 'spring', stiffness: 260, damping: 25 }}
-                        className="flex-grow flex flex-col w-full"
+        <div className="min-h-screen w-full overflow-x-hidden bg-[#F8FAFC]">
+            <AnimatePresence mode="wait">
+                {view === 'landing' && (
+                    <motion.div
+                        key="landing"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.4 }}
                     >
-                        {renderPage()}
-                    </MotionDiv>
-                </AnimatePresence>
-            </div>
-            <Footer />
+                        <LandingPage onStart={() => switchView('chat')} />
+                    </motion.div>
+                )}
+                {view === 'chat' && (
+                    <motion.div
+                        key="chat"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                        className="h-screen w-full"
+                    >
+                        <AikonChatPage onBack={() => switchView('landing')} />
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
-
 
 export default App;

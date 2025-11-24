@@ -1,4 +1,3 @@
-
 import { Chat } from '@google/genai';
 
 // Declare global variables from CDN scripts to make TypeScript aware of them
