@@ -23,13 +23,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Auto-login as 'Aditya' for the full demo experience requested in the prompt
+        // Auto-login as 'Guest' for the full demo experience requested in the prompt
+        // This removes the specific "Aditya" branding unless logged in otherwise.
         const demoUser: UserProfile = {
-            uid: 'aditya_jain',
-            displayName: 'Aditya Jain',
-            email: 'aditya@aikon.studios',
+            uid: 'guest_user',
+            displayName: 'Guest',
+            email: null,
             photoURL: null,
-            aboutYou: 'Aditya',
+            aboutYou: 'Friend',
             onboardingCompleted: true,
             pin: '0000',
         };

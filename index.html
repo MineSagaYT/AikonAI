@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
 <head>
@@ -21,6 +22,13 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 
     <script>
+        // Check for saved theme preference or use system preference
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark')
+        } else {
+            document.documentElement.classList.remove('dark')
+        }
+
         tailwind.config = {
             darkMode: 'class',
             theme: {
@@ -32,8 +40,9 @@
                         'surface-light': '#F8FAFC',
                         'text-main': '#1E293B',
                         'text-muted': '#64748B',
-                        'dark-bg': '#0F172A',
-                        'dark-surface': '#1E293B',
+                        'dark-bg': '#050505', // Deeper black for pro feel
+                        'dark-surface': '#121212',
+                        'dark-border': '#27272a',
                     },
                     fontFamily: {
                         sans: ['Plus Jakarta Sans', 'sans-serif'],
@@ -46,6 +55,7 @@
                         'blob': 'blob 10s infinite',
                         'fade-up': 'fadeUp 0.8s ease-out forwards',
                         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'wave': 'wave 2.5s infinite',
                     },
                     keyframes: {
                         float: {
@@ -61,7 +71,17 @@
                         fadeUp: {
                             '0%': { opacity: '0', transform: 'translateY(20px)' },
                             '100%': { opacity: '1', transform: 'translateY(0)' },
-                        }
+                        },
+                        wave: {
+                            '0%': { transform: 'rotate(0.0deg)' },
+                            '10%': { transform: 'rotate(14.0deg)' },
+                            '20%': { transform: 'rotate(-8.0deg)' },
+                            '30%': { transform: 'rotate(14.0deg)' },
+                            '40%': { transform: 'rotate(-4.0deg)' },
+                            '50%': { transform: 'rotate(10.0deg)' },
+                            '60%': { transform: 'rotate(0.0deg)' },
+                            '100%': { transform: 'rotate(0.0deg)' },
+                        },
                     }
                 }
             }
@@ -74,6 +94,13 @@
             overflow-x: hidden;
             font-family: 'Plus Jakarta Sans', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* Dark Mode Global Overrides */
+        .dark body {
+            background-color: #050505;
+            color: #e2e8f0;
         }
         
         /* Mobile Safe Area Utilities */
@@ -90,6 +117,11 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+        .dark .gradient-text {
+            background: linear-gradient(135deg, #818cf8, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
         .soft-blob {
             position: absolute;
@@ -99,6 +131,11 @@
             z-index: -1;
             animation: blob 10s infinite cubic-bezier(0.4, 0, 0.2, 1);
         }
+        /* Hide blobs in dark mode for cleaner "Cyber" look */
+        .dark .soft-blob {
+            opacity: 0.05; 
+            filter: blur(120px);
+        }
 
         /* Glass Nav */
         .nav-glass {
@@ -106,16 +143,25 @@
             backdrop-filter: blur(12px);
             border-bottom: 1px solid rgba(226, 232, 240, 0.6);
         }
+        .dark .nav-glass {
+            background: rgba(5, 5, 5, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
         
         /* Chat Specifics */
         .chat-gradient-bg {
             background: linear-gradient(135deg, #f8fafc 0%, #ffffff 50%, #f0f9ff 100%);
+        }
+        .dark .chat-gradient-bg {
+            background: #050505; /* Solid deep black for dark mode */
+            background-image: radial-gradient(circle at 50% 0%, #1a1a1a 0%, #050505 50%);
         }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #333; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
         /* Hide scrollbar for clean UI but allow scroll */
@@ -132,7 +178,9 @@
         .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
         .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
         .prose strong { font-weight: 700; color: #4F46E5; }
+        .dark .prose strong { color: #818cf8; }
         .prose code { background: rgba(0,0,0,0.05); padding: 0.2em 0.4em; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
+        .dark .prose code { background: rgba(255,255,255,0.1); color: #e2e8f0; }
         .prose pre { margin: 0; }
     </style>
 <script type="importmap">
@@ -147,7 +195,7 @@
 }
 </script>
 </head>
-<body class="min-h-screen antialiased bg-white">
+<body class="min-h-screen antialiased bg-white dark:bg-[#050505] transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
