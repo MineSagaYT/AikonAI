@@ -1,8 +1,27 @@
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { Content } from '@google/genai';
 import { Task, ChatListItem, UserProfile } from '../types';
 
-// This service is now a mock that uses localStorage to align with the app's local-only auth system.
-// This resolves all "Missing or insufficient permissions" errors by removing the need for a backend.
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyBjYtrHqwMtmjPK6eX_VZqS9nDJDkbxpUk",
+  authDomain: "aikonai10.firebaseapp.com",
+  projectId: "aikonai10",
+  storageBucket: "aikonai10.firebasestorage.app",
+  messagingSenderId: "917159525687",
+  appId: "1:917159525687:web:9e116f345c85c624772eb2",
+  measurementId: "G-E1B95P668Y"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+
+// --- Local Storage Data Persistence (Keeping this for user data isolation by UID) ---
 
 const USER_DATA_PREFIX = 'aikon_user_';
 
@@ -22,7 +41,7 @@ const getUserData = (userId: string) => {
             customInstructions: '',
             aboutYou: userId,
             onboardingCompleted: false,
-            pin: '', // Pin is checked by AuthContext
+            pin: '', 
         },
         chats: {},
         tasks: [],
@@ -142,6 +161,4 @@ export const completeTaskByDescription = async (userId: string, description: str
     return null;
 };
 
-// We keep these exports for compatibility, but they are not used in a local storage context.
-export const auth = {};
-export type { Task }; // Re-export the Task type for use in other components
+export type { Task };

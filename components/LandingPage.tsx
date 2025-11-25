@@ -128,6 +128,65 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                 </div>
             </section>
 
+             {/* The Architect / Visionaries Section */}
+             <section id="mastermind" className="py-24 px-6 bg-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-brand-50 rounded-full blur-3xl opacity-50"></div>
+                
+                <div className="max-w-7xl mx-auto relative z-10">
+                    <div className="text-center mb-16">
+                        <span className="text-brand-600 font-bold tracking-wider uppercase text-sm">Leadership</span>
+                        <h2 className="font-heading text-4xl font-bold mt-2">Meet the <span className="text-accent-500">Visionaries</span></h2>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-12 max-w-5xl mx-auto">
+                        {/* Image/Card */}
+                        <div className="relative group w-full md:w-1/3 max-w-sm">
+                            <div className="absolute -inset-4 bg-gradient-to-tr from-brand-600 to-accent-500 rounded-[2rem] opacity-30 blur-xl group-hover:opacity-50 transition duration-500"></div>
+                            <div className="relative aspect-[4/5] bg-slate-100 rounded-[2rem] overflow-hidden shadow-2xl">
+                                <img 
+                                    src="https://api.dicebear.com/7.x/avataaars/svg?seed=Aditya&backgroundColor=b6e3f4" 
+                                    alt="Aditya Jain" 
+                                    className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90"></div>
+                                <div className="absolute bottom-0 left-0 p-6 text-white">
+                                    <h3 className="text-2xl font-bold">Aditya Jain</h3>
+                                    <p className="text-white/80 font-medium">Founder & Lead Architect</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="w-full md:w-1/2 space-y-6">
+                            <h3 className="text-3xl font-heading font-bold text-slate-800">
+                                Building the bridge between <br />
+                                <span className="gradient-text">Humanity & Intelligence.</span>
+                            </h3>
+                            <p className="text-lg text-slate-600 leading-relaxed">
+                                "At Aikon Studios, we aren't just coding algorithms; we are crafting companions. My vision for AikonAi was to create a digital entity that feels less like a machine and more like a friend—one that understands our language, our culture, and our ambition."
+                            </p>
+                            
+                            <div className="grid grid-cols-2 gap-6 pt-4">
+                                <div>
+                                    <div className="text-3xl font-bold text-brand-600">2025</div>
+                                    <div className="text-sm text-slate-500 font-medium">Year Founded</div>
+                                </div>
+                                <div>
+                                    <div className="text-3xl font-bold text-accent-500">100+</div>
+                                    <div className="text-sm text-slate-500 font-medium">Projects Shipped</div>
+                                </div>
+                            </div>
+
+                            <div className="pt-6">
+                                <a href="#" className="inline-flex items-center gap-2 text-brand-600 font-bold hover:gap-3 transition-all">
+                                    Read the Founder's Letter <i className="ph-bold ph-arrow-right"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Footer */}
             <footer className="bg-white border-t border-gray-100 pt-16 pb-8">
                 <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
