@@ -1,9 +1,11 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, FileAttachment, ChatSession } from '../../types';
 import { streamMessageToChat, generateImage, generateQRCode, generateWebsiteCode, editImage, generateSpeech } from '../../services/geminiService';
 import { sendEmail } from '../../services/emailService';
 import { listDriveFiles, createDriveFile, readDriveFile } from '../../services/googleDriveService';
+import { listEvents, createEvent } from '../../services/googleCalendarService';
 import { useAuth } from '../../context/AuthContext';
 import { 
     getUserChats, 
@@ -24,7 +26,17 @@ interface AikonChatPageProps {
 const MotionDiv = motion.div as any;
 
 const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
-    const { currentUser, googleAccessToken, connectGmail, disconnectGmail, driveAccessToken, connectDrive, disconnectDrive } = useAuth();
+    const { 
+        currentUser, 
+        googleAccessToken, 
+        connectGmail, 
+        disconnectGmail, 
+        driveAccessToken, 
+        connectDrive, 
+        disconnectDrive,
+        calendarAccessToken,
+        connectCalendar
+    } = useAuth();
     
     // Core State
     const [messages, setMessages] = useState<Message[]>([]);
@@ -46,6 +58,8 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
     // Pending Actions
     const [pendingEmailAction, setPendingEmailAction] = useState<{to: string, subject: string, body: string, msgId: string, attachments: FileAttachment[]} | null>(null);
     const [pendingDriveAction, setPendingDriveAction] = useState<{action: string, params: any, msgId: string} | null>(null);
+    const [pendingCalendarAction, setPendingCalendarAction] = useState<{action: string, params: any, msgId: string} | null>(null);
+
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +102,13 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
             executePendingDriveAction(driveAccessToken, pendingDriveAction);
         }
     }, [driveAccessToken, pendingDriveAction]);
+
+    // Auto-retry Calendar action
+    useEffect(() => {
+        if (calendarAccessToken && pendingCalendarAction) {
+            executePendingCalendarAction(calendarAccessToken, pendingCalendarAction);
+        }
+    }, [calendarAccessToken, pendingCalendarAction]);
 
 
     const showToast = (msg: string) => {
@@ -192,6 +213,16 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
         }
     };
 
+    const handleConnectCalendar = async () => {
+        try {
+            await connectCalendar();
+            showToast("Google Calendar Connected Successfully!");
+        } catch (error) {
+             console.error("Calendar Connection Failed", error);
+             showToast("Failed to connect Google Calendar.");
+        }
+    }
+
     const executePendingEmail = async (token: string, action: {to: string, subject: string, body: string, msgId: string, attachments: FileAttachment[]}) => {
         setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, text: m.text.replace("I need access to your Gmail to send this. Please connect your account below.", "Access granted. Sending email... 📧"), status: 'sent' } : m));
         setMessages(prev => prev.filter(m => m.text !== 'CONNECT_GMAIL_ACTION'));
@@ -286,6 +317,61 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
         setPendingDriveAction(null);
     };
 
+    const executePendingCalendarAction = async (token: string, action: {action: string, params: any, msgId: string}) => {
+        setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, text: "Access granted. Accessing Calendar... 📅", status: 'sent' } : m));
+        setMessages(prev => prev.filter(m => m.text !== 'CONNECT_CALENDAR_ACTION'));
+
+        let resultMsg = "";
+
+        if (action.action === 'list_events') {
+            const res = await listEvents(token, action.params.timeMin, action.params.timeMax);
+            if (res.success && res.events) {
+                if (res.events.length === 0) {
+                    resultMsg = "You have no events scheduled for this period.";
+                } else {
+                    resultMsg = `### 📅 Upcoming Events:\n\n` + 
+                        res.events.map(e => {
+                            const time = e.start.dateTime ? new Date(e.start.dateTime).toLocaleString() : 'All Day';
+                            return `* **${e.summary}**\n  * 🕒 ${time}\n  * [View Event](${e.htmlLink})`;
+                        }).join('\n');
+                }
+            } else {
+                if (res.message === 'UNAUTHENTICATED') resultMsg = "Session expired. Please reconnect Calendar.";
+                else resultMsg = `Failed to fetch events: ${res.message}`;
+            }
+        } else if (action.action === 'create_event') {
+            const res = await createEvent(token, {
+                summary: action.params.summary,
+                description: action.params.description,
+                location: action.params.location,
+                start: action.params.start,
+                end: action.params.end
+            });
+
+            if (res.success) {
+                resultMsg = `✅ Event **${action.params.summary}** scheduled successfully!\n\n[View in Calendar](${res.eventLink})`;
+            } else {
+                if (res.message === 'UNAUTHENTICATED') resultMsg = "Session expired. Please reconnect Calendar.";
+                else resultMsg = `Failed to create event: ${res.message}`;
+            }
+        }
+
+        setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, text: resultMsg, status: 'sent' } : m));
+
+        // Persist
+        if (currentUser && !isTemporaryMode && currentChatId) {
+             storeMessage(currentUser.uid, currentChatId, {
+                id: action.msgId,
+                text: resultMsg,
+                sender: 'ai',
+                timestamp: new Date(),
+                status: 'sent'
+             });
+        }
+        
+        setPendingCalendarAction(null);
+    };
+
     const handleSendMessage = async () => {
         if (!input.trim() && files.length === 0) return;
 
@@ -326,6 +412,8 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
         setIsTyping(true);
         setPendingEmailAction(null);
         setPendingDriveAction(null);
+        setPendingCalendarAction(null);
+
 
         // --- 3. PERSIST USER MESSAGE ---
         if (currentUser && !isTemporaryMode && activeChatId) {
@@ -434,6 +522,26 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                              await executePendingDriveAction(driveAccessToken, { action: toolData.action, params: toolData, msgId });
                              // executePendingDriveAction handles final message update
                              return; // Skip default persistence as executePendingDriveAction handles it
+                        }
+                    } else if (toolName === 'calendar_action') {
+                        if (!calendarAccessToken) {
+                            setPendingCalendarAction({ action: toolData.action, params: toolData, msgId });
+                            finalAiMessage.text = cleanText + (currentUser?.connections?.calendar
+                                ? "\n\nSession expired. Please reconnect Google Calendar."
+                                : "\n\nI need access to your Google Calendar to do this. Please connect your account below.");
+                            
+                            setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
+                            setMessages(prev => [...prev, {
+                                id: Date.now().toString() + '_sys',
+                                text: 'CONNECT_CALENDAR_ACTION',
+                                sender: 'ai',
+                                timestamp: new Date(),
+                                status: 'sent'
+                            }]);
+                        } else {
+                            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Accessing Calendar... 📅" } : m));
+                            await executePendingCalendarAction(calendarAccessToken, { action: toolData.action, params: toolData, msgId });
+                            return;
                         }
                     }
 
@@ -650,14 +758,14 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                                 {isTemporaryMode ? (
                                     <span className="text-amber-600 font-medium bg-amber-50 px-3 py-1 rounded-full text-sm border border-amber-100"><i className="ph-bold ph-warning-circle"></i> Temporary Mode: Chats are not saved.</span>
                                 ) : (
-                                    "I'm Aikon, your intelligent companion. I can code, create art, send emails, manage your Drive files, and help you build the future."
+                                    "I'm Aikon, your intelligent companion. I can code, create art, send emails, manage your Drive files, schedule your Calendar events, and help you build the future."
                                 )}
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-2">
                                 {[
                                     { icon: 'ph-envelope-simple', color: 'text-red-500', title: 'Gmail Assistant', desc: 'Send emails instantly.', prompt: 'Send an email to boss@company.com saying I will be late.' },
                                     { icon: 'ph-google-drive-logo', color: 'text-blue-500', title: 'Drive Manager', desc: 'List & Create files.', prompt: 'Create a file named "Ideas.txt" in my Drive with some startup ideas.' },
-                                    { icon: 'ph-code', color: 'text-emerald-500', title: 'Code Assistant', desc: 'Generate Python/JS scripts & debug.', prompt: 'Write a Python script to visualize stock market data.' },
+                                    { icon: 'ph-calendar-blank', color: 'text-orange-500', title: 'Calendar', desc: 'Schedule & view events.', prompt: 'Schedule a meeting with Team tomorrow at 2 PM.' },
                                     { icon: 'ph-paint-brush-broad', color: 'text-accent-500', title: 'Visual Creation', desc: 'Generate stunning AI art.', prompt: 'Create a futuristic image of a temple on Mars.' },
                                 ].map((card, idx) => (
                                     <button key={idx} onClick={() => { setInput(card.prompt); }} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-brand-400 hover:-translate-y-1 transition-all text-left group">
@@ -725,6 +833,34 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                                                     className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <i className="ph-bold ph-google-drive-logo"></i> {currentUser?.connections?.drive ? "Reconnect Drive" : "Connect Drive"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                if (msg.text === 'CONNECT_CALENDAR_ACTION') {
+                                    return (
+                                         <div key={msg.id} className="flex justify-start gap-4 animate-slide-up">
+                                            <div className="flex-shrink-0 mt-1">
+                                                <div className="w-9 h-9 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-brand-600 shadow-sm">
+                                                    <i className="ph-bold ph-brain text-lg"></i>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white border border-orange-100 p-6 rounded-2xl shadow-sm max-w-md">
+                                                <div className="flex items-center gap-3 mb-3 text-orange-600 font-bold">
+                                                    <i className="ph-fill ph-warning-circle text-xl"></i>
+                                                    <span>Permission Required</span>
+                                                </div>
+                                                <p className="text-slate-600 text-sm mb-4">
+                                                    {currentUser?.connections?.calendar 
+                                                        ? "Your Google Calendar session has expired. Please reconnect."
+                                                        : "To manage events on your behalf, I need your permission to access Google Calendar."}
+                                                </p>
+                                                <button 
+                                                    onClick={handleConnectCalendar}
+                                                    className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="ph-bold ph-calendar-blank"></i> {currentUser?.connections?.calendar ? "Reconnect Calendar" : "Connect Calendar"}
                                                 </button>
                                             </div>
                                         </div>

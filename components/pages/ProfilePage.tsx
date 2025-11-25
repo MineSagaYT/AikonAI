@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { updateUserProfile } from '../../services/firebase';
@@ -19,7 +20,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
         connectGmail, 
         disconnectGmail,
         connectDrive,
-        disconnectDrive
+        disconnectDrive,
+        connectCalendar,
+        disconnectCalendar
     } = useAuth();
     
     // Form States
@@ -163,6 +166,22 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
         }
     }
 
+    const handleCalendarConnection = async () => {
+        if (currentUser?.connections?.calendar) {
+            if(window.confirm("Disconnect Google Calendar? Aikon won't be able to schedule meetings.")) {
+                disconnectCalendar();
+                showToast("Google Calendar disconnected.");
+            }
+        } else {
+            try {
+                await connectCalendar();
+                showToast("Google Calendar connected successfully!");
+            } catch (e) {
+                showToast("Failed to connect Google Calendar.");
+            }
+        }
+    }
+
     return (
         <div className="min-h-screen bg-[#F8FAFC] relative overflow-hidden">
             {/* Background Decor */}
@@ -245,7 +264,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
                             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
                                 <i className="ph-duotone ph-plugs-connected text-brand-500"></i> Connected Apps
                             </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {/* Gmail Connection Card */}
                                 <div className="border border-slate-200 rounded-2xl p-4 flex items-center justify-between bg-slate-50">
                                     <div className="flex items-center gap-4">
@@ -317,6 +336,43 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
                                         }`}
                                     >
                                         {currentUser?.connections?.drive ? 'Disconnect' : 'Connect'}
+                                    </button>
+                                </div>
+
+                                {/* Google Calendar Connection Card */}
+                                <div className="border border-slate-200 rounded-2xl p-4 flex items-center justify-between bg-slate-50">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-orange-500 text-2xl">
+                                            <i className="ph-fill ph-calendar-blank"></i>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 text-sm">Google Calendar</h4>
+                                            {currentUser?.connections?.calendar ? (
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs text-green-600 font-bold flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Connected
+                                                    </span>
+                                                    {currentUser.connections.calendarEmail && (
+                                                        <span className="text-xs text-slate-400 truncate max-w-[150px]">{currentUser.connections.calendarEmail}</span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Not Connected
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={handleCalendarConnection}
+                                        disabled={!isEditing && currentUser?.connections?.calendar}
+                                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                                            currentUser?.connections?.calendar 
+                                                ? 'bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-100' 
+                                                : 'bg-slate-900 text-white hover:bg-brand-600 shadow-lg shadow-slate-900/10'
+                                        }`}
+                                    >
+                                        {currentUser?.connections?.calendar ? 'Disconnect' : 'Connect'}
                                     </button>
                                 </div>
                             </div>

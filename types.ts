@@ -1,4 +1,5 @@
 
+
 import { Chat } from '@google/genai';
 
 // Declare global variables from CDN scripts to make TypeScript aware of them
@@ -177,6 +178,8 @@ export interface UserConnections {
     gmailEmail?: string;
     drive?: boolean;
     driveEmail?: string;
+    calendar?: boolean;
+    calendarEmail?: string;
     connectedAt?: any;
 }
 
@@ -200,6 +203,16 @@ export interface DriveFile {
     name: string;
     mimeType: string;
     webViewLink?: string;
+}
+
+export interface CalendarEvent {
+    id: string;
+    summary: string;
+    start: { dateTime: string; timeZone?: string };
+    end: { dateTime: string; timeZone?: string };
+    htmlLink: string;
+    location?: string;
+    description?: string;
 }
 
 // Data structures for file generation

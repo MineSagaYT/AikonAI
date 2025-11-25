@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
 import { auth, googleProvider, syncUserToFirestore, deleteUserDocument, updateUserProfile, updateUserConnections } from '../services/firebase';
@@ -20,6 +21,7 @@ interface AuthContextType {
     currentUser: UserProfile | null;
     googleAccessToken: string | null;
     driveAccessToken: string | null;
+    calendarAccessToken: string | null;
     loading: boolean;
     login: (email: string, pass: string) => Promise<void>;
     loginWithGoogle: () => Promise<void>;
@@ -33,12 +35,15 @@ interface AuthContextType {
     disconnectGmail: () => void;
     connectDrive: () => Promise<void>;
     disconnectDrive: () => void;
+    connectCalendar: () => Promise<void>;
+    disconnectCalendar: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
     currentUser: null,
     googleAccessToken: null,
     driveAccessToken: null,
+    calendarAccessToken: null,
     loading: true, 
     login: async () => {},
     loginWithGoogle: async () => {},
@@ -52,12 +57,15 @@ const AuthContext = createContext<AuthContextType>({
     disconnectGmail: () => {},
     connectDrive: async () => {},
     disconnectDrive: () => {},
+    connectCalendar: async () => {},
+    disconnectCalendar: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
     const [driveAccessToken, setDriveAccessToken] = useState<string | null>(null);
+    const [calendarAccessToken, setCalendarAccessToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -89,6 +97,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
         }
 
+        // Calendar
+        const storedCalToken = localStorage.getItem('aikon_calendar_token');
+        const storedCalExp = localStorage.getItem('aikon_calendar_exp');
+        if (storedCalToken && storedCalExp) {
+            const expTime = parseInt(storedCalExp, 10);
+            if (Date.now() < expTime) {
+                setCalendarAccessToken(storedCalToken);
+            } else {
+                localStorage.removeItem('aikon_calendar_token');
+                localStorage.removeItem('aikon_calendar_exp');
+            }
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             // Check if user is logged in AND verified
             if (user && user.emailVerified) {
@@ -111,6 +132,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 setDriveAccessToken(null);
                 localStorage.removeItem('aikon_drive_token');
                 localStorage.removeItem('aikon_drive_exp');
+
+                setCalendarAccessToken(null);
+                localStorage.removeItem('aikon_calendar_token');
+                localStorage.removeItem('aikon_calendar_exp');
             }
             setLoading(false);
         });
@@ -186,7 +211,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const connectDrive = async () => {
         const scopeProvider = new GoogleAuthProvider();
-        // Request full drive access as requested ("access... create/edit... whatever user wants")
         scopeProvider.addScope('https://www.googleapis.com/auth/drive');
         
         const result = await signInWithPopup(auth, scopeProvider);
@@ -237,6 +261,58 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const connectCalendar = async () => {
+        const scopeProvider = new GoogleAuthProvider();
+        scopeProvider.addScope('https://www.googleapis.com/auth/calendar');
+        
+        const result = await signInWithPopup(auth, scopeProvider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        
+        if (credential?.accessToken && auth.currentUser) {
+            const token = credential.accessToken;
+            setCalendarAccessToken(token);
+            
+            localStorage.setItem('aikon_calendar_token', token);
+            localStorage.setItem('aikon_calendar_exp', (Date.now() + 55 * 60 * 1000).toString());
+
+            const calendarEmail = result.user.email || undefined;
+            await updateUserConnections(auth.currentUser.uid, {
+                calendar: true,
+                calendarEmail: calendarEmail,
+            });
+
+            if (currentUser) {
+                setCurrentUser({
+                    ...currentUser,
+                    connections: {
+                        ...currentUser.connections,
+                        calendar: true,
+                        calendarEmail: calendarEmail
+                    }
+                });
+            }
+        }
+    };
+
+    const disconnectCalendar = async () => {
+        setCalendarAccessToken(null);
+        localStorage.removeItem('aikon_calendar_token');
+        localStorage.removeItem('aikon_calendar_exp');
+
+        if (auth.currentUser && currentUser) {
+             await updateUserConnections(auth.currentUser.uid, {
+                calendar: false
+            });
+            setCurrentUser({
+                ...currentUser,
+                connections: {
+                    ...currentUser.connections,
+                    calendar: false
+                }
+            });
+        }
+    };
+
     const register = async (email: string, pass: string, name: string, photoFile?: File) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const user = userCredential.user;
@@ -257,10 +333,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const logout = async () => {
         setGoogleAccessToken(null);
         setDriveAccessToken(null);
+        setCalendarAccessToken(null);
         localStorage.removeItem('aikon_gmail_token');
         localStorage.removeItem('aikon_gmail_exp');
         localStorage.removeItem('aikon_drive_token');
         localStorage.removeItem('aikon_drive_exp');
+        localStorage.removeItem('aikon_calendar_token');
+        localStorage.removeItem('aikon_calendar_exp');
         await signOut(auth);
     };
 
@@ -299,6 +378,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             currentUser, 
             googleAccessToken, 
             driveAccessToken,
+            calendarAccessToken,
             loading, 
             login, 
             loginWithGoogle, 
@@ -311,7 +391,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             connectGmail, 
             disconnectGmail,
             connectDrive,
-            disconnectDrive
+            disconnectDrive,
+            connectCalendar,
+            disconnectCalendar
         }}>
             {children}
         </AuthContext.Provider>
