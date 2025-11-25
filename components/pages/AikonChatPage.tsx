@@ -273,15 +273,15 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                                 className="max-w-3xl mx-auto mt-4 pl-12"
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 10, transition: { duration: 0.2 } }}
+                                exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.3, ease: "backIn" } }}
                             >
-                                <div className="bg-white/50 border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm inline-flex items-center gap-2">
-                                    <div className="flex gap-1">
-                                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></span>
-                                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
-                                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                                <div className="bg-white/50 border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm inline-flex items-center gap-3">
+                                    <div className="flex gap-1.5">
+                                        <span className="w-2 h-2 bg-brand-500 rounded-full animate-[bounce_1s_infinite]"></span>
+                                        <span className="w-2 h-2 bg-brand-500 rounded-full animate-[bounce_1s_infinite_200ms]"></span>
+                                        <span className="w-2 h-2 bg-brand-500 rounded-full animate-[bounce_1s_infinite_400ms]"></span>
                                     </div>
-                                    <span className="text-xs text-brand-600 font-medium">Aikon is typing...</span>
+                                    <span className="text-xs text-brand-600 font-bold tracking-wide">Aikon is typing...</span>
                                 </div>
                             </MotionDiv>
                         )}
