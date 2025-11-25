@@ -39,7 +39,9 @@ export const syncUserToFirestore = async (user: User, additionalData?: { name?: 
             customInstructions: '',
             onboardingCompleted: true,
             pin: '',
-            customPersonas: []
+            customPersonas: [],
+            bio: '',
+            age: ''
         };
         await setDoc(userRef, userData);
         return userData;
@@ -62,7 +64,9 @@ export const getUserProfile = async (user: { uid: string }): Promise<UserProfile
         photoURL: null,
         pin: '',
         aboutYou: 'Friend',
-        onboardingCompleted: false
+        onboardingCompleted: false,
+        bio: '',
+        age: ''
     };
 };
 

@@ -3,11 +3,12 @@ import { useAuth } from './context/AuthContext';
 import LandingPage from './components/LandingPage';
 import AikonChatPage from './components/pages/AikonChatPage';
 import LoginPage from './components/pages/LoginPage';
+import ProfilePage from './components/pages/ProfilePage';
 import LoadingSpinner from './components/LoadingSpinner';
 import { AnimatePresence, motion } from 'framer-motion';
 
 const App: React.FC = () => {
-    const [view, setView] = useState<'landing' | 'chat' | 'login'>('landing');
+    const [view, setView] = useState<'landing' | 'chat' | 'login' | 'profile'>('landing');
     const { currentUser, loading } = useAuth();
 
     // Automatically redirect to chat if user logs in while on login page
@@ -17,8 +18,8 @@ const App: React.FC = () => {
         }
     }, [currentUser, view]);
 
-    const switchView = (newView: 'landing' | 'chat' | 'login') => {
-        if (newView === 'chat' && !currentUser) {
+    const switchView = (newView: 'landing' | 'chat' | 'login' | 'profile') => {
+        if ((newView === 'chat' || newView === 'profile') && !currentUser) {
             setView('login');
         } else {
             setView(newView);
@@ -64,7 +65,21 @@ const App: React.FC = () => {
                         transition={{ duration: 0.4 }}
                         className="h-screen w-full"
                     >
-                        <AikonChatPage onBack={() => switchView('landing')} />
+                        <AikonChatPage 
+                            onBack={() => switchView('landing')} 
+                            onProfile={() => switchView('profile')}
+                        />
+                    </motion.div>
+                )}
+                 {view === 'profile' && (
+                    <motion.div
+                        key="profile"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                    >
+                        <ProfilePage onBack={() => switchView('chat')} />
                     </motion.div>
                 )}
             </AnimatePresence>

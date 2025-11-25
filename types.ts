@@ -173,6 +173,8 @@ export interface UserProfile {
     onboardingCompleted?: boolean;
     pin: string;
     customPersonas?: Persona[];
+    bio?: string;
+    age?: string;
 }
 
 // Data structures for file generation

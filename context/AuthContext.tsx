@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
-import { auth, googleProvider, syncUserToFirestore, deleteUserDocument } from '../services/firebase';
+import { auth, googleProvider, syncUserToFirestore, deleteUserDocument, updateUserProfile } from '../services/firebase';
 import { 
     onAuthStateChanged, 
     signInWithEmailAndPassword, 
@@ -10,7 +10,8 @@ import {
     User, 
     sendEmailVerification, 
     sendPasswordResetEmail,
-    signInWithPopup 
+    signInWithPopup,
+    updateEmail
 } from 'firebase/auth';
 
 interface AuthContextType {
@@ -21,6 +22,7 @@ interface AuthContextType {
     register: (email: string, pass: string, name: string, photoFile?: File) => Promise<void>;
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
+    updateEmailAddress: (newEmail: string) => Promise<void>;
     updateCurrentUser: (data: Partial<UserProfile>) => void;
     deleteAccount: () => Promise<void>;
 }
@@ -33,6 +35,7 @@ const AuthContext = createContext<AuthContextType>({
     register: async () => {},
     logout: async () => {},
     resetPassword: async () => {},
+    updateEmailAddress: async () => {},
     updateCurrentUser: () => {},
     deleteAccount: async () => {},
 });
@@ -105,6 +108,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await sendPasswordResetEmail(auth, email);
     };
 
+    const updateEmailAddress = async (newEmail: string) => {
+        if (auth.currentUser) {
+            await updateEmail(auth.currentUser, newEmail);
+            // Sync new email to Firestore immediately
+            await updateUserProfile(auth.currentUser.uid, { email: newEmail });
+            if (currentUser) {
+                setCurrentUser({ ...currentUser, email: newEmail });
+            }
+        }
+    };
+
     const updateCurrentUser = (data: Partial<UserProfile>) => {
         if (currentUser) {
             setCurrentUser({ ...currentUser, ...data });
@@ -125,7 +139,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     return (
-        <AuthContext.Provider value={{ currentUser, loading, login, loginWithGoogle, register, logout, resetPassword, updateCurrentUser, deleteAccount }}>
+        <AuthContext.Provider value={{ currentUser, loading, login, loginWithGoogle, register, logout, resetPassword, updateEmailAddress, updateCurrentUser, deleteAccount }}>
             {children}
         </AuthContext.Provider>
     );

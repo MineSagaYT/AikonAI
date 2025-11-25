@@ -8,11 +8,12 @@ import LiveCallInterface from '../LiveCallInterface';
 
 interface AikonChatPageProps {
     onBack: () => void;
+    onProfile: () => void;
 }
 
 const MotionDiv = motion.div as any;
 
-const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
+const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
     const { currentUser } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -185,12 +186,16 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                 </div>
 
                 <div className="p-4 border-t border-slate-100 bg-white/50 backdrop-blur-sm">
-                    <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/80 transition cursor-pointer group">
+                    <div onClick={onProfile} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/80 transition cursor-pointer group">
                         <div className="relative">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-600 to-accent-500 p-0.5 shadow-sm group-hover:scale-105 transition">
-                                <div className="w-full h-full bg-slate-100 rounded-full flex items-center justify-center font-bold text-brand-700 text-sm">
-                                    {currentUser?.displayName?.charAt(0) || 'G'}
-                                </div>
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-600 to-accent-500 p-0.5 shadow-sm group-hover:scale-105 transition overflow-hidden">
+                                {currentUser?.photoURL ? (
+                                    <img src={currentUser.photoURL.startsWith('http') || currentUser.photoURL.startsWith('data:') ? currentUser.photoURL : `https://ui-avatars.com/api/?name=${currentUser.displayName}&background=random`} alt="Profile" className="w-full h-full rounded-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full bg-slate-100 rounded-full flex items-center justify-center font-bold text-brand-700 text-sm">
+                                        {currentUser?.displayName?.charAt(0) || 'G'}
+                                    </div>
+                                )}
                             </div>
                             <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
                         </div>
@@ -198,6 +203,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                             <div className="font-bold text-sm text-slate-800 truncate">{currentUser?.displayName || 'Guest'}</div>
                             <div className="text-xs text-slate-500 truncate">Pro Plan Active</div>
                         </div>
+                        <i className="ph-bold ph-gear text-slate-400 group-hover:text-brand-600"></i>
                     </div>
                 </div>
             </aside>
