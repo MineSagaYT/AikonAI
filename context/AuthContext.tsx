@@ -28,6 +28,7 @@ interface AuthContextType {
     updateCurrentUser: (data: Partial<UserProfile>) => void;
     deleteAccount: () => Promise<void>;
     connectGmail: () => Promise<void>;
+    disconnectGmail: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -43,6 +44,7 @@ const AuthContext = createContext<AuthContextType>({
     updateCurrentUser: () => {},
     deleteAccount: async () => {},
     connectGmail: async () => {},
+    disconnectGmail: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -82,11 +84,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const loginWithGoogle = async () => {
         // Standard login without special scopes
-        const result = await signInWithPopup(auth, googleProvider);
-        const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-            setGoogleAccessToken(credential.accessToken);
-        }
+        // We do NOT store the access token here because it lacks Gmail scopes.
+        await signInWithPopup(auth, googleProvider);
         // User state will update via onAuthStateChanged
     };
 
@@ -96,6 +95,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const scopeProvider = new GoogleAuthProvider();
         scopeProvider.addScope('https://www.googleapis.com/auth/gmail.send');
         
+        // Force consent to ensure the user sees the permission request and we get a fresh token with scopes
+        scopeProvider.setCustomParameters({ prompt: 'consent' });
+
         // Use the Client ID if provided in a custom parameter, though Firebase usually handles this via Console config
         // scopeProvider.setCustomParameters({ client_id: '973421497766-bhd23a8scm1gqlnk9asu7i5i3g7qv8hn.apps.googleusercontent.com' });
 
@@ -104,6 +106,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (credential?.accessToken) {
             setGoogleAccessToken(credential.accessToken);
         }
+    };
+
+    const disconnectGmail = () => {
+        setGoogleAccessToken(null);
     };
 
     const register = async (email: string, pass: string, name: string, photoFile?: File) => {
@@ -167,7 +173,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     return (
-        <AuthContext.Provider value={{ currentUser, googleAccessToken, loading, login, loginWithGoogle, register, logout, resetPassword, updateEmailAddress, updateCurrentUser, deleteAccount, connectGmail }}>
+        <AuthContext.Provider value={{ currentUser, googleAccessToken, loading, login, loginWithGoogle, register, logout, resetPassword, updateEmailAddress, updateCurrentUser, deleteAccount, connectGmail, disconnectGmail }}>
             {children}
         </AuthContext.Provider>
     );

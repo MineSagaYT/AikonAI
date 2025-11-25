@@ -15,7 +15,7 @@ interface AikonChatPageProps {
 const MotionDiv = motion.div as any;
 
 const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
-    const { currentUser, googleAccessToken, connectGmail } = useAuth();
+    const { currentUser, googleAccessToken, connectGmail, disconnectGmail } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [files, setFiles] = useState<FileAttachment[]>([]);
@@ -71,11 +71,21 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                 status: 'sent' 
             } : m));
         } else {
-            setMessages(prev => prev.map(m => m.id === action.msgId ? { 
-                ...m, 
-                text: `❌ ${result.message}`, 
-                status: 'sent' 
-            } : m));
+             // Handle Auth Errors
+             if (result.message.includes('insufficient authentication scopes') || result.message.includes('Authentication failed')) {
+                disconnectGmail(); // Clear bad token so user can try connecting again
+                setMessages(prev => prev.map(m => m.id === action.msgId ? { 
+                    ...m, 
+                    text: `❌ ${result.message}\n\nPlease try connecting Gmail again.`, 
+                    status: 'sent' 
+                } : m));
+            } else {
+                setMessages(prev => prev.map(m => m.id === action.msgId ? { 
+                    ...m, 
+                    text: `❌ ${result.message}`, 
+                    status: 'sent' 
+                } : m));
+            }
         }
         
         setPendingEmailAction(null);
@@ -186,11 +196,30 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                                      status: 'sent' 
                                  } : m));
                              } else {
-                                 setMessages(prev => prev.map(m => m.id === msgId ? { 
-                                     ...m, 
-                                     text: cleanText + `\n\n❌ ${result.message}`, 
-                                     status: 'sent' 
-                                 } : m));
+                                 // Check for auth errors to offer reconnection
+                                 if (result.message.includes('insufficient authentication scopes') || result.message.includes('Authentication failed')) {
+                                     disconnectGmail();
+                                     // Re-prompt for connection
+                                     setPendingEmailAction({ to, subject, body, msgId });
+                                     setMessages(prev => prev.map(m => m.id === msgId ? { 
+                                        ...m, 
+                                        text: cleanText + `\n\n❌ ${result.message}\n\nI need to refresh your Gmail permissions. Please connect again below.`, 
+                                        status: 'sent' 
+                                     } : m));
+                                     setMessages(prev => [...prev, {
+                                         id: Date.now().toString() + '_sys',
+                                         text: 'CONNECT_GMAIL_ACTION',
+                                         sender: 'ai',
+                                         timestamp: new Date(),
+                                         status: 'sent'
+                                     }]);
+                                 } else {
+                                    setMessages(prev => prev.map(m => m.id === msgId ? { 
+                                        ...m, 
+                                        text: cleanText + `\n\n❌ ${result.message}`, 
+                                        status: 'sent' 
+                                    } : m));
+                                 }
                              }
                          }
                     }
