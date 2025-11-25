@@ -23,6 +23,9 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
+// Add Gmail Send Scope
+googleProvider.addScope('https://www.googleapis.com/auth/gmail.send');
+
 // --- Firestore User Profile Management ---
 
 export const syncUserToFirestore = async (user: User, additionalData?: { name?: string, photoFileName?: string }) => {

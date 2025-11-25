@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, FileAttachment } from '../../types';
 import { streamMessageToChat, generateImage, generateQRCode, generateWebsiteCode, editImage, generateSpeech } from '../../services/geminiService';
+import { sendEmail } from '../../services/emailService';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import MessageBubble from '../MessageBubble';
@@ -14,7 +15,7 @@ interface AikonChatPageProps {
 const MotionDiv = motion.div as any;
 
 const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
-    const { currentUser } = useAuth();
+    const { currentUser, googleAccessToken, connectGmail } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [files, setFiles] = useState<FileAttachment[]>([]);
@@ -22,6 +23,9 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isCallActive, setIsCallActive] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+    // State to handle pending actions
+    const [pendingEmailAction, setPendingEmailAction] = useState<{to: string, subject: string, body: string} | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +37,22 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
     const showToast = (msg: string) => {
         setToastMessage(msg);
         setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    const handleConnectGmail = async () => {
+        try {
+            await connectGmail();
+            showToast("Gmail Connected Successfully!");
+            
+            // If there was a pending email, try sending it now
+            if (pendingEmailAction && googleAccessToken) { // Note: state might lag, but let's try or ask user to retry
+                // Actually, since token state update triggers re-render, we can't easily auto-resume perfectly without more complex effect.
+                // Better to just tell user to try again or handle it in a follow up.
+            }
+        } catch (error) {
+            console.error("Gmail Connection Failed", error);
+            showToast("Failed to connect Gmail.");
+        }
     };
 
     const handleSendMessage = async () => {
@@ -51,6 +71,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
         setInput('');
         setFiles([]);
         setIsTyping(true);
+        setPendingEmailAction(null); // Clear previous pending actions
 
         try {
             const history = messages.map(m => ({ role: m.sender === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
@@ -70,6 +91,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
             }
             
             // Robust JSON Tool Call Extraction
+            // We search for the *last* valid JSON object that looks like a tool call to avoid partial matches inside text
             const jsonMatch = fullText.match(/\{[\s\S]*"tool_call"[\s\S]*\}/);
 
             if (jsonMatch) {
@@ -77,26 +99,25 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                     const jsonStr = jsonMatch[0];
                     const toolData = JSON.parse(jsonStr);
                     const toolName = toolData.tool_call;
-                    const toolPrompt = toolData.prompt;
 
                     const cleanText = fullText.replace(jsonMatch[0], '').trim();
-                    const displayText = cleanText || "Generating content...";
+                    const displayText = cleanText || (toolName === 'send_email' ? "Processing your email request..." : "Generating content...");
 
                     setMessages(prev => prev.map(m => m.id === msgId ? { 
                         ...m, 
                         text: displayText, 
-                        status: 'streaming' // Keep streaming until tool is done
+                        status: 'streaming' 
                     } : m));
 
                     if (toolName === 'generate_image') {
                         setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Generating your imagination 🖼..." } : m));
                         try {
-                            const imgUrl = await generateImage(toolPrompt);
+                            const imgUrl = await generateImage(toolData.prompt);
                             if (imgUrl) {
                                 setMessages(prev => prev.map(m => m.id === msgId ? { 
                                     ...m, 
-                                    text: cleanText || `Here is the image for: "${toolPrompt}"`, 
-                                    generatedImage: { prompt: toolPrompt, url: imgUrl },
+                                    text: cleanText || `Here is the image for: "${toolData.prompt}"`, 
+                                    generatedImage: { prompt: toolData.prompt, url: imgUrl },
                                     status: 'sent'
                                 } : m));
                             } else {
@@ -105,7 +126,49 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                         } catch (e) {
                            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Sorry, I encountered an error generating the image.", status: 'sent' } : m));
                         }
+                    } else if (toolName === 'send_email') {
+                         const { to, subject, body } = toolData;
+                         
+                         if (!googleAccessToken) {
+                             // Token missing, prompt user
+                             setPendingEmailAction({ to, subject, body });
+                             setMessages(prev => prev.map(m => m.id === msgId ? {
+                                 ...m,
+                                 text: cleanText + "\n\nI need access to your Gmail to send this. Please connect your account below.",
+                                 status: 'sent',
+                                 // We can add a custom action indicator here if we had a generalized action UI, 
+                                 // but for now we'll handle the button separately in the UI or reuse 'requiresAction' logic later.
+                             } : m));
+                             // We will inject a special "System" message with the button
+                             setMessages(prev => [...prev, {
+                                 id: Date.now().toString() + '_sys',
+                                 text: 'CONNECT_GMAIL_ACTION', // Special flag to render component
+                                 sender: 'ai',
+                                 timestamp: new Date(),
+                                 status: 'sent'
+                             }]);
+                             
+                         } else {
+                             // Token exists, send email
+                             setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Sending email... 📧" } : m));
+                             const result = await sendEmail(googleAccessToken, to, subject, body);
+                             
+                             if (result.success) {
+                                 setMessages(prev => prev.map(m => m.id === msgId ? { 
+                                     ...m, 
+                                     text: cleanText + `\n\n✅ Email sent successfully to ${to}.`, 
+                                     status: 'sent' 
+                                 } : m));
+                             } else {
+                                 setMessages(prev => prev.map(m => m.id === msgId ? { 
+                                     ...m, 
+                                     text: cleanText + `\n\n❌ ${result.message}`, 
+                                     status: 'sent' 
+                                 } : m));
+                             }
+                         }
                     }
+
                 } catch (e) {
                     console.error("Failed to parse tool call JSON", e);
                     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m));
@@ -244,11 +307,11 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                             </div>
                             <h2 className="text-3xl md:text-5xl font-heading font-bold text-slate-800 mb-4 text-center">Namaste, <span className="bg-gradient-to-r from-brand-600 to-accent-600 bg-clip-text text-transparent">{currentUser?.displayName || 'Friend'}</span> 👋</h2>
                             <p className="text-lg text-slate-500 text-center max-w-xl mb-10 leading-relaxed">
-                                I'm Aikon, your intelligent companion. I can code, create art, and help you build the future. <br /> <span className="text-sm font-medium text-brand-500">How can we innovate today?</span>
+                                I'm Aikon, your intelligent companion. I can code, create art, send emails, and help you build the future. <br /> <span className="text-sm font-medium text-brand-500">How can we innovate today?</span>
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-2">
                                 {[
-                                    { icon: 'ph-book-open-text', color: 'text-orange-500', title: 'Sanatan Knowledge', desc: 'Explain concepts like Moksha or Dharma.', prompt: 'Explain the concept of Moksha in Sanatan Dharm simply.' },
+                                    { icon: 'ph-envelope-simple', color: 'text-red-500', title: 'Gmail Assistant', desc: 'Send emails instantly.', prompt: 'Send an email to boss@company.com saying I will be late.' },
                                     { icon: 'ph-code', color: 'text-emerald-500', title: 'Code Assistant', desc: 'Generate Python/JS scripts & debug.', prompt: 'Write a Python script to visualize stock market data.' },
                                     { icon: 'ph-paint-brush-broad', color: 'text-accent-500', title: 'Visual Creation', desc: 'Generate stunning AI art.', prompt: 'Create a futuristic image of a temple on Mars.' },
                                     { icon: 'ph-rocket-launch', color: 'text-blue-500', title: 'Strategic Planning', desc: 'Brainstorm ideas & roadmaps.', prompt: 'Help me plan a product launch for next week.' }
@@ -266,9 +329,35 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                         </div>
                     ) : (
                         <div className="max-w-3xl mx-auto space-y-8">
-                            {messages.map((msg) => (
-                                <MessageBubble key={msg.id} message={msg} />
-                            ))}
+                            {messages.map((msg) => {
+                                if (msg.text === 'CONNECT_GMAIL_ACTION') {
+                                    return (
+                                        <div key={msg.id} className="flex justify-start gap-4 animate-slide-up">
+                                            <div className="flex-shrink-0 mt-1">
+                                                <div className="w-9 h-9 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-brand-600 shadow-sm">
+                                                    <i className="ph-bold ph-brain text-lg"></i>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white border border-red-100 p-6 rounded-2xl shadow-sm max-w-md">
+                                                <div className="flex items-center gap-3 mb-3 text-red-600 font-bold">
+                                                    <i className="ph-fill ph-warning-circle text-xl"></i>
+                                                    <span>Permission Required</span>
+                                                </div>
+                                                <p className="text-slate-600 text-sm mb-4">
+                                                    To send emails on your behalf, I need your permission to access Gmail. This is a one-time setup.
+                                                </p>
+                                                <button 
+                                                    onClick={handleConnectGmail}
+                                                    className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="ph-bold ph-google-logo"></i> Connect Gmail
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                return <MessageBubble key={msg.id} message={msg} />;
+                            })}
                             <div ref={messagesEndRef} />
                         </div>
                     )}

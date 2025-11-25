@@ -11,11 +11,13 @@ import {
     sendEmailVerification, 
     sendPasswordResetEmail,
     signInWithPopup,
-    updateEmail
+    updateEmail,
+    GoogleAuthProvider
 } from 'firebase/auth';
 
 interface AuthContextType {
     currentUser: UserProfile | null;
+    googleAccessToken: string | null;
     loading: boolean;
     login: (email: string, pass: string) => Promise<void>;
     loginWithGoogle: () => Promise<void>;
@@ -25,10 +27,12 @@ interface AuthContextType {
     updateEmailAddress: (newEmail: string) => Promise<void>;
     updateCurrentUser: (data: Partial<UserProfile>) => void;
     deleteAccount: () => Promise<void>;
+    connectGmail: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
     currentUser: null,
+    googleAccessToken: null,
     loading: true, 
     login: async () => {},
     loginWithGoogle: async () => {},
@@ -38,10 +42,12 @@ const AuthContext = createContext<AuthContextType>({
     updateEmailAddress: async () => {},
     updateCurrentUser: () => {},
     deleteAccount: async () => {},
+    connectGmail: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+    const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -58,6 +64,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
             } else {
                 setCurrentUser(null);
+                setGoogleAccessToken(null);
             }
             setLoading(false);
         });
@@ -74,8 +81,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const loginWithGoogle = async () => {
-        await signInWithPopup(auth, googleProvider);
+        const result = await signInWithPopup(auth, googleProvider);
+        // This gives you a Google Access Token. You can use it to access the Google API.
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+            setGoogleAccessToken(credential.accessToken);
+        }
         // User state will update via onAuthStateChanged, which also handles Firestore sync
+    };
+
+    const connectGmail = async () => {
+        // Trigger a sign-in with popup to ask for permissions and get a fresh token.
+        // This is useful if the user originally signed in with Email/Password or if the token expired.
+        const result = await signInWithPopup(auth, googleProvider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+            setGoogleAccessToken(credential.accessToken);
+        }
     };
 
     const register = async (email: string, pass: string, name: string, photoFile?: File) => {
@@ -101,6 +123,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const logout = async () => {
+        setGoogleAccessToken(null);
         await signOut(auth);
     };
 
@@ -139,7 +162,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     return (
-        <AuthContext.Provider value={{ currentUser, loading, login, loginWithGoogle, register, logout, resetPassword, updateEmailAddress, updateCurrentUser, deleteAccount }}>
+        <AuthContext.Provider value={{ currentUser, googleAccessToken, loading, login, loginWithGoogle, register, logout, resetPassword, updateEmailAddress, updateCurrentUser, deleteAccount, connectGmail }}>
             {children}
         </AuthContext.Provider>
     );
