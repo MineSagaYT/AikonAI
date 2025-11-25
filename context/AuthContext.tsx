@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
-import { auth, googleProvider, syncUserToFirestore, deleteUserDocument, updateUserProfile } from '../services/firebase';
+import { auth, googleProvider, syncUserToFirestore, deleteUserDocument, updateUserProfile, updateUserConnections } from '../services/firebase';
 import { 
     onAuthStateChanged, 
     signInWithEmailAndPassword, 
@@ -53,6 +53,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // --- 1. Hydrate Token from LocalStorage ---
+        const storedToken = localStorage.getItem('aikon_gmail_token');
+        const storedExp = localStorage.getItem('aikon_gmail_exp');
+        if (storedToken && storedExp) {
+            const expTime = parseInt(storedExp, 10);
+            if (Date.now() < expTime) {
+                setGoogleAccessToken(storedToken);
+            } else {
+                // Token expired
+                localStorage.removeItem('aikon_gmail_token');
+                localStorage.removeItem('aikon_gmail_exp');
+            }
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             // Check if user is logged in AND verified
             if (user && user.emailVerified) {
@@ -67,6 +81,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             } else {
                 setCurrentUser(null);
                 setGoogleAccessToken(null);
+                localStorage.removeItem('aikon_gmail_token');
+                localStorage.removeItem('aikon_gmail_exp');
             }
             setLoading(false);
         });
@@ -91,25 +107,65 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const connectGmail = async () => {
         // Trigger a sign-in with popup explicitly asking for Gmail scope
-        // This is done ONLY when the user asks to send an email
+        // This is done ONLY when the user asks to send an email or connects via Profile
         const scopeProvider = new GoogleAuthProvider();
         scopeProvider.addScope('https://www.googleapis.com/auth/gmail.send');
         
-        // Force consent to ensure the user sees the permission request and we get a fresh token with scopes
-        scopeProvider.setCustomParameters({ prompt: 'consent' });
-
-        // Use the Client ID if provided in a custom parameter, though Firebase usually handles this via Console config
-        // scopeProvider.setCustomParameters({ client_id: '973421497766-bhd23a8scm1gqlnk9asu7i5i3g7qv8hn.apps.googleusercontent.com' });
+        // REMOVED prompt: 'consent' to allow seamless re-auth if user already consented.
+        // This is crucial for the "24x7" feel (popup might just flash and close).
 
         const result = await signInWithPopup(auth, scopeProvider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential?.accessToken) {
-            setGoogleAccessToken(credential.accessToken);
+        
+        if (credential?.accessToken && auth.currentUser) {
+            const token = credential.accessToken;
+            setGoogleAccessToken(token);
+            
+            // Persist Token (approx 1 hour usually, saving locally)
+            localStorage.setItem('aikon_gmail_token', token);
+            // Set expiry for 55 minutes to be safe
+            localStorage.setItem('aikon_gmail_exp', (Date.now() + 55 * 60 * 1000).toString());
+
+            // Persist Connection Status to Firestore
+            const gmailEmail = result.user.email || undefined;
+            await updateUserConnections(auth.currentUser.uid, {
+                gmail: true,
+                gmailEmail: gmailEmail,
+                connectedAt: new Date().toISOString()
+            });
+
+            // Update local state immediately
+            if (currentUser) {
+                setCurrentUser({
+                    ...currentUser,
+                    connections: {
+                        ...currentUser.connections,
+                        gmail: true,
+                        gmailEmail: gmailEmail,
+                        connectedAt: new Date().toISOString()
+                    }
+                });
+            }
         }
     };
 
-    const disconnectGmail = () => {
+    const disconnectGmail = async () => {
         setGoogleAccessToken(null);
+        localStorage.removeItem('aikon_gmail_token');
+        localStorage.removeItem('aikon_gmail_exp');
+
+        if (auth.currentUser && currentUser) {
+             await updateUserConnections(auth.currentUser.uid, {
+                gmail: false
+            });
+            setCurrentUser({
+                ...currentUser,
+                connections: {
+                    ...currentUser.connections,
+                    gmail: false
+                }
+            });
+        }
     };
 
     const register = async (email: string, pass: string, name: string, photoFile?: File) => {
@@ -135,6 +191,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const logout = async () => {
         setGoogleAccessToken(null);
+        localStorage.removeItem('aikon_gmail_token');
+        localStorage.removeItem('aikon_gmail_exp');
         await signOut(auth);
     };
 

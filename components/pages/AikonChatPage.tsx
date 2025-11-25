@@ -200,10 +200,11 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
             }
         } else {
              if (result.message.includes('insufficient authentication scopes') || result.message.includes('Authentication failed')) {
-                disconnectGmail();
+                // Do not fully disconnect in UI, but prompt re-connect
+                // disconnectGmail(); // We can keep local status, but force new token flow
                 setMessages(prev => prev.map(m => m.id === action.msgId ? { 
                     ...m, 
-                    text: `❌ ${result.message}\n\nPlease try connecting Gmail again.`, 
+                    text: `❌ ${result.message}\n\nSession expired. Please reconnect Gmail.`, 
                     status: 'sent' 
                 } : m));
             } else {
@@ -324,7 +325,11 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                          if (!googleAccessToken) {
                              setPendingEmailAction({ to, subject, body, msgId, attachments });
                              
-                             finalAiMessage.text = cleanText + "\n\nI need access to your Gmail to send this. Please connect your account below.";
+                             const promptText = currentUser?.connections?.gmail 
+                                ? "\n\nSession expired. Please reconnect Gmail below to send."
+                                : "\n\nI need access to your Gmail to send this. Please connect your account below.";
+
+                             finalAiMessage.text = cleanText + promptText;
                              setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
 
                              setMessages(prev => [...prev, {
@@ -345,7 +350,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                              setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
 
                              if (!result.success && (result.message.includes('authentication scopes') || result.message.includes('Authentication failed'))) {
-                                 disconnectGmail();
+                                 // Token likely expired
                                  setPendingEmailAction({ to, subject, body, msgId, attachments });
                                  setMessages(prev => [...prev, {
                                      id: Date.now().toString() + '_sys',
@@ -609,13 +614,15 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                                                     <span>Permission Required</span>
                                                 </div>
                                                 <p className="text-slate-600 text-sm mb-4">
-                                                    To send emails on your behalf, I need your permission to access Gmail. This is a one-time setup.
+                                                    {currentUser?.connections?.gmail 
+                                                        ? "Your Gmail session has expired. Please reconnect to send this email."
+                                                        : "To send emails on your behalf, I need your permission to access Gmail. This is a one-time setup."}
                                                 </p>
                                                 <button 
                                                     onClick={handleConnectGmail}
                                                     className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
                                                 >
-                                                    <i className="ph-bold ph-google-logo"></i> Connect Gmail
+                                                    <i className="ph-bold ph-google-logo"></i> {currentUser?.connections?.gmail ? "Reconnect Gmail" : "Connect Gmail"}
                                                 </button>
                                             </div>
                                         </div>

@@ -20,7 +20,7 @@ import {
     writeBatch
 } from "firebase/firestore";
 import { Content } from '@google/genai';
-import { Task, ChatListItem, UserProfile, Message, ChatSession } from '../types';
+import { Task, ChatListItem, UserProfile, Message, ChatSession, UserConnections } from '../types';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -62,7 +62,8 @@ export const syncUserToFirestore = async (user: User, additionalData?: { name?: 
             pin: '',
             customPersonas: [],
             bio: '',
-            age: ''
+            age: '',
+            connections: {}
         };
         await setDoc(userRef, userData);
         return userData;
@@ -87,13 +88,29 @@ export const getUserProfile = async (user: { uid: string }): Promise<UserProfile
         aboutYou: 'Friend',
         onboardingCompleted: false,
         bio: '',
-        age: ''
+        age: '',
+        connections: {}
     };
 };
 
 export const updateUserProfile = async (userId: string, profileData: Partial<UserProfile>): Promise<void> => {
     const userRef = doc(db, "users", userId);
     await updateDoc(userRef, profileData);
+};
+
+export const updateUserConnections = async (userId: string, connectionData: UserConnections): Promise<void> => {
+    const userRef = doc(db, "users", userId);
+    // Use merge behavior by creating an object with dot notation if needed, but here simple update works
+    // However, since connections is a map, we want to merge it.
+    // The safest way with Firestore updateDoc on a map field is tricky if we want to merge deep fields
+    // but updateDoc with dot notation works: "connections.gmail": true
+    
+    const updates: any = {};
+    if (connectionData.gmail !== undefined) updates["connections.gmail"] = connectionData.gmail;
+    if (connectionData.gmailEmail !== undefined) updates["connections.gmailEmail"] = connectionData.gmailEmail;
+    if (connectionData.connectedAt !== undefined) updates["connections.connectedAt"] = connectionData.connectedAt;
+
+    await updateDoc(userRef, updates);
 };
 
 export const deleteUserDocument = async (userId: string): Promise<void> => {

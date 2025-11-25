@@ -171,6 +171,12 @@ export interface Persona {
     isCustom?: boolean;
 }
 
+export interface UserConnections {
+    gmail?: boolean;
+    gmailEmail?: string;
+    connectedAt?: any;
+}
+
 export interface UserProfile {
     uid: string; // Will now be the username
     displayName: string | null;
@@ -183,6 +189,7 @@ export interface UserProfile {
     customPersonas?: Persona[];
     bio?: string;
     age?: string;
+    connections?: UserConnections;
 }
 
 // Data structures for file generation
