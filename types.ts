@@ -155,6 +155,14 @@ export interface ChatListItem {
     createdAt: { seconds: number; nanoseconds: number; };
 }
 
+export interface ChatSession {
+    id: string;
+    title: string;
+    createdAt: any; // Firestore Timestamp
+    updatedAt: any; // Firestore Timestamp
+    userId: string;
+}
+
 export interface Persona {
     name: string;
     icon: string;

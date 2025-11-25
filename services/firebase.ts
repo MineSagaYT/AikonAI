@@ -1,9 +1,26 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider, User } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    getDoc, 
+    updateDoc, 
+    deleteDoc, 
+    collection, 
+    addDoc, 
+    query, 
+    where, 
+    orderBy, 
+    getDocs,
+    serverTimestamp,
+    limit,
+    Timestamp,
+    writeBatch
+} from "firebase/firestore";
 import { Content } from '@google/genai';
-import { Task, ChatListItem, UserProfile } from '../types';
+import { Task, ChatListItem, UserProfile, Message, ChatSession } from '../types';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -80,14 +97,139 @@ export const updateUserProfile = async (userId: string, profileData: Partial<Use
 };
 
 export const deleteUserDocument = async (userId: string): Promise<void> => {
+    // Delete all chats first
+    const chats = await getUserChats(userId);
+    for (const chat of chats) {
+        await deleteChatSession(userId, chat.id);
+    }
+    // Delete user doc
     await deleteDoc(doc(db, "users", userId));
 };
 
-// --- Local Storage Data Persistence for Chats & Tasks (Kept as per previous logic, but Profile moved to Firestore) ---
+// --- Firestore Chat History Management ---
+
+export const getUserChats = async (userId: string): Promise<ChatSession[]> => {
+    try {
+        const chatsRef = collection(db, "users", userId, "chats");
+        const q = query(chatsRef, orderBy("updatedAt", "desc"));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as ChatSession));
+    } catch (error) {
+        console.error("Error fetching chats:", error);
+        return [];
+    }
+};
+
+export const createNewChatSession = async (userId: string, title: string = "New Chat"): Promise<ChatSession | null> => {
+    try {
+        const chatsRef = collection(db, "users", userId, "chats");
+        
+        // Check Limit
+        const existingChats = await getDocs(chatsRef);
+        if (existingChats.size >= 10) {
+            throw new Error("CHAT_LIMIT_REACHED");
+        }
+
+        const newChatData = {
+            title,
+            userId,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+
+        const docRef = await addDoc(chatsRef, newChatData);
+        
+        // Return constructed object immediately (ignoring serverTimestamp latency for UI)
+        return {
+            id: docRef.id,
+            ...newChatData,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+        } as ChatSession;
+    } catch (error) {
+        console.error("Error creating chat:", error);
+        if ((error as Error).message === "CHAT_LIMIT_REACHED") throw error;
+        return null;
+    }
+};
+
+export const storeMessage = async (userId: string, chatId: string, message: Message): Promise<void> => {
+    try {
+        const messagesRef = collection(db, "users", userId, "chats", chatId, "messages");
+        
+        // Sanitize message object for Firestore (remove undefined)
+        const msgData = JSON.parse(JSON.stringify(message));
+        
+        // Add timestamp if missing or convert Date to Firestore Timestamp compatible format
+        msgData.timestamp = serverTimestamp();
+
+        // Save message to subcollection
+        await addDoc(messagesRef, msgData);
+
+        // Update parent chat's updatedAt
+        const chatRef = doc(db, "users", userId, "chats", chatId);
+        await updateDoc(chatRef, { updatedAt: serverTimestamp() });
+        
+    } catch (error) {
+        console.error("Error storing message:", error);
+    }
+};
+
+export const loadChatMessages = async (userId: string, chatId: string): Promise<Message[]> => {
+    try {
+        const messagesRef = collection(db, "users", userId, "chats", chatId, "messages");
+        const q = query(messagesRef, orderBy("timestamp", "asc"));
+        const querySnapshot = await getDocs(q);
+        
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                // Convert Firestore Timestamp back to Date
+                timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date()
+            } as Message;
+        });
+    } catch (error) {
+        console.error("Error loading messages:", error);
+        return [];
+    }
+};
+
+export const deleteChatSession = async (userId: string, chatId: string): Promise<void> => {
+    try {
+        const chatRef = doc(db, "users", userId, "chats", chatId);
+        const messagesRef = collection(db, "users", userId, "chats", chatId, "messages");
+        
+        // Delete all messages in subcollection (Client-side deletion of subcollections)
+        const messagesSnap = await getDocs(messagesRef);
+        const batch = writeBatch(db);
+        
+        messagesSnap.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+
+        // Delete parent doc
+        await deleteDoc(chatRef);
+    } catch (error) {
+        console.error("Error deleting chat:", error);
+    }
+};
+
+export const updateChatSessionTitle = async (userId: string, chatId: string, title: string): Promise<void> => {
+    const chatRef = doc(db, "users", userId, "chats", chatId);
+    await updateDoc(chatRef, { title });
+};
+
+
+// --- Task Management using Local Storage (Kept as requested or could move to Firestore later) ---
 
 const USER_DATA_PREFIX = 'aikon_user_';
 
-// Helper to get all data for a user (Local Storage)
 const getUserLocalData = (userId: string) => {
     const data = localStorage.getItem(`${USER_DATA_PREFIX}${userId}`);
     if (data) {
@@ -99,69 +241,9 @@ const getUserLocalData = (userId: string) => {
     };
 };
 
-// Helper to save all data for a user (Local Storage)
 const saveUserLocalData = (userId: string, data: any) => {
     localStorage.setItem(`${USER_DATA_PREFIX}${userId}`, JSON.stringify(data));
 };
-
-export const createChat = async (userId: string): Promise<string> => {
-    const userData = getUserLocalData(userId);
-    const newChatId = Date.now().toString();
-    if (!userData.chats) userData.chats = {};
-    userData.chats[newChatId] = {
-        id: newChatId,
-        title: 'New Chat',
-        createdAt: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
-        history: [],
-    };
-    saveUserLocalData(userId, userData);
-    return newChatId;
-};
-
-export const getChatList = async (userId: string): Promise<ChatListItem[]> => {
-    const userData = getUserLocalData(userId);
-    const chats = userData.chats || {};
-    return Object.values(chats)
-        .map((chat: any) => ({
-            id: chat.id,
-            title: chat.title,
-            createdAt: chat.createdAt,
-        }))
-        .sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
-};
-
-export const updateChatTitle = async (userId: string, chatId: string, title: string): Promise<void> => {
-    const userData = getUserLocalData(userId);
-    if (userData.chats && userData.chats[chatId]) {
-        userData.chats[chatId].title = title;
-        saveUserLocalData(userId, userData);
-    }
-};
-
-export const deleteAllChatsForUser = async (userId: string): Promise<void> => {
-    const userData = getUserLocalData(userId);
-    userData.chats = {};
-    saveUserLocalData(userId, userData);
-};
-
-export const saveChatHistory = async (userId: string, chatId: string, history: Content[]): Promise<void> => {
-    const userData = getUserLocalData(userId);
-    if (userData.chats && userData.chats[chatId]) {
-        userData.chats[chatId].history = history;
-        saveUserLocalData(userId, userData);
-    }
-};
-
-export const getChatHistory = async (userId: string, chatId: string): Promise<Content[] | null> => {
-    const userData = getUserLocalData(userId);
-    if (userData.chats && userData.chats[chatId]) {
-        return userData.chats[chatId].history || [];
-    }
-    return [];
-};
-
-
-// --- Task Management using Local Storage ---
 
 export const getTasks = async (userId: string): Promise<Task[]> => {
     const userData = getUserLocalData(userId);
