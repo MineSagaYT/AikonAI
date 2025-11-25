@@ -25,7 +25,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     // State to handle pending actions
-    const [pendingEmailAction, setPendingEmailAction] = useState<{to: string, subject: string, body: string} | null>(null);
+    const [pendingEmailAction, setPendingEmailAction] = useState<{to: string, subject: string, body: string, msgId: string} | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +33,13 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isTyping]);
+
+    // Auto-retry email sending when token becomes available
+    useEffect(() => {
+        if (googleAccessToken && pendingEmailAction) {
+            executePendingEmail(googleAccessToken, pendingEmailAction);
+        }
+    }, [googleAccessToken, pendingEmailAction]);
 
     const showToast = (msg: string) => {
         setToastMessage(msg);
@@ -43,16 +50,35 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
         try {
             await connectGmail();
             showToast("Gmail Connected Successfully!");
-            
-            // If there was a pending email, try sending it now
-            if (pendingEmailAction && googleAccessToken) { // Note: state might lag, but let's try or ask user to retry
-                // Actually, since token state update triggers re-render, we can't easily auto-resume perfectly without more complex effect.
-                // Better to just tell user to try again or handle it in a follow up.
-            }
         } catch (error) {
             console.error("Gmail Connection Failed", error);
             showToast("Failed to connect Gmail.");
         }
+    };
+
+    const executePendingEmail = async (token: string, action: {to: string, subject: string, body: string, msgId: string}) => {
+        setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, text: m.text.replace("I need access to your Gmail to send this. Please connect your account below.", "Access granted. Sending email... 📧"), status: 'sent' } : m));
+        
+        // Remove the connect button message if it exists
+        setMessages(prev => prev.filter(m => m.text !== 'CONNECT_GMAIL_ACTION'));
+
+        const result = await sendEmail(token, action.to, action.subject, action.body);
+                             
+        if (result.success) {
+            setMessages(prev => prev.map(m => m.id === action.msgId ? { 
+                ...m, 
+                text: `✅ Email sent successfully to ${action.to}.`, 
+                status: 'sent' 
+            } : m));
+        } else {
+            setMessages(prev => prev.map(m => m.id === action.msgId ? { 
+                ...m, 
+                text: `❌ ${result.message}`, 
+                status: 'sent' 
+            } : m));
+        }
+        
+        setPendingEmailAction(null);
     };
 
     const handleSendMessage = async () => {
@@ -131,13 +157,13 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                          
                          if (!googleAccessToken) {
                              // Token missing, prompt user
-                             setPendingEmailAction({ to, subject, body });
+                             // We save the msgId so we can update this specific bubble later
+                             setPendingEmailAction({ to, subject, body, msgId });
+                             
                              setMessages(prev => prev.map(m => m.id === msgId ? {
                                  ...m,
                                  text: cleanText + "\n\nI need access to your Gmail to send this. Please connect your account below.",
                                  status: 'sent',
-                                 // We can add a custom action indicator here if we had a generalized action UI, 
-                                 // but for now we'll handle the button separately in the UI or reuse 'requiresAction' logic later.
                              } : m));
                              // We will inject a special "System" message with the button
                              setMessages(prev => [...prev, {

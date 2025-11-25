@@ -23,8 +23,9 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Add Gmail Send Scope
-googleProvider.addScope('https://www.googleapis.com/auth/gmail.send');
+// NOTE: We do NOT add the gmail.send scope here globally.
+// This ensures the initial login is "normal" (profile only).
+// We request the gmail scope dynamically in AuthContext.connectGmail().
 
 // --- Firestore User Profile Management ---
 

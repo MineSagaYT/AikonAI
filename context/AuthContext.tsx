@@ -81,19 +81,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const loginWithGoogle = async () => {
+        // Standard login without special scopes
         const result = await signInWithPopup(auth, googleProvider);
-        // This gives you a Google Access Token. You can use it to access the Google API.
         const credential = GoogleAuthProvider.credentialFromResult(result);
         if (credential?.accessToken) {
             setGoogleAccessToken(credential.accessToken);
         }
-        // User state will update via onAuthStateChanged, which also handles Firestore sync
+        // User state will update via onAuthStateChanged
     };
 
     const connectGmail = async () => {
-        // Trigger a sign-in with popup to ask for permissions and get a fresh token.
-        // This is useful if the user originally signed in with Email/Password or if the token expired.
-        const result = await signInWithPopup(auth, googleProvider);
+        // Trigger a sign-in with popup explicitly asking for Gmail scope
+        // This is done ONLY when the user asks to send an email
+        const scopeProvider = new GoogleAuthProvider();
+        scopeProvider.addScope('https://www.googleapis.com/auth/gmail.send');
+        
+        // Use the Client ID if provided in a custom parameter, though Firebase usually handles this via Console config
+        // scopeProvider.setCustomParameters({ client_id: '973421497766-bhd23a8scm1gqlnk9asu7i5i3g7qv8hn.apps.googleusercontent.com' });
+
+        const result = await signInWithPopup(auth, scopeProvider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
         if (credential?.accessToken) {
             setGoogleAccessToken(credential.accessToken);
@@ -109,7 +115,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         
         // Save initial profile to Firestore immediately upon registration
-        // Note: we store the file name as requested, though real apps would upload to Storage and store the URL.
         await syncUserToFirestore(user, { 
             name: name,
             photoFileName: photoFile?.name 
