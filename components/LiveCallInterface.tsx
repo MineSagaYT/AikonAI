@@ -15,8 +15,12 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
     const [status, setStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOn, setIsVideoOn] = useState(false);
+    const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user'); // Track camera direction
     const [volume, setVolume] = useState(0);
     const [activeCard, setActiveCard] = useState<{ type: 'image' | 'weather' | 'search'; data: any } | null>(null);
+
+    // Refs for State Management inside Closures
+    const isMutedRef = useRef(false); // CRITICAL: Allows audio processor to see current mute state
 
     // Audio Refs
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -24,13 +28,18 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
     const processorRef = useRef<ScriptProcessorNode | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const nextStartTimeRef = useRef<number>(0);
-    const sessionRef = useRef<any>(null); // Holds the active session object
+    const sessionRef = useRef<any>(null); 
 
     // Video Refs
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const videoStreamRef = useRef<MediaStream | null>(null);
-    const videoIntervalRef = useRef<any>(null); // Changed from NodeJS.Timeout to any
+    const videoIntervalRef = useRef<any>(null); 
+
+    // Sync Ref with State
+    useEffect(() => {
+        isMutedRef.current = isMuted;
+    }, [isMuted]);
 
     useEffect(() => {
         startSession();
@@ -59,7 +68,7 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
             
             const updateVolume = () => {
                 // If muted, force volume to 0 visually
-                if (isMuted) {
+                if (isMutedRef.current) {
                     setVolume(0);
                     requestAnimationFrame(updateVolume);
                     return;
@@ -77,7 +86,7 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
             const config = {
                 model: 'gemini-2.5-flash-native-audio-preview-09-2025',
                 config: {
-                    systemInstruction: aikonPersonaInstruction + "\n\nIMPORTANT: You are in a VOICE CALL. Keep responses concise, conversational, and friendly. Do not use markdown formatting in speech. If the user turns on their camera, you will receive image frames. Use them to answer questions about what you see.",
+                    systemInstruction: aikonPersonaInstruction + "\n\nIMPORTANT: You are in a VOICE CALL. Keep responses concise, conversational, and friendly. Do not use markdown formatting in speech. YOU HAVE VISION capabilities. If the user turns on their camera, you will receive image frames. Explicitly confirm you can see them if asked. Use the visual input to answer questions about what is visible.",
                     responseModalities: [Modality.AUDIO],
                     speechConfig: {
                         voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } // Male voice
@@ -97,7 +106,8 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
                         processorRef.current = ctx.createScriptProcessor(4096, 1, 1);
                         
                         processorRef.current.onaudioprocess = (e) => {
-                            if (isMuted) return; // LOGICAL MUTE: Don't send data
+                            // CRITICAL FIX: Use ref to check mute state inside closure
+                            if (isMutedRef.current) return; 
                             
                             const inputData = e.inputBuffer.getChannelData(0);
                             const pcmData = new Int16Array(inputData.length);
@@ -194,15 +204,34 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
         if (isVideoOn) {
             stopVideo();
         } else {
-            startVideo();
+            // Default to user facing when turning on
+            startVideo('user');
         }
     };
 
-    const startVideo = async () => {
+    const flipCamera = async () => {
+        if (!isVideoOn) return;
+        stopVideo();
+        // Toggle mode
+        const newMode = facingMode === 'user' ? 'environment' : 'user';
+        setFacingMode(newMode);
+        // Brief delay to allow cleanup
+        setTimeout(() => startVideo(newMode), 200);
+    };
+
+    const startVideo = async (mode: 'user' | 'environment') => {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+            // Request HD resolution for better Vision capabilities
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: mode,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                } 
+            });
             videoStreamRef.current = stream;
             setIsVideoOn(true);
+            setFacingMode(mode);
             
             // Wait for ref to attach
             setTimeout(() => {
@@ -213,9 +242,19 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
             }, 100);
 
             // Start sending frames
-            videoIntervalRef.current = setInterval(sendVideoFrame, 500); // 2 FPS is efficient for Live API
+            videoIntervalRef.current = setInterval(sendVideoFrame, 500); // 2 FPS
         } catch (e) {
             console.error("Failed to access camera", e);
+            // Fallback if HD fails
+            try {
+                 const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+                 videoStreamRef.current = stream;
+                 setIsVideoOn(true);
+                 if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+                 videoIntervalRef.current = setInterval(sendVideoFrame, 500);
+            } catch (err) {
+                console.error("Fallback camera failed", err);
+            }
         }
     };
 
@@ -243,6 +282,7 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
         ctx.drawImage(videoRef.current, 0, 0);
 
         // Get base64 string (remove data prefix)
+        // Quality 0.6 is good balance for speed/latency
         const base64Data = canvasRef.current.toDataURL('image/jpeg', 0.6).split(',')[1];
 
         // Send to Gemini
@@ -401,15 +441,25 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
                 <AnimatePresence>
                     {isVideoOn && (
                         <MotionDiv 
-                            className="absolute bottom-4 right-4 w-32 h-44 bg-black rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl"
+                            className="absolute bottom-4 right-4 w-36 h-56 bg-black rounded-2xl overflow-hidden border-2 border-white/20 shadow-2xl group"
                             initial={{ scale: 0, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0, opacity: 0 }}
                             drag
                             dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
                         >
-                             <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay />
+                             <video ref={videoRef} className="w-full h-full object-cover transform" style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }} muted playsInline autoPlay />
                              <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                             
+                             {/* Flip Camera Button Overlay */}
+                             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); flipCamera(); }}
+                                    className="p-3 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm"
+                                >
+                                    <i className="ph-bold ph-arrows-clockwise text-xl"></i>
+                                </button>
+                             </div>
                         </MotionDiv>
                     )}
                 </AnimatePresence>
@@ -435,12 +485,14 @@ const LiveCallInterface: React.FC<LiveCallInterfaceProps> = ({ onClose, userProf
                     <i className="ph-fill ph-phone-disconnect"></i>
                 </button>
 
-                <button 
-                    onClick={toggleVideo}
-                    className={`h-16 rounded-full flex items-center justify-center text-2xl transition ${isVideoOn ? 'bg-white text-slate-900' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                >
-                    <i className={`ph-fill ${isVideoOn ? 'ph-video-camera-slash' : 'ph-video-camera'}`}></i>
-                </button>
+                <div className="relative">
+                    <button 
+                        onClick={toggleVideo}
+                        className={`w-full h-16 rounded-full flex items-center justify-center text-2xl transition ${isVideoOn ? 'bg-white text-slate-900' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                    >
+                        <i className={`ph-fill ${isVideoOn ? 'ph-video-camera-slash' : 'ph-video-camera'}`}></i>
+                    </button>
+                </div>
             </div>
         </MotionDiv>
     );
