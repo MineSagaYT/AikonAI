@@ -28,7 +28,6 @@
 
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -44,14 +43,6 @@
                             500: '#8b5cf6', // Violet
                             600: '#ec4899', // Pink
                         },
-                        surface: {
-                            light: '#F8FAFC',
-                            glass: 'rgba(255, 255, 255, 0.7)',
-                        },
-                        text: {
-                            main: '#1E293B',
-                            muted: '#64748B',
-                        }
                     },
                     fontFamily: {
                         sans: ['Plus Jakarta Sans', 'sans-serif'],
@@ -64,7 +55,6 @@
                         'fade-up': 'fadeUp 0.8s ease-out forwards',
                         'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                         'scale-in': 'scaleIn 0.2s ease-out forwards',
-                        'pulse-glow': 'pulseGlow 2s infinite',
                     },
                     keyframes: {
                         float: {
@@ -88,10 +78,6 @@
                         scaleIn: {
                             '0%': { opacity: '0', transform: 'scale(0.95)' },
                             '100%': { opacity: '1', transform: 'scale(1)' },
-                        },
-                        pulseGlow: {
-                            '0%, 100%': { boxShadow: '0 0 10px rgba(99, 102, 241, 0.2)' },
-                            '50%': { boxShadow: '0 0 25px rgba(99, 102, 241, 0.6)' },
                         },
                     }
                 }
@@ -132,13 +118,6 @@
             border-bottom: 1px solid rgba(226, 232, 240, 0.6);
         }
         
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.6);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
-        }
-
         .glass-input {
             background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(16px);
@@ -148,22 +127,7 @@
         }
         .glass-input:focus-within {
             border-color: #6366f1;
-            box-shadow: 0 15px 50px -10px rgba(99, 102, 241, 0.25);
             transform: translateY(-2px);
-        }
-
-        /* --- Feature Cards --- */
-        .feature-card {
-            background: white;
-            border-radius: 24px;
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-            transition: all 0.3s ease;
-        }
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-            border-color: #8B5CF6;
         }
 
         /* --- Chat Bubbles --- */
@@ -173,6 +137,7 @@
             border-radius: 24px 24px 4px 24px;
             box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.3);
         }
+
         .msg-ai {
             background: white;
             color: #334155;
@@ -186,6 +151,16 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* --- View Transition --- */
+        .view-section {
+            transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
+        }
+        .hidden-view {
+            display: none !important;
+            opacity: 0;
+            pointer-events: none;
+        }
 
         /* --- Markdown & Code --- */
         .prose pre {
@@ -231,7 +206,7 @@
     }
     </script>
 </head>
-<body class="min-h-screen antialiased relative flex flex-col">
+<body class="min-h-screen antialiased relative flex flex-col bg-[#F8FAFC] text-[#1E293B]">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

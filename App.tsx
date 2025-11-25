@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import LandingPage from './components/LandingPage';
@@ -10,7 +9,7 @@ const App: React.FC = () => {
     const { login } = useAuth();
 
     useEffect(() => {
-        // Auto-login guest for immediate access
+        // Auto-login guest for immediate access as required
         login('Guest', '0000');
     }, []);
 

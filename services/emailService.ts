@@ -1,4 +1,3 @@
-
 export const sendEmail = async (
     accessToken: string,
     to: string,

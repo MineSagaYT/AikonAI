@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { CanvasFiles } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';

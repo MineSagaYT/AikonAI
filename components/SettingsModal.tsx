@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Persona } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,10 +13,10 @@ const MotionDiv = motion.div as any;
 const MotionButton = motion.button as any;
 
 const SettingsItem: React.FC<{title: string; description?: string; children: React.ReactNode;}> = ({ title, description, children }) => (
-    <div className="settings-item flex flex-col md:flex-row md:justify-between md:items-start py-4 border-b border-zinc-700/50 last:border-b-0">
+    <div className="settings-item flex flex-col md:flex-row md:justify-between md:items-start py-4 border-b border-slate-200 last:border-b-0">
         <div className="settings-item-label mb-3 md:mb-0 md:mr-6">
-            <h3 className="font-semibold text-white">{title}</h3>
-            {description && <p>{description}</p>}
+            <h3 className="font-semibold text-slate-800">{title}</h3>
+            {description && <p className="text-slate-500 text-sm">{description}</p>}
         </div>
         <div className="settings-item-control flex-shrink-0 w-full md:w-auto">
             {children}
@@ -34,11 +33,11 @@ const NavItem: React.FC<{
 }> = ({ tabName, icon, children, activeTab, onClick }) => (
     <button
         onClick={() => onClick(tabName)}
-        className={`settings-nav-item ${activeTab === tabName ? 'active' : ''}`}
+        className={`settings-nav-item ${activeTab === tabName ? 'active text-brand-600 bg-brand-50' : 'text-slate-500 hover:bg-slate-50'}`}
     >
         {icon} <span>{children}</span>
         {activeTab === tabName && (
-            <MotionDiv className="active-nav-indicator" layoutId="activeSettingsTab" />
+            <MotionDiv className="active-nav-indicator bg-brand-600" layoutId="activeSettingsTab" />
         )}
     </button>
 );
@@ -116,10 +115,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                     <div className="settings-section">
                         <h2 className="sr-only">Personalization</h2>
                         <SettingsItem title="Custom Instructions" description="Tell AikonAI about yourself and how you want it to respond.">
-                            <textarea value={customInstructions} onChange={(e) => setCustomInstructions(e.target.value)} placeholder="e.g., I am a senior software developer..." className="form-input" />
+                            <textarea value={customInstructions} onChange={(e) => setCustomInstructions(e.target.value)} placeholder="e.g., I am a senior software developer..." className="form-input bg-slate-50 border-slate-200 text-slate-800" />
                         </SettingsItem>
                         <SettingsItem title="How should AikonAI address you?" description="e.g., Please call me Adi.">
-                             <input type="text" value={aboutYou} onChange={(e) => setAboutYou(e.target.value)} placeholder="e.g., Adi" className="form-input" />
+                             <input type="text" value={aboutYou} onChange={(e) => setAboutYou(e.target.value)} placeholder="e.g., Adi" className="form-input bg-slate-50 border-slate-200 text-slate-800" />
                         </SettingsItem>
                     </div>
                 );
@@ -129,10 +128,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                         <h2 className="sr-only">Manage Personas</h2>
                         <div className="mb-6">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-white">Your Custom Personas</h3>
+                                <h3 className="font-bold text-slate-800">Your Custom Personas</h3>
                                 <button 
                                     onClick={() => setIsAddingPersona(!isAddingPersona)}
-                                    className="text-xs bg-amber-500 text-black px-3 py-1 rounded-full font-bold hover:bg-amber-400"
+                                    className="text-xs bg-amber-500 text-white px-3 py-1 rounded-full font-bold hover:bg-amber-600 shadow-sm"
                                 >
                                     {isAddingPersona ? 'Cancel' : '+ Create New'}
                                 </button>
@@ -145,35 +144,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: 'auto', opacity: 1 }}
                                         exit={{ height: 0, opacity: 0 }}
-                                        className="overflow-hidden bg-zinc-800/50 p-4 rounded-xl border border-zinc-700 mb-6 space-y-3"
+                                        className="overflow-hidden bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 space-y-3"
                                     >
                                         <div className="flex gap-3">
                                             <div className="w-1/4">
-                                                <label className="text-xs text-gray-400 block mb-1">Icon (Emoji)</label>
-                                                <input type="text" value={newPersonaIcon} onChange={e => setNewPersonaIcon(e.target.value)} className="form-input text-center" maxLength={2} placeholder="🤖" />
+                                                <label className="text-xs text-slate-500 block mb-1">Icon (Emoji)</label>
+                                                <input type="text" value={newPersonaIcon} onChange={e => setNewPersonaIcon(e.target.value)} className="form-input text-center bg-white border-slate-200 text-slate-800" maxLength={2} placeholder="🤖" />
                                             </div>
                                             <div className="w-3/4">
-                                                <label className="text-xs text-gray-400 block mb-1">Name</label>
-                                                <input type="text" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} className="form-input" placeholder="e.g. Chef Bot" />
+                                                <label className="text-xs text-slate-500 block mb-1">Name</label>
+                                                <input type="text" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} className="form-input bg-white border-slate-200 text-slate-800" placeholder="e.g. Chef Bot" />
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-xs text-gray-400 block mb-1">Short Description</label>
-                                            <input type="text" value={newPersonaDesc} onChange={e => setNewPersonaDesc(e.target.value)} className="form-input" placeholder="Helps with cooking recipes..." />
+                                            <label className="text-xs text-slate-500 block mb-1">Short Description</label>
+                                            <input type="text" value={newPersonaDesc} onChange={e => setNewPersonaDesc(e.target.value)} className="form-input bg-white border-slate-200 text-slate-800" placeholder="Helps with cooking recipes..." />
                                         </div>
                                         <div>
-                                            <label className="text-xs text-gray-400 block mb-1">System Instructions</label>
+                                            <label className="text-xs text-slate-500 block mb-1">System Instructions</label>
                                             <textarea 
                                                 value={newPersonaInstruct} 
                                                 onChange={e => setNewPersonaInstruct(e.target.value)} 
-                                                className="form-input h-24" 
+                                                className="form-input h-24 bg-white border-slate-200 text-slate-800" 
                                                 placeholder="You are an expert chef. Provide detailed recipes..." 
                                             />
                                         </div>
                                         <button 
                                             onClick={handleAddPersona}
                                             disabled={!newPersonaName || !newPersonaInstruct}
-                                            className="w-full py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-semibold text-sm disabled:opacity-50"
+                                            className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold text-sm disabled:opacity-50"
                                         >
                                             Add Persona
                                         </button>
@@ -183,21 +182,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
 
                             {/* List */}
                             {customPersonas.length === 0 ? (
-                                <p className="text-gray-500 italic text-sm">No custom personas yet.</p>
+                                <p className="text-slate-400 italic text-sm">No custom personas yet.</p>
                             ) : (
                                 <div className="space-y-2">
                                     {customPersonas.map((persona, idx) => (
-                                        <div key={idx} className="flex items-center justify-between bg-zinc-900 p-3 rounded-lg border border-zinc-800">
+                                        <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
                                             <div className="flex items-center gap-3">
                                                 <span className="text-2xl">{persona.icon}</span>
                                                 <div>
-                                                    <h4 className="font-bold text-gray-200 text-sm">{persona.name}</h4>
-                                                    <p className="text-xs text-gray-500">{persona.description}</p>
+                                                    <h4 className="font-bold text-slate-800 text-sm">{persona.name}</h4>
+                                                    <p className="text-xs text-slate-500">{persona.description}</p>
                                                 </div>
                                             </div>
                                             <button 
                                                 onClick={() => handleDeletePersona(idx)}
-                                                className="text-red-400 hover:text-red-300 p-2"
+                                                className="text-red-400 hover:text-red-600 p-2"
                                                 title="Delete Persona"
                                             >
                                                 🗑️
@@ -215,7 +214,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                         <h2 className="sr-only">Data Controls</h2>
                         <SettingsItem title="Clear current chat" description="Permanently clear all messages from your current session. This cannot be undone.">
                             <MotionButton 
-                                className="danger" 
+                                className="px-4 py-2 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg font-semibold text-sm" 
                                 onClick={onDeleteAllChats}
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
@@ -230,21 +229,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
 
     return (
         <MotionDiv 
-            className="modal-backdrop" 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={onClose}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
         >
             <MotionDiv 
-                className="settings-modal-content modal-content" 
+                className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden relative flex flex-col max-h-[90vh]" 
                 onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
                 initial={{ y: 20, scale: 0.95 }}
                 animate={{ y: 0, scale: 1 }}
                 exit={{ y: 20, scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             >
-                <nav className="settings-nav">
+                <div className="flex border-b border-slate-200">
                     <NavItem 
                         tabName="Personalization" 
                         icon={<PersonalizationIcon />} 
@@ -269,15 +268,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                     >
                         Data
                     </NavItem>
-                </nav>
-                <div className="settings-content">
+                </div>
+                
+                <div className="p-6 overflow-y-auto flex-1">
                     {renderContent()}
                 </div>
-                 <div className="settings-footer modal-footer">
-                    <MotionButton onClick={onClose} className="secondary" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Cancel</MotionButton>
-                    <MotionButton onClick={handleSave} className="primary" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Save Changes</MotionButton>
+                
+                 <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+                    <MotionButton onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-semibold" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Cancel</MotionButton>
+                    <MotionButton onClick={handleSave} className="px-4 py-2 bg-brand-600 text-white hover:bg-brand-700 rounded-lg font-semibold shadow-lg shadow-brand-500/30" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>Save Changes</MotionButton>
                 </div>
-                <MotionButton onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold" whileTap={{ scale: 0.9 }}>&times;</MotionButton>
+                <MotionButton onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-2xl font-bold" whileTap={{ scale: 0.9 }}>&times;</MotionButton>
             </MotionDiv>
         </MotionDiv>
     );

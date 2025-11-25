@@ -1,9 +1,10 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, FileAttachment } from '../../types';
 import { streamMessageToChat, generateImage, generateQRCode, generateWebsiteCode, editImage, generateSpeech } from '../../services/geminiService';
+import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import MessageBubble from '../MessageBubble';
+import LiveCallInterface from '../LiveCallInterface';
 
 interface AikonChatPageProps {
     onBack: () => void;
@@ -12,12 +13,13 @@ interface AikonChatPageProps {
 const MotionDiv = motion.div as any;
 
 const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
+    const { currentUser } = useAuth();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [files, setFiles] = useState<FileAttachment[]>([]);
     const [isTyping, setIsTyping] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [showVoiceModal, setShowVoiceModal] = useState(false);
+    const [isCallActive, setIsCallActive] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -40,7 +42,8 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
             text: input,
             sender: 'user',
             timestamp: new Date(),
-            attachments: [...files]
+            attachments: [...files],
+            status: 'sent'
         };
 
         setMessages(prev => [...prev, userMsg]);
@@ -50,33 +53,66 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
 
         try {
             const history = messages.map(m => ({ role: m.sender === 'user' ? 'user' : 'model', parts: [{ text: m.text }] }));
-            const { stream } = await streamMessageToChat(history, userMsg.text, userMsg.attachments || [], null, null);
+            const { stream } = await streamMessageToChat(history, userMsg.text, userMsg.attachments || [], null, currentUser);
 
             let fullText = '';
             const msgId = Date.now().toString();
+            
+            // Initial empty AI message with 'streaming' status
             setMessages(prev => [...prev, { id: msgId, text: '', sender: 'ai', timestamp: new Date(), status: 'streaming' }]);
 
             for await (const chunk of stream) {
                 const chunkText = chunk.text || '';
                 fullText += chunkText;
-                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: fullText } : m));
+                // Keep status as streaming while data arrives
+                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: fullText, status: 'streaming' } : m));
             }
             
-            // Basic Tool parsing for demo purposes (Production would use structured output)
-            if (fullText.includes('"tool_call": "generate_image"')) {
-                 // Simple parsing logic for the specific JSON format requested
-                 try {
-                     const jsonMatch = fullText.match(/\{.*"tool_call":.*"generate_image".*\}/s);
-                     if (jsonMatch) {
-                         const tool = JSON.parse(jsonMatch[0]);
-                         setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Generating image..." } : m));
-                         const imgUrl = await generateImage(tool.prompt);
-                         setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Here is your image:", generatedImage: { prompt: tool.prompt, url: imgUrl || undefined } } : m));
-                     }
-                 } catch (e) {}
-            }
+            // Robust JSON Tool Call Extraction
+            const jsonMatch = fullText.match(/\{[\s\S]*"tool_call"[\s\S]*\}/);
 
-            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m));
+            if (jsonMatch) {
+                try {
+                    const jsonStr = jsonMatch[0];
+                    const toolData = JSON.parse(jsonStr);
+                    const toolName = toolData.tool_call;
+                    const toolPrompt = toolData.prompt;
+
+                    const cleanText = fullText.replace(jsonMatch[0], '').trim();
+                    const displayText = cleanText || "Generating content...";
+
+                    setMessages(prev => prev.map(m => m.id === msgId ? { 
+                        ...m, 
+                        text: displayText, 
+                        status: 'streaming' // Keep streaming until tool is done
+                    } : m));
+
+                    if (toolName === 'generate_image') {
+                        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Generating your imagination 🖼..." } : m));
+                        try {
+                            const imgUrl = await generateImage(toolPrompt);
+                            if (imgUrl) {
+                                setMessages(prev => prev.map(m => m.id === msgId ? { 
+                                    ...m, 
+                                    text: cleanText || `Here is the image for: "${toolPrompt}"`, 
+                                    generatedImage: { prompt: toolPrompt, url: imgUrl },
+                                    status: 'sent'
+                                } : m));
+                            } else {
+                                throw new Error("Image generation failed");
+                            }
+                        } catch (e) {
+                           setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Sorry, I encountered an error generating the image.", status: 'sent' } : m));
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to parse tool call JSON", e);
+                    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m));
+                }
+            } else {
+                // Mark as sent when stream is totally done
+                setMessages(prev => prev.map(m => m.id === msgId ? { ...m, status: 'sent' } : m));
+            }
 
         } catch (error) {
             setMessages(prev => [...prev, { id: Date.now().toString(), text: "Sorry, something went wrong.", sender: 'ai', timestamp: new Date(), status: 'sent' }]);
@@ -99,14 +135,24 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
 
     return (
         <div className="flex h-full w-full max-w-[1600px] mx-auto relative z-10 bg-[#F8FAFC]">
+            {/* Live Call Interface Overlay */}
+            <AnimatePresence>
+                {isCallActive && (
+                    <LiveCallInterface 
+                        onClose={() => setIsCallActive(false)} 
+                        userProfile={currentUser}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* Mobile Overlay */}
             <div 
-                className={`fixed inset-0 bg-black/20 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={() => setIsSidebarOpen(false)}
             />
 
             {/* SIDEBAR */}
-            <aside className={`absolute md:relative w-80 h-full bg-white/80 backdrop-blur-2xl border-r border-slate-200 z-40 transition-transform duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+            <aside className={`absolute md:relative w-80 h-full bg-white/80 backdrop-blur-2xl border-r border-slate-200 z-40 transition-all duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
                 <div className="h-20 flex items-center px-6 gap-3 border-b border-slate-100 justify-between">
                     <div className="flex items-center gap-3 cursor-pointer" onClick={onBack}>
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-accent-500 flex items-center justify-center text-white shadow-sm">
@@ -135,32 +181,23 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                         <div className="h-px bg-slate-100 my-2"></div>
                         <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-brand-700 bg-brand-50 rounded-lg border border-brand-100 transition-colors"><i className="ph-fill ph-chat-circle-dots"></i> Aikon Chat</a>
                         <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:text-brand-600 hover:bg-slate-50 rounded-lg transition-colors group"><i className="ph-duotone ph-image group-hover:text-accent-500"></i> Imagine Studio</a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:text-brand-600 hover:bg-slate-50 rounded-lg transition-colors group"><i className="ph-duotone ph-code group-hover:text-emerald-500"></i> Dev Sandbox</a>
                     </nav>
-                    <div>
-                        <div className="px-3 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center"><span>Recent History</span></div>
-                        <div className="space-y-1">
-                            <button className="w-full text-left px-3 py-2.5 text-sm text-slate-500 hover:bg-slate-50 hover:text-brand-600 rounded-lg transition flex items-center gap-3 group">
-                                <i className="ph-regular ph-chat-circle text-slate-400 group-hover:text-brand-500"></i>
-                                <span className="truncate flex-1">Sanatan Dharma Values</span>
-                            </button>
-                        </div>
-                    </div>
                 </div>
 
                 <div className="p-4 border-t border-slate-100 bg-white/50 backdrop-blur-sm">
                     <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/80 transition cursor-pointer group">
                         <div className="relative">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-brand-600 to-accent-500 p-0.5 shadow-sm group-hover:scale-105 transition">
-                                <div className="w-full h-full bg-slate-100 rounded-full flex items-center justify-center font-bold text-brand-700 text-sm">AJ</div>
+                                <div className="w-full h-full bg-slate-100 rounded-full flex items-center justify-center font-bold text-brand-700 text-sm">
+                                    {currentUser?.displayName?.charAt(0) || 'G'}
+                                </div>
                             </div>
                             <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-slate-800 truncate">Aditya Jain</div>
+                            <div className="font-bold text-sm text-slate-800 truncate">{currentUser?.displayName || 'Guest'}</div>
                             <div className="text-xs text-slate-500 truncate">Pro Plan Active</div>
                         </div>
-                        <button className="text-slate-400 hover:text-slate-800 transition"><i className="ph-bold ph-gear"></i></button>
                     </div>
                 </div>
             </aside>
@@ -169,8 +206,8 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
             <main className="flex-1 flex flex-col h-full relative bg-[#F8FAFC]">
                 {/* Interactive Background */}
                 <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    <div className="soft-blob w-[500px] h-[500px] bg-indigo-300 top-[-20%] left-[-10%] mix-blend-multiply opacity-30"></div>
-                    <div className="soft-blob w-[400px] h-[400px] bg-pink-300 bottom-[-10%] right-[-5%] mix-blend-multiply opacity-30"></div>
+                     <div className="soft-blob w-[500px] h-[500px] bg-indigo-300 top-[-20%] left-[-10%] mix-blend-multiply opacity-30"></div>
+                     <div className="soft-blob w-[400px] h-[400px] bg-pink-300 bottom-[-10%] right-[-5%] mix-blend-multiply opacity-30"></div>
                 </div>
 
                 {/* Top Bar */}
@@ -182,15 +219,10 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                         <div className="relative group">
                             <button className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm hover:border-brand-400 transition-colors">
                                 <span className="w-2 h-2 rounded-full bg-gradient-to-r from-brand-500 to-accent-500"></span>
-                                <span className="text-sm font-semibold text-slate-700">Aikon 4.0</span>
+                                <span className="text-sm font-semibold text-slate-700">Model: Aikon V1</span>
                                 <i className="ph-bold ph-caret-down text-xs text-slate-400"></i>
                             </button>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => showToast('Chat Exported')} className="w-9 h-9 flex items-center justify-center rounded-full text-slate-500 hover:bg-white hover:text-brand-600 hover:shadow-md transition" title="Export Chat">
-                            <i className="ph-bold ph-download-simple"></i>
-                        </button>
                     </div>
                 </header>
 
@@ -204,7 +236,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                                     <span className="bg-gradient-to-br from-brand-600 to-accent-600 bg-clip-text text-transparent font-bold">Ai</span>
                                 </div>
                             </div>
-                            <h2 className="text-3xl md:text-5xl font-heading font-bold text-slate-800 mb-4 text-center">Namaste, <span class="bg-gradient-to-r from-brand-600 to-accent-600 bg-clip-text text-transparent">Aditya</span> 👋</h2>
+                            <h2 className="text-3xl md:text-5xl font-heading font-bold text-slate-800 mb-4 text-center">Namaste, <span className="bg-gradient-to-r from-brand-600 to-accent-600 bg-clip-text text-transparent">{currentUser?.displayName || 'Friend'}</span> 👋</h2>
                             <p className="text-lg text-slate-500 text-center max-w-xl mb-10 leading-relaxed">
                                 I'm Aikon, your intelligent companion. I can code, create art, and help you build the future. <br /> <span className="text-sm font-medium text-brand-500">How can we innovate today?</span>
                             </p>
@@ -235,18 +267,25 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                         </div>
                     )}
 
-                    {isTyping && (
-                        <div className="max-w-3xl mx-auto mt-4 pl-12">
-                            <div className="bg-white/50 border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm inline-flex items-center gap-1">
-                                <div className="flex gap-1">
-                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
-                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
-                                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                    <AnimatePresence>
+                        {isTyping && (
+                            <MotionDiv 
+                                className="max-w-3xl mx-auto mt-4 pl-12"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10, transition: { duration: 0.2 } }}
+                            >
+                                <div className="bg-white/50 border border-slate-200 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm inline-flex items-center gap-2">
+                                    <div className="flex gap-1">
+                                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce"></span>
+                                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
+                                        <span className="w-1.5 h-1.5 bg-brand-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
+                                    </div>
+                                    <span className="text-xs text-brand-600 font-medium">Aikon is typing...</span>
                                 </div>
-                                <span className="text-xs text-slate-500 ml-2 font-medium">Aikon is thinking...</span>
-                            </div>
-                        </div>
-                    )}
+                            </MotionDiv>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 {/* Input Area */}
@@ -279,8 +318,9 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                                 placeholder="Message Aikon..."
                             />
                             <div className="flex items-center gap-2 mb-1 mr-1">
-                                <button onClick={() => setShowVoiceModal(true)} className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-brand-600 transition">
-                                    <i className="ph-bold ph-microphone text-lg"></i>
+                                <button onClick={() => setIsCallActive(true)} className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-brand-600 transition relative">
+                                    <i className="ph-bold ph-phone-call text-lg"></i>
+                                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
                                 </button>
                                 <button onClick={handleSendMessage} disabled={!input && files.length === 0} className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg hover:bg-brand-600 hover:scale-105 transition-all duration-300 disabled:opacity-50">
                                     <i className="ph-fill ph-paper-plane-right text-lg"></i>
@@ -293,30 +333,6 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack }) => {
                     </div>
                 </div>
             </main>
-
-            {/* Voice Modal Overlay */}
-            {showVoiceModal && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-6 animate-scale-in max-w-sm w-full mx-4">
-                        <div className="w-24 h-24 rounded-full bg-red-50 flex items-center justify-center relative">
-                            <div className="absolute inset-0 rounded-full bg-red-500 opacity-20 animate-ping"></div>
-                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center text-white shadow-lg z-10">
-                                <i className="ph-fill ph-microphone text-3xl"></i>
-                            </div>
-                        </div>
-                        <div className="text-center">
-                            <h3 className="text-xl font-bold text-slate-800 mb-2">Listening...</h3>
-                            <p className="text-sm text-slate-500">Speak now, I'm listening to you.</p>
-                        </div>
-                        <div className="flex items-center gap-1 h-8">
-                            {[0.4, 0.6, 0.8, 0.5, 0.7].map((d, i) => (
-                                <div key={i} className="bar" style={{ animationDuration: `${d}s` }}></div>
-                            ))}
-                        </div>
-                        <button onClick={() => setShowVoiceModal(false)} className="mt-2 px-6 py-2 rounded-full border border-slate-200 text-sm font-semibold hover:bg-slate-50 transition">Cancel</button>
-                    </div>
-                </div>
-            )}
 
             {/* Toast */}
             {toastMessage && (

@@ -1,5 +1,3 @@
-
-
 import { Content } from '@google/genai';
 import { Task, ChatListItem, UserProfile } from '../types';
 

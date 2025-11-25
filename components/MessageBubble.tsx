@@ -1,13 +1,66 @@
-
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Message } from '../types';
 import { motion } from 'framer-motion';
 import { renderParagraph } from '../utils/markdown';
+import CodeBlock from './CodeBlock';
 
 const MotionDiv = motion.div as any;
 
 const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     const isUser = message.sender === 'user';
+    
+    // Typewriter Effect State
+    const [displayedText, setDisplayedText] = useState(isUser ? message.text : '');
+    const textRef = useRef(message.text);
+
+    useEffect(() => {
+        // Update ref immediately when prop changes
+        textRef.current = message.text;
+        
+        // If it's user message, show immediately
+        if (isUser) {
+            setDisplayedText(message.text);
+            return;
+        }
+
+        // For AI messages, if it's already fully sent (e.g., history load), show all
+        if (message.status === 'sent' && displayedText === message.text) {
+            return;
+        }
+
+        // If completely done and we are just mounting, show all to avoid re-typing history
+        if (message.status === 'sent' && !displayedText) {
+             setDisplayedText(message.text);
+             return;
+        }
+
+        // Typewriter Logic
+        let timeoutId: any;
+        
+        const typeWriter = () => {
+            setDisplayedText(current => {
+                const fullText = textRef.current;
+                if (current.length < fullText.length) {
+                    // Calculate chunk size based on length difference to speed up if falling behind
+                    const diff = fullText.length - current.length;
+                    const chunkSize = diff > 50 ? 5 : diff > 20 ? 3 : 1; 
+                    
+                    // Schedule next char
+                    timeoutId = setTimeout(typeWriter, 15); // 15ms per chunk
+                    return fullText.slice(0, current.length + chunkSize);
+                } else {
+                    return fullText;
+                }
+            });
+        };
+
+        // Start typing if we have content
+        if (message.text.length > displayedText.length) {
+            typeWriter();
+        }
+
+        return () => clearTimeout(timeoutId);
+    }, [message.text, message.status, isUser]); // Dependency on message.text ensures we keep typing as stream updates
 
     return (
         <MotionDiv 
@@ -36,7 +89,15 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
                     </div>
                 )}
 
-                <div dangerouslySetInnerHTML={{ __html: renderParagraph(message.text) }} className={!isUser ? 'prose prose-slate max-w-none' : ''} />
+                <div 
+                    dangerouslySetInnerHTML={{ __html: renderParagraph(displayedText) }} 
+                    className={!isUser ? 'prose prose-slate max-w-none' : ''} 
+                />
+                
+                {/* Cursor for effect while streaming */}
+                {!isUser && message.status === 'streaming' && displayedText.length < message.text.length && (
+                    <span className="inline-block w-1.5 h-4 bg-brand-500 ml-1 animate-pulse align-middle"></span>
+                )}
             </div>
         </MotionDiv>
     );

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
 
@@ -23,13 +22,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [loading, setLoading] = useState(true);
 
     const login = (username: string, pin: string) => {
-        // Simplified login for "No login" requirement: Always succeed as Guest
         const guestUser: UserProfile = {
             uid: 'guest',
-            displayName: 'Aditya',
+            displayName: 'Guest', // Changed from Aditya
             email: 'guest@aikon.ai',
             photoURL: null,
-            aboutYou: 'Aditya',
+            aboutYou: 'Friend', // Changed from Aditya
             onboardingCompleted: true,
             pin: '0000'
         };
@@ -47,8 +45,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     useEffect(() => {
-        // Simulate checking auth state, then finish loading
-        setTimeout(() => setLoading(false), 500);
+        // Auto-login immediately
+        login('Guest', '0000');
+        setLoading(false);
     }, []);
 
     return (
