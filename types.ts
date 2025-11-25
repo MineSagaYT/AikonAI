@@ -1,3 +1,4 @@
+
 import { Chat } from '@google/genai';
 
 // Declare global variables from CDN scripts to make TypeScript aware of them
@@ -174,6 +175,8 @@ export interface Persona {
 export interface UserConnections {
     gmail?: boolean;
     gmailEmail?: string;
+    drive?: boolean;
+    driveEmail?: string;
     connectedAt?: any;
 }
 
@@ -190,6 +193,13 @@ export interface UserProfile {
     bio?: string;
     age?: string;
     connections?: UserConnections;
+}
+
+export interface DriveFile {
+    id: string;
+    name: string;
+    mimeType: string;
+    webViewLink?: string;
 }
 
 // Data structures for file generation

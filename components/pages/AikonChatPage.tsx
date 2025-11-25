@@ -1,7 +1,9 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, FileAttachment, ChatSession } from '../../types';
 import { streamMessageToChat, generateImage, generateQRCode, generateWebsiteCode, editImage, generateSpeech } from '../../services/geminiService';
 import { sendEmail } from '../../services/emailService';
+import { listDriveFiles, createDriveFile, readDriveFile } from '../../services/googleDriveService';
 import { useAuth } from '../../context/AuthContext';
 import { 
     getUserChats, 
@@ -22,7 +24,7 @@ interface AikonChatPageProps {
 const MotionDiv = motion.div as any;
 
 const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
-    const { currentUser, googleAccessToken, connectGmail, disconnectGmail } = useAuth();
+    const { currentUser, googleAccessToken, connectGmail, disconnectGmail, driveAccessToken, connectDrive, disconnectDrive } = useAuth();
     
     // Core State
     const [messages, setMessages] = useState<Message[]>([]);
@@ -43,6 +45,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
 
     // Pending Actions
     const [pendingEmailAction, setPendingEmailAction] = useState<{to: string, subject: string, body: string, msgId: string, attachments: FileAttachment[]} | null>(null);
+    const [pendingDriveAction, setPendingDriveAction] = useState<{action: string, params: any, msgId: string} | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,10 +60,6 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                 // Load most recent chat if available
                 if (chats.length > 0) {
                     handleLoadChat(chats[0].id);
-                } else {
-                    // No chats? Don't create one automatically unless they send a message, 
-                    // or maybe just leave state empty until they interact.
-                    // For better UX, let's keep it empty and 'New Chat' will trigger creation.
                 }
             } else {
                 // Guest mode: clear persistence
@@ -82,6 +81,14 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
             executePendingEmail(googleAccessToken, pendingEmailAction);
         }
     }, [googleAccessToken, pendingEmailAction]);
+
+    // Auto-retry Drive action
+    useEffect(() => {
+        if (driveAccessToken && pendingDriveAction) {
+            executePendingDriveAction(driveAccessToken, pendingDriveAction);
+        }
+    }, [driveAccessToken, pendingDriveAction]);
+
 
     const showToast = (msg: string) => {
         setToastMessage(msg);
@@ -174,10 +181,19 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
             showToast("Failed to connect Gmail.");
         }
     };
+    
+    const handleConnectDrive = async () => {
+        try {
+            await connectDrive();
+            showToast("Google Drive Connected Successfully!");
+        } catch (error) {
+            console.error("Drive Connection Failed", error);
+            showToast("Failed to connect Google Drive.");
+        }
+    };
 
     const executePendingEmail = async (token: string, action: {to: string, subject: string, body: string, msgId: string, attachments: FileAttachment[]}) => {
         setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, text: m.text.replace("I need access to your Gmail to send this. Please connect your account below.", "Access granted. Sending email... 📧"), status: 'sent' } : m));
-        
         setMessages(prev => prev.filter(m => m.text !== 'CONNECT_GMAIL_ACTION'));
 
         const result = await sendEmail(token, action.to, action.subject, action.body, action.attachments);
@@ -190,18 +206,9 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                 timestamp: new Date(),
                 sender: 'ai' as const
             };
-
             setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, ...updatedMsg } : m));
-            
-            // Persist Update if needed
-            if (!isTemporaryMode && currentUser && currentChatId) {
-                // Ideally we'd update the specific message in Firestore, but for now we won't strictly update "status" in DB 
-                // unless we implement message updating logic. This is fine for now.
-            }
         } else {
-             if (result.message.includes('insufficient authentication scopes') || result.message.includes('Authentication failed')) {
-                // Do not fully disconnect in UI, but prompt re-connect
-                // disconnectGmail(); // We can keep local status, but force new token flow
+             if (result.message.includes('UNAUTHENTICATED') || result.message.includes('Authentication failed')) {
                 setMessages(prev => prev.map(m => m.id === action.msgId ? { 
                     ...m, 
                     text: `❌ ${result.message}\n\nSession expired. Please reconnect Gmail.`, 
@@ -215,8 +222,68 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                 } : m));
             }
         }
-        
         setPendingEmailAction(null);
+    };
+
+    const executePendingDriveAction = async (token: string, action: {action: string, params: any, msgId: string}) => {
+        setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, text: "Access granted. Processing Google Drive request... 📂", status: 'sent' } : m));
+        setMessages(prev => prev.filter(m => m.text !== 'CONNECT_DRIVE_ACTION'));
+
+        let resultMsg = "";
+        let success = false;
+
+        if (action.action === 'list_files') {
+            const res = await listDriveFiles(token, action.params.query);
+            if (res.success && res.files) {
+                success = true;
+                if (res.files.length === 0) {
+                    resultMsg = "No files found matching criteria.";
+                } else {
+                    resultMsg = `### 📂 Found ${res.files.length} files:\n\n` + 
+                        res.files.map(f => `* **${f.name}** (ID: \`${f.id}\`) - [Open](${f.webViewLink})`).join('\n');
+                }
+            } else {
+                 if (res.message === 'UNAUTHENTICATED') {
+                    resultMsg = "Session expired. Please reconnect Drive.";
+                 } else {
+                    resultMsg = `Failed to list files: ${res.message}`;
+                 }
+            }
+        } else if (action.action === 'create_file') {
+            const res = await createDriveFile(token, action.params.fileName, action.params.content, action.params.mimeType);
+            if (res.success) {
+                success = true;
+                resultMsg = `✅ File **${action.params.fileName}** created successfully!\n\n[Open in Drive](${res.webViewLink})`;
+            } else {
+                 if (res.message === 'UNAUTHENTICATED') resultMsg = "Session expired. Please reconnect Drive.";
+                 else resultMsg = `Failed to create file: ${res.message}`;
+            }
+        } else if (action.action === 'read_file') {
+            const res = await readDriveFile(token, action.params.fileId);
+            if (res.success) {
+                success = true;
+                resultMsg = `### 📄 File Content:\n\n\`\`\`\n${res.content}\n\`\`\``;
+            } else {
+                 if (res.message === 'UNAUTHENTICATED') resultMsg = "Session expired. Please reconnect Drive.";
+                 else resultMsg = `Failed to read file: ${res.message}`;
+            }
+        }
+
+        // Update the message bubble
+        setMessages(prev => prev.map(m => m.id === action.msgId ? { ...m, text: resultMsg, status: 'sent' } : m));
+
+        // Persist
+        if (currentUser && !isTemporaryMode && currentChatId) {
+             storeMessage(currentUser.uid, currentChatId, {
+                id: action.msgId,
+                text: resultMsg,
+                sender: 'ai',
+                timestamp: new Date(),
+                status: 'sent'
+             });
+        }
+        
+        setPendingDriveAction(null);
     };
 
     const handleSendMessage = async () => {
@@ -226,8 +293,6 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
         let activeChatId = currentChatId;
 
         if (currentUser && !isTemporaryMode && !activeChatId) {
-            // User is logged in, not in temp mode, but has no active chat.
-            // Create one automatically.
             try {
                 const newChat = await createNewChatSession(currentUser.uid, `New Chat ${new Date().toLocaleDateString()}`);
                 if (newChat) {
@@ -235,7 +300,6 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                     activeChatId = newChat.id;
                     setCurrentChatId(newChat.id);
                 } else {
-                    // Fail silently or fallback to temp mode if limit reached
                     if (chatList.length >= 10) {
                         showToast("Chat limit reached. Using Temporary Mode.");
                         setIsTemporaryMode(true);
@@ -261,6 +325,7 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
         setFiles([]);
         setIsTyping(true);
         setPendingEmailAction(null);
+        setPendingDriveAction(null);
 
         // --- 3. PERSIST USER MESSAGE ---
         if (currentUser && !isTemporaryMode && activeChatId) {
@@ -299,11 +364,9 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                     const toolData = JSON.parse(jsonStr);
                     const toolName = toolData.tool_call;
                     const cleanText = fullText.replace(jsonMatch[0], '').trim();
-                    const displayText = cleanText || (toolName === 'send_email' ? "Processing your email request..." : "Generating content...");
+                    const displayText = cleanText || "Processing request...";
 
                     finalAiMessage = { ...finalAiMessage, text: displayText };
-
-                    // Update UI immediately
                     setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
 
                     if (toolName === 'generate_image') {
@@ -315,7 +378,6 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                             text: cleanText || `Here is the image for: "${toolData.prompt}"`,
                             generatedImage: imgUrl ? { prompt: toolData.prompt, url: imgUrl } : undefined,
                         };
-
                         setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
 
                     } else if (toolName === 'send_email') {
@@ -324,14 +386,11 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                          
                          if (!googleAccessToken) {
                              setPendingEmailAction({ to, subject, body, msgId, attachments });
-                             
-                             const promptText = currentUser?.connections?.gmail 
+                             finalAiMessage.text = cleanText + (currentUser?.connections?.gmail 
                                 ? "\n\nSession expired. Please reconnect Gmail below to send."
-                                : "\n\nI need access to your Gmail to send this. Please connect your account below.";
-
-                             finalAiMessage.text = cleanText + promptText;
+                                : "\n\nI need access to your Gmail to send this. Please connect your account below.");
+                             
                              setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
-
                              setMessages(prev => [...prev, {
                                  id: Date.now().toString() + '_sys',
                                  text: 'CONNECT_GMAIL_ACTION',
@@ -341,26 +400,41 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                              }]);
                              
                          } else {
+                             // ... existing email send logic ...
                              const attText = attachments.length > 0 ? " (with attachments)" : "";
                              setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: `Sending email${attText}... 📧` } : m));
-                             
                              const result = await sendEmail(googleAccessToken, to, subject, body, attachments);
                              finalAiMessage.text = cleanText + `\n\n${result.success ? '✅' : '❌'} ${result.message}`;
-                             
                              setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
-
-                             if (!result.success && (result.message.includes('authentication scopes') || result.message.includes('Authentication failed'))) {
-                                 // Token likely expired
+                             
+                             if (!result.success && (result.message.includes('Authentication failed') || result.message.includes('UNAUTHENTICATED'))) {
                                  setPendingEmailAction({ to, subject, body, msgId, attachments });
-                                 setMessages(prev => [...prev, {
-                                     id: Date.now().toString() + '_sys',
-                                     text: 'CONNECT_GMAIL_ACTION',
-                                     sender: 'ai',
-                                     timestamp: new Date(),
-                                     status: 'sent'
-                                 }]);
+                                 setMessages(prev => [...prev, { id: Date.now().toString() + '_sys', text: 'CONNECT_GMAIL_ACTION', sender: 'ai', timestamp: new Date(), status: 'sent' }]);
                              }
                          }
+
+                    } else if (toolName === 'drive_action') {
+                        if (!driveAccessToken) {
+                             setPendingDriveAction({ action: toolData.action, params: toolData, msgId });
+                             finalAiMessage.text = cleanText + (currentUser?.connections?.drive
+                                ? "\n\nSession expired. Please reconnect Google Drive."
+                                : "\n\nI need access to your Google Drive to do this. Please connect your account below.");
+                             
+                             setMessages(prev => prev.map(m => m.id === msgId ? finalAiMessage : m));
+                             setMessages(prev => [...prev, {
+                                 id: Date.now().toString() + '_sys',
+                                 text: 'CONNECT_DRIVE_ACTION',
+                                 sender: 'ai',
+                                 timestamp: new Date(),
+                                 status: 'sent'
+                             }]);
+                        } else {
+                             // Execute immediately
+                             setMessages(prev => prev.map(m => m.id === msgId ? { ...m, text: "Processing Google Drive request... 📂" } : m));
+                             await executePendingDriveAction(driveAccessToken, { action: toolData.action, params: toolData, msgId });
+                             // executePendingDriveAction handles final message update
+                             return; // Skip default persistence as executePendingDriveAction handles it
+                        }
                     }
 
                 } catch (e) {
@@ -576,15 +650,15 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                                 {isTemporaryMode ? (
                                     <span className="text-amber-600 font-medium bg-amber-50 px-3 py-1 rounded-full text-sm border border-amber-100"><i className="ph-bold ph-warning-circle"></i> Temporary Mode: Chats are not saved.</span>
                                 ) : (
-                                    "I'm Aikon, your intelligent companion. I can code, create art, send emails, and help you build the future."
+                                    "I'm Aikon, your intelligent companion. I can code, create art, send emails, manage your Drive files, and help you build the future."
                                 )}
                             </p>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-2">
                                 {[
                                     { icon: 'ph-envelope-simple', color: 'text-red-500', title: 'Gmail Assistant', desc: 'Send emails instantly.', prompt: 'Send an email to boss@company.com saying I will be late.' },
+                                    { icon: 'ph-google-drive-logo', color: 'text-blue-500', title: 'Drive Manager', desc: 'List & Create files.', prompt: 'Create a file named "Ideas.txt" in my Drive with some startup ideas.' },
                                     { icon: 'ph-code', color: 'text-emerald-500', title: 'Code Assistant', desc: 'Generate Python/JS scripts & debug.', prompt: 'Write a Python script to visualize stock market data.' },
                                     { icon: 'ph-paint-brush-broad', color: 'text-accent-500', title: 'Visual Creation', desc: 'Generate stunning AI art.', prompt: 'Create a futuristic image of a temple on Mars.' },
-                                    { icon: 'ph-rocket-launch', color: 'text-blue-500', title: 'Strategic Planning', desc: 'Brainstorm ideas & roadmaps.', prompt: 'Help me plan a product launch for next week.' }
                                 ].map((card, idx) => (
                                     <button key={idx} onClick={() => { setInput(card.prompt); }} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-brand-400 hover:-translate-y-1 transition-all text-left group">
                                         <div className="flex items-start justify-between mb-2">
@@ -623,6 +697,34 @@ const AikonChatPage: React.FC<AikonChatPageProps> = ({ onBack, onProfile }) => {
                                                     className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
                                                 >
                                                     <i className="ph-bold ph-google-logo"></i> {currentUser?.connections?.gmail ? "Reconnect Gmail" : "Connect Gmail"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+                                if (msg.text === 'CONNECT_DRIVE_ACTION') {
+                                    return (
+                                         <div key={msg.id} className="flex justify-start gap-4 animate-slide-up">
+                                            <div className="flex-shrink-0 mt-1">
+                                                <div className="w-9 h-9 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-brand-600 shadow-sm">
+                                                    <i className="ph-bold ph-brain text-lg"></i>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white border border-blue-100 p-6 rounded-2xl shadow-sm max-w-md">
+                                                <div className="flex items-center gap-3 mb-3 text-blue-600 font-bold">
+                                                    <i className="ph-fill ph-warning-circle text-xl"></i>
+                                                    <span>Permission Required</span>
+                                                </div>
+                                                <p className="text-slate-600 text-sm mb-4">
+                                                    {currentUser?.connections?.drive 
+                                                        ? "Your Google Drive session has expired. Please reconnect."
+                                                        : "To manage files on your behalf, I need your permission to access Google Drive."}
+                                                </p>
+                                                <button 
+                                                    onClick={handleConnectDrive}
+                                                    className="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <i className="ph-bold ph-google-drive-logo"></i> {currentUser?.connections?.drive ? "Reconnect Drive" : "Connect Drive"}
                                                 </button>
                                             </div>
                                         </div>

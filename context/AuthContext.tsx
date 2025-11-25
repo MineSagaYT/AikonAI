@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
 import { auth, googleProvider, syncUserToFirestore, deleteUserDocument, updateUserProfile, updateUserConnections } from '../services/firebase';
@@ -18,6 +19,7 @@ import {
 interface AuthContextType {
     currentUser: UserProfile | null;
     googleAccessToken: string | null;
+    driveAccessToken: string | null;
     loading: boolean;
     login: (email: string, pass: string) => Promise<void>;
     loginWithGoogle: () => Promise<void>;
@@ -29,11 +31,14 @@ interface AuthContextType {
     deleteAccount: () => Promise<void>;
     connectGmail: () => Promise<void>;
     disconnectGmail: () => void;
+    connectDrive: () => Promise<void>;
+    disconnectDrive: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
     currentUser: null,
     googleAccessToken: null,
+    driveAccessToken: null,
     loading: true, 
     login: async () => {},
     loginWithGoogle: async () => {},
@@ -45,15 +50,20 @@ const AuthContext = createContext<AuthContextType>({
     deleteAccount: async () => {},
     connectGmail: async () => {},
     disconnectGmail: () => {},
+    connectDrive: async () => {},
+    disconnectDrive: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+    const [driveAccessToken, setDriveAccessToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // --- 1. Hydrate Token from LocalStorage ---
+        // --- 1. Hydrate Tokens from LocalStorage ---
+        
+        // Gmail
         const storedToken = localStorage.getItem('aikon_gmail_token');
         const storedExp = localStorage.getItem('aikon_gmail_exp');
         if (storedToken && storedExp) {
@@ -61,9 +71,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (Date.now() < expTime) {
                 setGoogleAccessToken(storedToken);
             } else {
-                // Token expired
                 localStorage.removeItem('aikon_gmail_token');
                 localStorage.removeItem('aikon_gmail_exp');
+            }
+        }
+
+        // Drive
+        const storedDriveToken = localStorage.getItem('aikon_drive_token');
+        const storedDriveExp = localStorage.getItem('aikon_drive_exp');
+        if (storedDriveToken && storedDriveExp) {
+            const expTime = parseInt(storedDriveExp, 10);
+            if (Date.now() < expTime) {
+                setDriveAccessToken(storedDriveToken);
+            } else {
+                localStorage.removeItem('aikon_drive_token');
+                localStorage.removeItem('aikon_drive_exp');
             }
         }
 
@@ -80,9 +102,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
             } else {
                 setCurrentUser(null);
+                
+                // Clear all tokens
                 setGoogleAccessToken(null);
                 localStorage.removeItem('aikon_gmail_token');
                 localStorage.removeItem('aikon_gmail_exp');
+
+                setDriveAccessToken(null);
+                localStorage.removeItem('aikon_drive_token');
+                localStorage.removeItem('aikon_drive_exp');
             }
             setLoading(false);
         });
@@ -100,20 +128,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const loginWithGoogle = async () => {
         // Standard login without special scopes
-        // We do NOT store the access token here because it lacks Gmail scopes.
         await signInWithPopup(auth, googleProvider);
-        // User state will update via onAuthStateChanged
     };
 
     const connectGmail = async () => {
-        // Trigger a sign-in with popup explicitly asking for Gmail scope
-        // This is done ONLY when the user asks to send an email or connects via Profile
         const scopeProvider = new GoogleAuthProvider();
         scopeProvider.addScope('https://www.googleapis.com/auth/gmail.send');
         
-        // REMOVED prompt: 'consent' to allow seamless re-auth if user already consented.
-        // This is crucial for the "24x7" feel (popup might just flash and close).
-
         const result = await signInWithPopup(auth, scopeProvider);
         const credential = GoogleAuthProvider.credentialFromResult(result);
         
@@ -121,12 +142,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const token = credential.accessToken;
             setGoogleAccessToken(token);
             
-            // Persist Token (approx 1 hour usually, saving locally)
             localStorage.setItem('aikon_gmail_token', token);
-            // Set expiry for 55 minutes to be safe
             localStorage.setItem('aikon_gmail_exp', (Date.now() + 55 * 60 * 1000).toString());
 
-            // Persist Connection Status to Firestore
             const gmailEmail = result.user.email || undefined;
             await updateUserConnections(auth.currentUser.uid, {
                 gmail: true,
@@ -134,15 +152,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 connectedAt: new Date().toISOString()
             });
 
-            // Update local state immediately
             if (currentUser) {
                 setCurrentUser({
                     ...currentUser,
                     connections: {
                         ...currentUser.connections,
                         gmail: true,
-                        gmailEmail: gmailEmail,
-                        connectedAt: new Date().toISOString()
+                        gmailEmail: gmailEmail
                     }
                 });
             }
@@ -168,6 +184,59 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const connectDrive = async () => {
+        const scopeProvider = new GoogleAuthProvider();
+        // Request full drive access as requested ("access... create/edit... whatever user wants")
+        scopeProvider.addScope('https://www.googleapis.com/auth/drive');
+        
+        const result = await signInWithPopup(auth, scopeProvider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        
+        if (credential?.accessToken && auth.currentUser) {
+            const token = credential.accessToken;
+            setDriveAccessToken(token);
+            
+            localStorage.setItem('aikon_drive_token', token);
+            localStorage.setItem('aikon_drive_exp', (Date.now() + 55 * 60 * 1000).toString());
+
+            const driveEmail = result.user.email || undefined;
+            await updateUserConnections(auth.currentUser.uid, {
+                drive: true,
+                driveEmail: driveEmail,
+            });
+
+            if (currentUser) {
+                setCurrentUser({
+                    ...currentUser,
+                    connections: {
+                        ...currentUser.connections,
+                        drive: true,
+                        driveEmail: driveEmail
+                    }
+                });
+            }
+        }
+    };
+
+    const disconnectDrive = async () => {
+        setDriveAccessToken(null);
+        localStorage.removeItem('aikon_drive_token');
+        localStorage.removeItem('aikon_drive_exp');
+
+        if (auth.currentUser && currentUser) {
+             await updateUserConnections(auth.currentUser.uid, {
+                drive: false
+            });
+            setCurrentUser({
+                ...currentUser,
+                connections: {
+                    ...currentUser.connections,
+                    drive: false
+                }
+            });
+        }
+    };
+
     const register = async (email: string, pass: string, name: string, photoFile?: File) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const user = userCredential.user;
@@ -176,23 +245,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             displayName: name,
         });
         
-        // Save initial profile to Firestore immediately upon registration
         await syncUserToFirestore(user, { 
             name: name,
             photoFileName: photoFile?.name 
         });
 
-        // Send verification email
         await sendEmailVerification(user);
-        
-        // Sign out immediately so they don't get into the app until verified
         await signOut(auth);
     };
 
     const logout = async () => {
         setGoogleAccessToken(null);
+        setDriveAccessToken(null);
         localStorage.removeItem('aikon_gmail_token');
         localStorage.removeItem('aikon_gmail_exp');
+        localStorage.removeItem('aikon_drive_token');
+        localStorage.removeItem('aikon_drive_exp');
         await signOut(auth);
     };
 
@@ -203,7 +271,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const updateEmailAddress = async (newEmail: string) => {
         if (auth.currentUser) {
             await updateEmail(auth.currentUser, newEmail);
-            // Sync new email to Firestore immediately
             await updateUserProfile(auth.currentUser.uid, { email: newEmail });
             if (currentUser) {
                 setCurrentUser({ ...currentUser, email: newEmail });
@@ -221,17 +288,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!auth.currentUser) return;
         const uid = auth.currentUser.uid;
         
-        // Delete from Firestore
         await deleteUserDocument(uid);
-        
-        // Delete Authentication User
         await auth.currentUser.delete();
         
         setCurrentUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ currentUser, googleAccessToken, loading, login, loginWithGoogle, register, logout, resetPassword, updateEmailAddress, updateCurrentUser, deleteAccount, connectGmail, disconnectGmail }}>
+        <AuthContext.Provider value={{ 
+            currentUser, 
+            googleAccessToken, 
+            driveAccessToken,
+            loading, 
+            login, 
+            loginWithGoogle, 
+            register, 
+            logout, 
+            resetPassword, 
+            updateEmailAddress, 
+            updateCurrentUser, 
+            deleteAccount, 
+            connectGmail, 
+            disconnectGmail,
+            connectDrive,
+            disconnectDrive
+        }}>
             {children}
         </AuthContext.Provider>
     );

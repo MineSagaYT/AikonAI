@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { updateUserProfile } from '../../services/firebase';
@@ -8,7 +9,18 @@ interface ProfilePageProps {
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
-    const { currentUser, updateCurrentUser, updateEmailAddress, resetPassword, deleteAccount, logout, connectGmail, disconnectGmail, googleAccessToken } = useAuth();
+    const { 
+        currentUser, 
+        updateCurrentUser, 
+        updateEmailAddress, 
+        resetPassword, 
+        deleteAccount, 
+        logout, 
+        connectGmail, 
+        disconnectGmail,
+        connectDrive,
+        disconnectDrive
+    } = useAuth();
     
     // Form States
     const [displayName, setDisplayName] = useState('');
@@ -135,6 +147,22 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
         }
     }
 
+    const handleDriveConnection = async () => {
+        if (currentUser?.connections?.drive) {
+            if(window.confirm("Disconnect Google Drive? Aikon won't be able to access your files.")) {
+                disconnectDrive();
+                showToast("Google Drive disconnected.");
+            }
+        } else {
+            try {
+                await connectDrive();
+                showToast("Google Drive connected successfully!");
+            } catch (e) {
+                showToast("Failed to connect Google Drive.");
+            }
+        }
+    }
+
     return (
         <div className="min-h-screen bg-[#F8FAFC] relative overflow-hidden">
             {/* Background Decor */}
@@ -252,6 +280,43 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ onBack }) => {
                                         }`}
                                     >
                                         {currentUser?.connections?.gmail ? 'Disconnect' : 'Connect'}
+                                    </button>
+                                </div>
+
+                                {/* Google Drive Connection Card */}
+                                <div className="border border-slate-200 rounded-2xl p-4 flex items-center justify-between bg-slate-50">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-blue-500 text-2xl">
+                                            <i className="ph-fill ph-google-drive-logo"></i>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-800 text-sm">Google Drive</h4>
+                                            {currentUser?.connections?.drive ? (
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs text-green-600 font-bold flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Connected
+                                                    </span>
+                                                    {currentUser.connections.driveEmail && (
+                                                        <span className="text-xs text-slate-400 truncate max-w-[150px]">{currentUser.connections.driveEmail}</span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-slate-400 flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Not Connected
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={handleDriveConnection}
+                                        disabled={!isEditing && currentUser?.connections?.drive}
+                                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                                            currentUser?.connections?.drive 
+                                                ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100' 
+                                                : 'bg-slate-900 text-white hover:bg-brand-600 shadow-lg shadow-slate-900/10'
+                                        }`}
+                                    >
+                                        {currentUser?.connections?.drive ? 'Disconnect' : 'Connect'}
                                     </button>
                                 </div>
                             </div>
