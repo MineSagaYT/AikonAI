@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
 import { auth, googleProvider, syncUserToFirestore, deleteUserDocument, updateUserProfile, updateUserConnections } from '../services/firebase';
@@ -61,6 +59,34 @@ const AuthContext = createContext<AuthContextType>({
     disconnectCalendar: () => {},
 });
 
+// Helper to manage token persistence
+const persistToken = (key: string, token: string) => {
+    localStorage.setItem(key, token);
+    localStorage.setItem(`${key}_exp`, (Date.now() + 55 * 60 * 1000).toString());
+};
+
+const clearToken = (key: string) => {
+    localStorage.removeItem(key);
+    localStorage.removeItem(`${key}_exp`);
+};
+
+const getValidToken = (key: string): string | null => {
+    const token = localStorage.getItem(key);
+    const exp = localStorage.getItem(`${key}_exp`);
+    
+    if (token && exp) {
+        const expTime = parseInt(exp, 10);
+        if (Date.now() < expTime) {
+            return token;
+        } else {
+            // Expired, clear it
+            clearToken(key);
+            return null;
+        }
+    }
+    return null;
+};
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
     const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
@@ -68,74 +94,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [calendarAccessToken, setCalendarAccessToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
+    // Initial Hydration
     useEffect(() => {
-        // --- 1. Hydrate Tokens from LocalStorage ---
-        
-        // Gmail
-        const storedToken = localStorage.getItem('aikon_gmail_token');
-        const storedExp = localStorage.getItem('aikon_gmail_exp');
-        if (storedToken && storedExp) {
-            const expTime = parseInt(storedExp, 10);
-            if (Date.now() < expTime) {
-                setGoogleAccessToken(storedToken);
-            } else {
-                localStorage.removeItem('aikon_gmail_token');
-                localStorage.removeItem('aikon_gmail_exp');
-            }
-        }
+        const gmailToken = getValidToken('aikon_gmail_token');
+        if (gmailToken) setGoogleAccessToken(gmailToken);
 
-        // Drive
-        const storedDriveToken = localStorage.getItem('aikon_drive_token');
-        const storedDriveExp = localStorage.getItem('aikon_drive_exp');
-        if (storedDriveToken && storedDriveExp) {
-            const expTime = parseInt(storedDriveExp, 10);
-            if (Date.now() < expTime) {
-                setDriveAccessToken(storedDriveToken);
-            } else {
-                localStorage.removeItem('aikon_drive_token');
-                localStorage.removeItem('aikon_drive_exp');
-            }
-        }
+        const driveToken = getValidToken('aikon_drive_token');
+        if (driveToken) setDriveAccessToken(driveToken);
 
-        // Calendar
-        const storedCalToken = localStorage.getItem('aikon_calendar_token');
-        const storedCalExp = localStorage.getItem('aikon_calendar_exp');
-        if (storedCalToken && storedCalExp) {
-            const expTime = parseInt(storedCalExp, 10);
-            if (Date.now() < expTime) {
-                setCalendarAccessToken(storedCalToken);
-            } else {
-                localStorage.removeItem('aikon_calendar_token');
-                localStorage.removeItem('aikon_calendar_exp');
-            }
-        }
+        const calToken = getValidToken('aikon_calendar_token');
+        if (calToken) setCalendarAccessToken(calToken);
+    }, []);
 
+    useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            // Check if user is logged in AND verified
-            if (user && user.emailVerified) {
-                try {
-                    // Sync with Firestore
-                    const userProfile = await syncUserToFirestore(user);
-                    setCurrentUser(userProfile);
-                } catch (error) {
-                    console.error("Error fetching user profile from Firestore:", error);
+            if (user) {
+                // User is authenticated by Firebase
+                if (user.emailVerified) {
+                    try {
+                        const userProfile = await syncUserToFirestore(user);
+                        setCurrentUser(userProfile);
+                    } catch (error) {
+                        console.error("Error fetching user profile:", error);
+                        setCurrentUser(null);
+                    }
+                } else {
+                    // Logged in but not verified
                     setCurrentUser(null);
                 }
             } else {
+                // User is explicitly signed out or no session exists
                 setCurrentUser(null);
                 
-                // Clear all tokens
+                // Only clear tokens if we are sure the user is gone
                 setGoogleAccessToken(null);
-                localStorage.removeItem('aikon_gmail_token');
-                localStorage.removeItem('aikon_gmail_exp');
+                clearToken('aikon_gmail_token');
 
                 setDriveAccessToken(null);
-                localStorage.removeItem('aikon_drive_token');
-                localStorage.removeItem('aikon_drive_exp');
+                clearToken('aikon_drive_token');
 
                 setCalendarAccessToken(null);
-                localStorage.removeItem('aikon_calendar_token');
-                localStorage.removeItem('aikon_calendar_exp');
+                clearToken('aikon_calendar_token');
             }
             setLoading(false);
         });
@@ -146,13 +145,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const login = async (email: string, pass: string) => {
         const userCredential = await signInWithEmailAndPassword(auth, email, pass);
         if (!userCredential.user.emailVerified) {
-            await signOut(auth); // Sign out immediately if not verified
+            await signOut(auth); 
             throw new Error("EMAIL_NOT_VERIFIED");
         }
     };
 
     const loginWithGoogle = async () => {
-        // Standard login without special scopes
         await signInWithPopup(auth, googleProvider);
     };
 
@@ -166,9 +164,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (credential?.accessToken && auth.currentUser) {
             const token = credential.accessToken;
             setGoogleAccessToken(token);
-            
-            localStorage.setItem('aikon_gmail_token', token);
-            localStorage.setItem('aikon_gmail_exp', (Date.now() + 55 * 60 * 1000).toString());
+            persistToken('aikon_gmail_token', token);
 
             const gmailEmail = result.user.email || undefined;
             await updateUserConnections(auth.currentUser.uid, {
@@ -178,34 +174,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
 
             if (currentUser) {
-                setCurrentUser({
-                    ...currentUser,
-                    connections: {
-                        ...currentUser.connections,
-                        gmail: true,
-                        gmailEmail: gmailEmail
-                    }
-                });
+                setCurrentUser(prev => prev ? ({
+                    ...prev,
+                    connections: { ...prev.connections, gmail: true, gmailEmail }
+                }) : null);
             }
         }
     };
 
     const disconnectGmail = async () => {
         setGoogleAccessToken(null);
-        localStorage.removeItem('aikon_gmail_token');
-        localStorage.removeItem('aikon_gmail_exp');
+        clearToken('aikon_gmail_token');
 
         if (auth.currentUser && currentUser) {
-             await updateUserConnections(auth.currentUser.uid, {
-                gmail: false
-            });
-            setCurrentUser({
-                ...currentUser,
-                connections: {
-                    ...currentUser.connections,
-                    gmail: false
-                }
-            });
+             await updateUserConnections(auth.currentUser.uid, { gmail: false });
+             setCurrentUser(prev => prev ? ({
+                ...prev,
+                connections: { ...prev.connections, gmail: false }
+            }) : null);
         }
     };
 
@@ -219,9 +205,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (credential?.accessToken && auth.currentUser) {
             const token = credential.accessToken;
             setDriveAccessToken(token);
-            
-            localStorage.setItem('aikon_drive_token', token);
-            localStorage.setItem('aikon_drive_exp', (Date.now() + 55 * 60 * 1000).toString());
+            persistToken('aikon_drive_token', token);
 
             const driveEmail = result.user.email || undefined;
             await updateUserConnections(auth.currentUser.uid, {
@@ -230,34 +214,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
 
             if (currentUser) {
-                setCurrentUser({
-                    ...currentUser,
-                    connections: {
-                        ...currentUser.connections,
-                        drive: true,
-                        driveEmail: driveEmail
-                    }
-                });
+                setCurrentUser(prev => prev ? ({
+                    ...prev,
+                    connections: { ...prev.connections, drive: true, driveEmail }
+                }) : null);
             }
         }
     };
 
     const disconnectDrive = async () => {
         setDriveAccessToken(null);
-        localStorage.removeItem('aikon_drive_token');
-        localStorage.removeItem('aikon_drive_exp');
+        clearToken('aikon_drive_token');
 
         if (auth.currentUser && currentUser) {
-             await updateUserConnections(auth.currentUser.uid, {
-                drive: false
-            });
-            setCurrentUser({
-                ...currentUser,
-                connections: {
-                    ...currentUser.connections,
-                    drive: false
-                }
-            });
+             await updateUserConnections(auth.currentUser.uid, { drive: false });
+             setCurrentUser(prev => prev ? ({
+                ...prev,
+                connections: { ...prev.connections, drive: false }
+            }) : null);
         }
     };
 
@@ -271,9 +245,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (credential?.accessToken && auth.currentUser) {
             const token = credential.accessToken;
             setCalendarAccessToken(token);
-            
-            localStorage.setItem('aikon_calendar_token', token);
-            localStorage.setItem('aikon_calendar_exp', (Date.now() + 55 * 60 * 1000).toString());
+            persistToken('aikon_calendar_token', token);
 
             const calendarEmail = result.user.email || undefined;
             await updateUserConnections(auth.currentUser.uid, {
@@ -282,34 +254,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             });
 
             if (currentUser) {
-                setCurrentUser({
-                    ...currentUser,
-                    connections: {
-                        ...currentUser.connections,
-                        calendar: true,
-                        calendarEmail: calendarEmail
-                    }
-                });
+                setCurrentUser(prev => prev ? ({
+                    ...prev,
+                    connections: { ...prev.connections, calendar: true, calendarEmail }
+                }) : null);
             }
         }
     };
 
     const disconnectCalendar = async () => {
         setCalendarAccessToken(null);
-        localStorage.removeItem('aikon_calendar_token');
-        localStorage.removeItem('aikon_calendar_exp');
+        clearToken('aikon_calendar_token');
 
         if (auth.currentUser && currentUser) {
-             await updateUserConnections(auth.currentUser.uid, {
-                calendar: false
-            });
-            setCurrentUser({
-                ...currentUser,
-                connections: {
-                    ...currentUser.connections,
-                    calendar: false
-                }
-            });
+             await updateUserConnections(auth.currentUser.uid, { calendar: false });
+             setCurrentUser(prev => prev ? ({
+                ...prev,
+                connections: { ...prev.connections, calendar: false }
+            }) : null);
         }
     };
 
@@ -317,15 +279,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const user = userCredential.user;
         
-        await updateProfile(user, {
-            displayName: name,
-        });
-        
-        await syncUserToFirestore(user, { 
-            name: name,
-            photoFileName: photoFile?.name 
-        });
-
+        await updateProfile(user, { displayName: name });
+        await syncUserToFirestore(user, { name: name, photoFileName: photoFile?.name });
         await sendEmailVerification(user);
         await signOut(auth);
     };
@@ -334,12 +289,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setGoogleAccessToken(null);
         setDriveAccessToken(null);
         setCalendarAccessToken(null);
-        localStorage.removeItem('aikon_gmail_token');
-        localStorage.removeItem('aikon_gmail_exp');
-        localStorage.removeItem('aikon_drive_token');
-        localStorage.removeItem('aikon_drive_exp');
-        localStorage.removeItem('aikon_calendar_token');
-        localStorage.removeItem('aikon_calendar_exp');
+        clearToken('aikon_gmail_token');
+        clearToken('aikon_drive_token');
+        clearToken('aikon_calendar_token');
         await signOut(auth);
     };
 
@@ -366,10 +318,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const deleteAccount = async () => {
         if (!auth.currentUser) return;
         const uid = auth.currentUser.uid;
-        
         await deleteUserDocument(uid);
         await auth.currentUser.delete();
-        
         setCurrentUser(null);
     };
 
@@ -390,9 +340,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             deleteAccount, 
             connectGmail, 
             disconnectGmail,
-            connectDrive,
+            connectDrive, 
             disconnectDrive,
-            connectCalendar,
+            connectCalendar, 
             disconnectCalendar
         }}>
             {children}
