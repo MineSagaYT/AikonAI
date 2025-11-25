@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { UserProfile } from '../types';
-import { auth, googleProvider } from '../services/firebase';
+import { auth, googleProvider, syncUserToFirestore, deleteUserDocument } from '../services/firebase';
 import { 
     onAuthStateChanged, 
     signInWithEmailAndPassword, 
@@ -22,6 +22,7 @@ interface AuthContextType {
     logout: () => Promise<void>;
     resetPassword: (email: string) => Promise<void>;
     updateCurrentUser: (data: Partial<UserProfile>) => void;
+    deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
@@ -33,6 +34,7 @@ const AuthContext = createContext<AuthContextType>({
     logout: async () => {},
     resetPassword: async () => {},
     updateCurrentUser: () => {},
+    deleteAccount: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -40,21 +42,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             // Check if user is logged in AND verified
-            // Note: Google Auth users usually have emailVerified = true automatically
             if (user && user.emailVerified) {
-                // Map Firebase User to our UserProfile
-                const profile: UserProfile = {
-                    uid: user.uid,
-                    displayName: user.displayName || user.email?.split('@')[0] || 'User',
-                    email: user.email,
-                    photoURL: user.photoURL,
-                    pin: '', // Not used in this auth flow
-                    aboutYou: user.displayName || 'Friend',
-                    onboardingCompleted: true
-                };
-                setCurrentUser(profile);
+                try {
+                    // Sync with Firestore
+                    const userProfile = await syncUserToFirestore(user);
+                    setCurrentUser(userProfile);
+                } catch (error) {
+                    console.error("Error fetching user profile from Firestore:", error);
+                    setCurrentUser(null);
+                }
             } else {
                 setCurrentUser(null);
             }
@@ -74,25 +72,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const loginWithGoogle = async () => {
         await signInWithPopup(auth, googleProvider);
-        // User state will update via onAuthStateChanged
+        // User state will update via onAuthStateChanged, which also handles Firestore sync
     };
 
     const register = async (email: string, pass: string, name: string, photoFile?: File) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
         const user = userCredential.user;
         
-        let photoURL = null;
-        if (photoFile) {
-            // Placeholder for photo upload logic
-            // In a real app with Storage, we would upload here and get the URL.
-            // photoURL = await uploadPhoto(photoFile); 
-        }
-
         await updateProfile(user, {
             displayName: name,
-            // photoURL: photoURL 
         });
         
+        // Save initial profile to Firestore immediately upon registration
+        // Note: we store the file name as requested, though real apps would upload to Storage and store the URL.
+        await syncUserToFirestore(user, { 
+            name: name,
+            photoFileName: photoFile?.name 
+        });
+
         // Send verification email
         await sendEmailVerification(user);
         
@@ -114,8 +111,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     };
 
+    const deleteAccount = async () => {
+        if (!auth.currentUser) return;
+        const uid = auth.currentUser.uid;
+        
+        // Delete from Firestore
+        await deleteUserDocument(uid);
+        
+        // Delete Authentication User
+        await auth.currentUser.delete();
+        
+        setCurrentUser(null);
+    };
+
     return (
-        <AuthContext.Provider value={{ currentUser, loading, login, loginWithGoogle, register, logout, resetPassword, updateCurrentUser }}>
+        <AuthContext.Provider value={{ currentUser, loading, login, loginWithGoogle, register, logout, resetPassword, updateCurrentUser, deleteAccount }}>
             {children}
         </AuthContext.Provider>
     );

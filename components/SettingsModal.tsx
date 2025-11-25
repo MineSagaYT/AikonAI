@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Persona } from '../types';
+import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Icon Components ---
-const PersonalizationIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>);
+const ProfileIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>);
+const PersonalizationIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>);
 const DataIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7l8-4 8 4m-8 12v4m0 0l-4-4m4 4l4-4" /></svg>);
 const PersonaIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>);
 
-type SettingsTab = 'Personalization' | 'Personas' | 'Data Controls';
+type SettingsTab = 'Profile' | 'Personalization' | 'Personas' | 'Data Controls';
 
 const MotionDiv = motion.div as any;
 const MotionButton = motion.button as any;
@@ -33,11 +35,11 @@ const NavItem: React.FC<{
 }> = ({ tabName, icon, children, activeTab, onClick }) => (
     <button
         onClick={() => onClick(tabName)}
-        className={`settings-nav-item ${activeTab === tabName ? 'active text-brand-600 bg-brand-50' : 'text-slate-500 hover:bg-slate-50'}`}
+        className={`settings-nav-item flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tabName ? 'text-brand-600 bg-brand-50' : 'text-slate-500 hover:bg-slate-50'}`}
     >
         {icon} <span>{children}</span>
         {activeTab === tabName && (
-            <MotionDiv className="active-nav-indicator bg-brand-600" layoutId="activeSettingsTab" />
+            <MotionDiv className="active-nav-indicator bg-brand-600 h-0.5" layoutId="activeSettingsTab" />
         )}
     </button>
 );
@@ -51,7 +53,14 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile, onSave, onDeleteAllChats }) => {
-    const [activeTab, setActiveTab] = useState<SettingsTab>('Personalization');
+    const { deleteAccount } = useAuth();
+    const [activeTab, setActiveTab] = useState<SettingsTab>('Profile');
+    
+    // Profile State
+    const [displayName, setDisplayName] = useState('');
+    const [photoName, setPhotoName] = useState('');
+    
+    // Personalization State
     const [customInstructions, setCustomInstructions] = useState('');
     const [aboutYou, setAboutYou] = useState('');
     
@@ -65,6 +74,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
 
     useEffect(() => {
         if (isOpen && profile) {
+            setDisplayName(profile.displayName || '');
+            setPhotoName(profile.photoURL || '');
             setCustomInstructions(profile.customInstructions || '');
             setAboutYou(profile.aboutYou || '');
             setCustomPersonas(profile.customPersonas || []);
@@ -75,10 +86,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
 
     const handleSave = () => {
         onSave({ 
+            displayName,
+            photoURL: photoName,
             customInstructions, 
             aboutYou,
-            customPersonas // Save the updated list of personas
+            customPersonas 
         });
+    };
+
+    const handleDeleteAccount = async () => {
+        if (window.confirm("Are you sure you want to delete your account? This action cannot be undone and you will lose all data.")) {
+            try {
+                await deleteAccount();
+                onClose();
+            } catch (error) {
+                alert("Failed to delete account. You may need to sign in again recently.");
+                console.error(error);
+            }
+        }
     };
 
     const handleAddPersona = () => {
@@ -110,6 +135,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
 
     const renderContent = () => {
         switch(activeTab) {
+            case 'Profile':
+                return (
+                    <div className="settings-section">
+                        <h2 className="sr-only">Profile Settings</h2>
+                        <div className="bg-slate-50 p-6 rounded-xl flex items-center gap-4 mb-6">
+                            <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-xl overflow-hidden">
+                                {profile?.photoURL ? (
+                                    <span className="text-xs break-all px-1">{profile.photoURL.substring(0, 10)}...</span>
+                                ) : (
+                                    profile?.displayName?.charAt(0) || 'U'
+                                )}
+                            </div>
+                            <div>
+                                <div className="font-bold text-lg text-slate-800">{profile?.displayName}</div>
+                                <div className="text-sm text-slate-500">{profile?.email}</div>
+                            </div>
+                        </div>
+
+                        <SettingsItem title="Display Name" description="This is how you appear to others.">
+                            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="form-input bg-white border-slate-200 text-slate-800" />
+                        </SettingsItem>
+                        <SettingsItem title="Photo Filename" description="The filename of your profile photo (simulated).">
+                            <input type="text" value={photoName} onChange={(e) => setPhotoName(e.target.value)} className="form-input bg-white border-slate-200 text-slate-800" />
+                        </SettingsItem>
+                    </div>
+                );
             case 'Personalization':
                  return (
                     <div className="settings-section">
@@ -222,6 +273,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                                 Clear chat
                             </MotionButton>
                         </SettingsItem>
+                        <div className="mt-8 pt-8 border-t border-slate-200">
+                             <h3 className="font-bold text-red-600 mb-2">Danger Zone</h3>
+                             <SettingsItem title="Delete Account" description="Permanently delete your account and all associated data.">
+                                <MotionButton 
+                                    className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-semibold text-sm shadow-md shadow-red-500/30" 
+                                    onClick={handleDeleteAccount}
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                >
+                                    Delete Account
+                                </MotionButton>
+                            </SettingsItem>
+                        </div>
                     </div>
                 );
         }
@@ -243,7 +307,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, profile,
                 exit={{ y: 20, scale: 0.95 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             >
-                <div className="flex border-b border-slate-200">
+                <div className="flex border-b border-slate-200 overflow-x-auto">
+                    <NavItem 
+                        tabName="Profile" 
+                        icon={<ProfileIcon />} 
+                        activeTab={activeTab} 
+                        onClick={setActiveTab}
+                    >
+                        Profile
+                    </NavItem>
                     <NavItem 
                         tabName="Personalization" 
                         icon={<PersonalizationIcon />} 
